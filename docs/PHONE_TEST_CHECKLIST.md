@@ -49,7 +49,7 @@ Tick what works; note anything odd (wrong value, delay, voice prompt, disconnect
 - [ ] Devices: paired list, active source badge; "Switch to this device" with playback started on the other device.
 - [ ] Pairing mode button → headphones announce pairing.
 - [ ] Shortcut button action change (may be refused by firmware — note the message).
-- [ ] Rename → expected message that Bose locks it behind its login.
+- [ ] Rename → expected message that the firmware doesn't support changing it.
 - [ ] Power off → headphones turn off, app shows disconnected.
 - [ ] Automations: On connect → Quiet; Wi-Fi "home" → Aware (grant location); Schedule 2 min ahead; Foreground app (grant Usage access).
 - [ ] Low-battery alert threshold 90% (for testing) → alert appears once.

@@ -209,7 +209,8 @@
     <string name="tools_mic_check">Mic check</string>
     <string name="tools_mic_check_subtitle">Record a few seconds and play it back</string>
     <string name="tools_lab">Lab</string>
-    <string name="tools_lab_subtitle">Read-only protocol explorer</string>
+    <string name="tools_lab_subtitle">Protocol explorer (scanner reads only)</string>
+    <string name="disconnected_body_generic">Make sure the headphones are on and connected to this phone\'s Bluetooth, then tap Connect.</string>
     <string name="tools_call_audio">Call audio</string>
     <string name="tools_call_audio_subtitle">Louder calls, call codec</string>
     <string name="tools_connection">Connection &amp; latency</string>

@@ -84,6 +84,14 @@ own module. Never edit another area's files, the Gradle files, the version catal
   payload), `[4.9]` AppAddress = this phone, `[5.1]` active source, `[4.12]` START `[0x82 + mac]` to
   route (retry: routing table fills only while the target streams; its GET is FuncNotSupp on 10.12).
 - Only one app can hold channel 2: the Bose app must be closed while Earshot is connected.
+- **Never write to block 3 (FirmwareUpdate) or 18 (Authentication).** bosectl's "[3.2] NC state"
+  START is really FirmwareUpdate Init: it opens an update session; Run applies an image and
+  reboots; Reset erases a staged image. Safe GETs: `[3.0] [3.1] [3.4] [3.6] [3.16]`. `[7.5]`
+  FactoryDefault, `[7.6]` ShipMode, `[7.11]` Reset and `[4.7]` ClearDeviceList are destructive.
+  `bt/WriteGuard` refuses all of these on the single write path; keep it that way.
+- Error 0xFF carries a sub-code in blocks 0, 3 and 18 (FirmwareUpdate: 0 = non-sequential
+  sequence number, 1 = image key mismatch). Error 24 is still unexplained. `[2.13]`/`[2.15]` are
+  FUNC_NOT_SUPPORTED on firmware 10.12.
 
 ## Build
 

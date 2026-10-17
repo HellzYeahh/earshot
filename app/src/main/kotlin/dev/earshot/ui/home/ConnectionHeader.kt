@@ -98,11 +98,20 @@ fun DisconnectedCard(connection: ConnectionState, onConnect: () -> Unit, modifie
     val connecting = connection.status == ConnectionStatus.CONNECTING
     // The virtual unit (ConnectionManager.DEMO_NAME) has no Bose app to fight with; it reconnects by itself.
     val demo = connection.deviceName?.contains("(demo)") == true
+    // "Close the Bose app" only when the manager actually diagnosed a busy channel; otherwise the
+    // headphones are simply off, out of range or not linked, and that hint would mislead.
+    val channelBusy = connection.message == dev.earshot.bt.ConnectionManager.MESSAGE_CHANNEL_BUSY
     SectionCard(modifier = modifier) {
         Text(stringResource(R.string.disconnected_title), style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.size(4.dp))
         Text(
-            stringResource(if (demo) R.string.disconnected_body_demo else R.string.disconnected_body),
+            stringResource(
+                when {
+                    demo -> R.string.disconnected_body_demo
+                    channelBusy -> R.string.disconnected_body
+                    else -> R.string.disconnected_body_generic
+                },
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

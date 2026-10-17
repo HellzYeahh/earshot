@@ -165,7 +165,7 @@ class LabViewModel(private val headphones: HeadphoneRepository, messenger: UiMes
             appendLine("# Block $block ${FunctionNames.blockName(block).orEmpty()}")
             readings.forEach { r ->
                 r.frames.forEach { f ->
-                    appendLine("[${r.block}.${r.function}] ${labFunctionName(r).orEmpty()} ${f.operatorName} ${if (f.isError) "ERROR " + f.errorName.orEmpty() else f.payloadHex}".trim())
+                    appendLine("[${r.block}.${r.function}] ${labFunctionName(r).orEmpty()} ${f.operatorName} ${if (f.isError) "ERROR " + f.errorName.orEmpty() + " " + f.payloadHex else f.payloadHex}".trim())
                 }
             }
         }
@@ -334,7 +334,7 @@ private fun ReadingRow(reading: LabReading) {
 @Composable
 private fun FrameLine(frame: RawFrame, muted: androidx.compose.ui.graphics.Color) {
     Text(
-        if (frame.isError) "${frame.operatorName} ${frame.errorName ?: frame.payloadHex}" else "${frame.operatorName} ${frame.payloadHex.ifBlank { "(empty)" }}",
+        if (frame.isError) "${frame.operatorName} ${frame.errorName ?: "?"} ${frame.payloadHex}".trimEnd() else "${frame.operatorName} ${frame.payloadHex.ifBlank { "(empty)" }}",
         style = MaterialTheme.typography.bodySmall,
         fontFamily = FontFamily.Monospace,
         color = if (frame.isError) muted else MaterialTheme.colorScheme.secondary,

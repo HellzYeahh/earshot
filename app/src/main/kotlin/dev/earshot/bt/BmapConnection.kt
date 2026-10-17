@@ -283,6 +283,7 @@ class BmapConnection(
     }
 
     private suspend fun writeSpaced(packet: BmapPacket) {
+        WriteGuard.check(packet) // the single choke point: firmware-update/auth/reset frames never leave
         val wait = minWriteGapMs - (clock() - lastWriteAt)
         if (wait > 0) delay(wait)
         BtLog.d("-> $packet")
