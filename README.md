@@ -1,6 +1,8 @@
 # Earshot
 
-**A faster, more capable, account-free Android app for the Bose QuietComfort Ultra Headphones (2nd Gen).**
+**A faster, more capable, account-free Android app for Bose QuietComfort headphones**, built
+around the QC Ultra Headphones (2nd Gen) and also supporting the QC Ultra (1st Gen), QC Headphones,
+QC SC, QC45, QC SE and Ultra Open Earbuds ([see what works on each](#supported-headphones)).
 
 Earshot talks to the headphones directly over Bluetooth using Bose's own control protocol (BMAP),
 the same channel the official app uses. No Bose account, no cloud, no analytics, **no internet
@@ -9,7 +11,7 @@ pro equaliser with volume boost, a Bluetooth codec panel, LE Audio and latency c
 calls, a Quick Settings tile, a widget and automations.
 
 > Not affiliated with or endorsed by Bose. Bose and QuietComfort are trademarks of Bose Corporation.
-> Built for the QC Ultra Headphones (2nd Gen, firmware 10.x); other Bose BMAP products may partly work.
+> Built and tested on the QC Ultra Headphones (2nd Gen, firmware 10.x). What's new: [CHANGELOG.md](CHANGELOG.md).
 
 <p align="center">
   <img src="docs/screenshots/01-home.png" width="23%" alt="Home: battery, modes, noise control, now playing">
@@ -51,6 +53,27 @@ switching, pairing mode, shortcut-button action, touch controls, battery, power 
 from a third-party app). Things the firmware doesn't allow third parties to write (auto-off timer,
 renaming, editing the four built-in modes) are shown as such instead of silently failing.
 
+## Supported headphones
+
+Earshot reads the model from the headphones when it connects and shows only the controls that model
+has.
+
+| Model | Status | Noise control | Notes |
+|---|---|---|---|
+| QC Ultra Headphones (2nd Gen) | **Tested** on our hardware | Live | Everything above |
+| QC Ultra Headphones (1st Gen) | Best guess, unverified | Live | Assumed to work like the 2nd Gen; built-in modes Quiet / Aware / Immersion |
+| QC Headphones (2nd Gen) | Best guess, unverified | Live | Same layout as the QC Ultra (2nd Gen), per bosectl |
+| QC Headphones (1st Gen), QC SC | Layout verified by [bosectl](https://github.com/aaronsb/bosectl) | Via the active custom mode | No ANC on/off, no Immersive Audio; built-in Quiet / Aware |
+| QC45, QC SE | Layout verified by bosectl | Via the active custom mode | No ANC on/off, no Immersive Audio; Wind Block sets the level to 0 |
+| Ultra Open Earbuds (1st and 2nd Gen) | Partial, unverified | None (open-ear) | Battery, EQ, settings, mode switching, Immersive Audio; modes can't be edited |
+
+**Noise control, "via the active custom mode":** the older headphones have no live noise setting,
+so Earshot saves the slider and Wind Block into the custom mode you are using (as the Bose app
+does). On the built-in Quiet / Aware modes, switch to a custom mode first.
+
+Reports from owners of the unverified models are very welcome: open an issue with what works and
+what doesn't (the Lab screen's deep scan output helps most).
+
 ## Requirements
 
 | | |
@@ -58,7 +81,7 @@ renaming, editing the four built-in modes) are shown as such instead of silently
 | Android | **9.0 (API 28) or newer**. Developed and tested on Android 17 / One UI 9 (a Samsung Galaxy); also exercised on Android 16–17 emulators. |
 | CPU | Any: arm64-v8a, armeabi-v7a, x86_64. The APK contains no native code, so one ~5 MB file fits every phone. |
 | Bluetooth | Classic Bluetooth (RFCOMM) for control; LE Audio features need a phone with LE Audio support (Android 13+). |
-| Headphones | Bose QuietComfort Ultra Headphones (2nd Gen), paired in Android's Bluetooth settings. Firmware 10.x tested. |
+| Headphones | One of the [supported models](#supported-headphones), paired in Android's Bluetooth settings. QC Ultra (2nd Gen) firmware 10.x tested. |
 | Bose app | **Closed or disabled** while Earshot is in use: only one app can hold the headphones' control channel and the Bose app grabs it in the background. Keep it for firmware updates. |
 | Optional | [Shizuku](https://shizuku.rikka.app/) (free, no root; start it via Wireless debugging on Android 11+) unlocks codec switching and the absolute-volume option. Everything else works without it. |
 | Permissions | Nearby devices (Bluetooth), notifications; microphone only for the mic check; location only if you create a Wi-Fi automation; usage access only for app-based automations. **No internet permission.** |
@@ -85,7 +108,8 @@ the app answers the real protocol, so every screen works.
 ## How it works
 
 - `protocol/` — pure-Kotlin implementation of BMAP (framing, the QC Ultra 2 function catalogue,
-  parsers/builders), unit-tested against captured frames from real headphones.
+  parsers/builders), unit-tested against captured frames from real headphones. `BoseModel.kt` holds
+  the per-model differences (control channel, mode record layout, built-in modes, missing features).
 - `app/` — Kotlin + Jetpack Compose. Bluetooth RFCOMM transport with auto-reconnect, a foreground
   service, the sound engine (`DynamicsProcessing`), codec control through a Shizuku user service,
   call audio, widgets, tile, automations.
