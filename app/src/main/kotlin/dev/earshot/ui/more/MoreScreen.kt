@@ -189,7 +189,11 @@ fun MoreContent(
         val info = state.info
         if (info != null) {
             Text(
-                listOfNotNull(info.productName, info.firmwareVersion?.let { "FW $it" }, info.serialNumber?.let { "SN $it" }).joinToString(" · "),
+                listOfNotNull(
+                    info.modelName ?: info.productName,
+                    info.firmwareVersion?.let { "FW $it" },
+                    info.serialNumber?.let { "SN $it" },
+                ).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp),

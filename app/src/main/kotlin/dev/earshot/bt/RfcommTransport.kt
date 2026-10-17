@@ -27,11 +27,13 @@ import kotlin.concurrent.thread
  * One RFCOMM socket to the headphones' BMAP channel.
  *
  * Connecting is where phones differ, so [connect] tries, in order:
- *  (a) `createInsecureRfcommSocket(2)` via reflection: goes straight to channel 2, no SDP.
- *      Quiet Rebellion found this is the only strategy that lands on the right channel on
- *      MIUI, whose stack resolves Bose's UUID to channel 14 (a status beacon) or 0.
+ *  (a) `createInsecureRfcommSocket(channel)` via reflection: goes straight to the channel, no
+ *      SDP. Quiet Rebellion found this is the only strategy that lands on the right channel on
+ *      MIUI, whose stack resolves Bose's UUID to channel 14 (a status beacon) or 0. The channel
+ *      is 2 on the QC Ultra 2 family and 8 on the QC45 / QC Headphones (bosectl).
  *  (b) the SPP UUID through SDP: the public API, works on stock Android.
  *  (c) Bose's own BMAP UUID through SDP: last resort, same SDP caveat as (b).
+ *  (d) reflection on the other Bose channel, in case the model guess was wrong.
  *
  * Reading is done by a dedicated thread blocked in `read()`. The alternative, polling
  * `available()`, costs latency on every reply and CPU while idle for hours in a background
@@ -42,6 +44,8 @@ class RfcommTransport private constructor(
     private val socket: BluetoothSocket,
     /** Which connect strategy succeeded, for logs and the bug reports that will follow. */
     val strategy: String,
+    /** The RFCOMM channel when a reflection strategy opened it; null when SDP chose. */
+    val channel: Int?,
 ) : ByteTransport {
 
     private val input = socket.inputStream
@@ -165,17 +169,37 @@ class RfcommTransport private constructor(
         private const val GREETING_MAX_MS = 1_500L
         private const val GREETING_POLL_MS = 25L
 
-        private class Strategy(val name: String, val viaSdp: Boolean, val open: (BluetoothDevice) -> BluetoothSocket)
+        /** The other channel Bose headphones use for BMAP (QC45 / QC Headphones). */
+        const val LEGACY_CHANNEL = 8
+
+        /**
+         * [checkGreeting]: a non-BMAP greeting means a wrong channel, so move on. Off for the
+         * preferred channel, where a silent or odd greeting is left to the liveness probe.
+         */
+        private class Strategy(
+            val name: String,
+            val checkGreeting: Boolean,
+            val channel: Int? = null,
+            val open: (BluetoothDevice) -> BluetoothSocket,
+        )
 
         @SuppressLint("MissingPermission", "DiscouragedPrivateApi")
-        private val strategies = listOf(
-            Strategy("reflection ch$CHANNEL", viaSdp = false) { device ->
+        private fun reflection(channel: Int, checkGreeting: Boolean) =
+            Strategy("reflection ch$channel", checkGreeting, channel) { device ->
                 val m = device.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
-                m.invoke(device, CHANNEL) as BluetoothSocket
-            },
-            Strategy("SDP SPP", viaSdp = true) { it.createInsecureRfcommSocketToServiceRecord(SPP_UUID) },
-            Strategy("SDP BMAP", viaSdp = true) { it.createInsecureRfcommSocketToServiceRecord(BMAP_UUID) },
-        )
+                m.invoke(device, channel) as BluetoothSocket
+            }
+
+        @SuppressLint("MissingPermission")
+        private fun strategies(channel: Int): List<Strategy> {
+            val other = if (channel == CHANNEL) LEGACY_CHANNEL else CHANNEL
+            return listOf(
+                reflection(channel, checkGreeting = false),
+                Strategy("SDP SPP", checkGreeting = true) { it.createInsecureRfcommSocketToServiceRecord(SPP_UUID) },
+                Strategy("SDP BMAP", checkGreeting = true) { it.createInsecureRfcommSocketToServiceRecord(BMAP_UUID) },
+                reflection(other, checkGreeting = true),
+            )
+        }
 
         /**
          * Open the control channel, trying each strategy in turn. Throws [RfcommConnectException]
@@ -183,7 +207,7 @@ class RfcommTransport private constructor(
          * reasons (the caller already checked BLUETOOTH_CONNECT, so that means an OEM quirk).
          */
         @SuppressLint("MissingPermission")
-        suspend fun connect(device: BluetoothDevice): RfcommTransport {
+        suspend fun connect(device: BluetoothDevice, channel: Int = CHANNEL): RfcommTransport {
             // No cancelDiscovery() here: on API 31+ it (and isDiscovering) needs BLUETOOTH_SCAN,
             // which Earshot does not request; we never start discovery ourselves anyway.
             val failures = ArrayList<String>()
@@ -191,7 +215,7 @@ class RfcommTransport private constructor(
             var firstSecurity: SecurityException? = null
             var allSecurity = true
 
-            for (strategy in strategies) {
+            for (strategy in strategies(channel)) {
                 val socket = try {
                     strategy.open(device)
                 } catch (e: Exception) {
@@ -209,9 +233,9 @@ class RfcommTransport private constructor(
                         if (!socket.isConnected) throw e
                         BtLog.w("${strategy.name}: SecurityException after connect, socket is up; continuing")
                     }
-                    val transport = RfcommTransport(socket, strategy.name)
+                    val transport = RfcommTransport(socket, strategy.name, strategy.channel)
                     val greeting = transport.drainGreeting()
-                    if (strategy.viaSdp && greeting != null && !looksLikeBmap(greeting)) {
+                    if (strategy.checkGreeting && greeting != null && !looksLikeBmap(greeting)) {
                         // SDP sent us to another channel: channel 14 beacons `ff55...`, channel 22
                         // streams logs. Neither frames as BMAP, so try the next strategy.
                         transport.close()

@@ -3,6 +3,8 @@ package dev.earshot.protocol.qcultra2
 /** `[0.3]` payload `40 82 01`: product id big-endian, then variant. */
 data class ProductIdVariant(val productId: Int, val variant: Int) {
     val isQcUltra2: Boolean get() = productId == QcUltra2.PRODUCT_ID
+    /** The known model for this id, or null for a product Earshot has no profile for. */
+    val model: BoseModel? get() = BoseModel.fromProductId(productId)
     /** Products bosectl lists as sharing the wolverine BMAP layout. */
     val hasQcUltra2Layout: Boolean
         get() = productId == QcUltra2.PRODUCT_ID || productId == QcUltra2.PRODUCT_ID_QC_HEADPHONES_2ND_GEN ||

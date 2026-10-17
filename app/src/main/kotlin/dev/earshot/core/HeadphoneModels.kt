@@ -162,6 +162,32 @@ data class DeviceInfo(
     val bluetoothAddress: String? = null,
     /** `[0.1]` BMAP protocol version, "1.2.0" on firmware 10.12. */
     val bmapVersion: String? = null,
+    /** Marketing name derived from [productId], e.g. "QuietComfort 45 / QC SE". Null for an unknown id. */
+    val modelName: String? = null,
+)
+
+/**
+ * What the connected model can do, beyond "the GET answered". Defaults describe the QC Ultra 2,
+ * so state built before the model is known (or by the fakes) behaves as before.
+ */
+data class HeadphoneCapabilities(
+    /** Immersive / spatial audio (Still, Motion). Absent on the QC45, QC SE, QC Headphones and QC SC. */
+    val spatialAudio: Boolean = true,
+    /** Noise cancelling can be switched fully off. The older models only have a level. */
+    val ancToggle: Boolean = true,
+    /**
+     * Noise settings can be changed live (`[31.10]`). False on the older models: there a change
+     * rewrites the active custom mode, so it only works while one is selected.
+     */
+    val liveNoiseControl: Boolean = true,
+    /** Wind block and a cancelling level cannot be combined (wind on stores level 0). */
+    val windExcludesCancelling: Boolean = false,
+    /** Any noise cancelling at all; false on open-ear earbuds (Ultra Open). */
+    val noiseCancelling: Boolean = true,
+    /** Custom modes can be saved / renamed / reset. False where the write layout is unknown. */
+    val editableModes: Boolean = true,
+    /** False while the model's layout is a best guess rather than confirmed on hardware. */
+    val verified: Boolean = true,
 )
 
 enum class ButtonAction(val wire: Int, val label: String) {
@@ -260,6 +286,8 @@ data class HeadphoneState(
     val livePushEnabled: Boolean = false,
     /** Last `[2.12]` button event pushed by the headphones (needs [livePushEnabled]). */
     val lastButtonPress: ButtonPress? = null,
+    /** What the connected model supports; QC Ultra 2 defaults until `[0.3]` is read. */
+    val capabilities: HeadphoneCapabilities = HeadphoneCapabilities(),
 ) {
     val isConnected: Boolean get() = connection.status == ConnectionStatus.CONNECTED
     val currentMode: ListeningMode? get() = currentModeIndex?.let { i -> modes.firstOrNull { it.index == i } }

@@ -108,8 +108,32 @@ enum class ModeField(val bit: Int) {
 }
 
 /**
- * One mode slot as reported by the 48-byte `[31.6]` STATUS (or, with the nullable fields
- * absent, by the 40-byte SET_GET echo).
+ * How a model lays out `[31.6]`. Detected from the payload length, so parsing never needs to know
+ * the model up front; writes take it from [BoseModel.modeLayout] or from a slot already read.
+ */
+enum class ModeLayout(val statusSize: Int, val writeSize: Int, val hasAncToggle: Boolean) {
+    /** wolverine family (QC Ultra 2, QC Headphones 2): 48-byte STATUS, 40-byte SET_GET ending in the ANC toggle. */
+    STANDARD(48, 40, true),
+
+    /**
+     * prince / duran (QC Headphones, QC SC, QC45, QC SE), hardware-verified by bosectl: 47-byte
+     * STATUS, 39-byte SET_GET, no ANC toggle byte (ANC is always on; the level is the control).
+     * A 40-byte write is refused with ERROR Length.
+     */
+    COMPACT(47, 39, false);
+
+    companion object {
+        fun ofPayload(size: Int): ModeLayout? = when (size) {
+            COMPACT.statusSize, COMPACT.writeSize -> COMPACT
+            in STANDARD.writeSize..Int.MAX_VALUE -> STANDARD
+            else -> null
+        }
+    }
+}
+
+/**
+ * One mode slot as reported by the 48/47-byte `[31.6]` STATUS (or, with the nullable fields
+ * absent, by the 40/39-byte SET_GET echo). See [ModeLayout].
  */
 data class ModeConfig(
     val index: Int,
@@ -149,6 +173,9 @@ data class ModeConfig(
     val spatial: SpatialMode? get() = SpatialMode.fromCode(spatialCode)
     val cancellingLevel: Int get() = AudioSettings.cancellingLevelFromWire(cncWire)
     val isPreset: Boolean get() = index in QcUltra2.PRESET_MODE_SLOTS
+
+    /** Which `[31.6]` layout this slot arrived in. */
+    val layout: ModeLayout get() = ModeLayout.ofPayload(raw.size) ?: ModeLayout.STANDARD
 
     /** Fields byte 41 marks as changeable; null for a SET_GET echo. */
     val changeableFields: Set<ModeField>? get() = changeableFlags?.let { ModeField.fromFlags(it) }
@@ -194,15 +221,24 @@ data class ModeConfig(
 object ModeConfigs {
     const val STATUS_SIZE = 48
     const val WRITE_SIZE = 40
+    /** [ModeLayout.COMPACT] sizes (QC45 / QC Headphones). */
+    const val COMPACT_STATUS_SIZE = 47
+    const val COMPACT_WRITE_SIZE = 39
 
     /** STATUS byte offsets. */
     const val CHANGEABLE_FLAGS_OFFSET = 41
     const val FLAGS45_OFFSET = 45
     const val WIND_OFFSET = 46
 
+    /**
+     * 47 must be tested before the `>= 40` echo case: a compact STATUS read as an echo puts the
+     * name at byte 3 and every setting in the wrong place.
+     */
     fun parse(payload: ByteArray): ModeConfig? = when {
-        payload.size >= STATUS_SIZE -> parseStatus(payload)
-        payload.size >= WRITE_SIZE -> parseEcho(payload)
+        payload.size >= STATUS_SIZE -> parseStatus(payload, hasAnc = true)
+        payload.size == COMPACT_STATUS_SIZE -> parseStatus(payload, hasAnc = false)
+        payload.size >= WRITE_SIZE -> parseEcho(payload, hasAnc = true)
+        payload.size == COMPACT_WRITE_SIZE -> parseEcho(payload, hasAnc = false)
         else -> null
     }
 
@@ -212,7 +248,7 @@ object ModeConfigs {
         return byteArrayOf(index.toByte())
     }
 
-    private fun parseStatus(p: ByteArray) = ModeConfig(
+    private fun parseStatus(p: ByteArray, hasAnc: Boolean) = ModeConfig(
         index = p.u8(0),
         promptBytes = p.u8(1) to p.u8(2),
         name = p.utf8Until(6, 38),
@@ -220,7 +256,8 @@ object ModeConfigs {
         autoCnc = p[43] != 0.toByte(),
         spatialCode = p.u8(44),
         windBlock = p[WIND_OFFSET] != 0.toByte(),
-        ancEnabled = p[47] != 0.toByte(),
+        // Compact layout has no toggle: ANC is always on there.
+        ancEnabled = !hasAnc || p[47] != 0.toByte(),
         editable = p[3] != 0.toByte(),
         configured = p[4] != 0.toByte(),
         flagByte5 = p.u8(5),
@@ -231,7 +268,7 @@ object ModeConfigs {
         raw = p.copyOf(),
     )
 
-    private fun parseEcho(p: ByteArray) = ModeConfig(
+    private fun parseEcho(p: ByteArray, hasAnc: Boolean) = ModeConfig(
         index = p.u8(0),
         promptBytes = p.u8(1) to p.u8(2),
         name = p.utf8Until(3, 35),
@@ -239,7 +276,7 @@ object ModeConfigs {
         autoCnc = p[36] != 0.toByte(),
         spatialCode = p.u8(37),
         windBlock = p[38] != 0.toByte(),
-        ancEnabled = p[39] != 0.toByte(),
+        ancEnabled = !hasAnc || p[39] != 0.toByte(),
         editable = null, configured = null, flagByte5 = null,
         unknownWord38 = null, unknownWord40 = null, changeableFlags = null, flags45 = null,
         raw = p.copyOf(),
@@ -288,10 +325,17 @@ data class ModeConfigWrite(
         index, name, AudioSettings.cancellingLevelToWire(cancellingLevel), spatial.code, windBlock, ancEnabled, 0 to prompt.code,
     )
 
-    fun build(): ByteArray {
-        require(index in QcUltra2.EDITABLE_MODE_SLOTS) { "slot $index is not writable (presets 0-3 reject SET_GET)" }
+    /**
+     * [layout] picks 40 or 39 bytes. On [ModeLayout.COMPACT] (QC45, per bosectl) wind block and CNC
+     * are exclusive: with wind on the firmware stores CNC 0 whatever was sent.
+     */
+    fun build(
+        layout: ModeLayout = ModeLayout.STANDARD,
+        editableSlots: IntRange = QcUltra2.EDITABLE_MODE_SLOTS,
+    ): ByteArray {
+        require(index in editableSlots) { "slot $index is not writable (built-in modes reject SET_GET)" }
         require(cncWire in 0..QcUltra2.CNC_WIRE_MAX) { "cnc $cncWire outside 0..${QcUltra2.CNC_WIRE_MAX}" }
-        val out = ByteArray(ModeConfigs.WRITE_SIZE)
+        val out = ByteArray(layout.writeSize)
         out[0] = index.toByte()
         out[1] = promptBytes.first.toByte()
         out[2] = promptBytes.second.toByte()
@@ -300,7 +344,7 @@ data class ModeConfigWrite(
         out[36] = 0 // autoCnc: firmware rejects 1 (Runtime 8)
         out[37] = spatialCode.toByte()
         out[38] = windBlock.toByteValue()
-        out[39] = ancEnabled.toByteValue()
+        if (layout.hasAncToggle) out[39] = ancEnabled.toByteValue()
         return out
     }
 

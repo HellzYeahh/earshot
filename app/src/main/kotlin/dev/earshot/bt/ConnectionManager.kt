@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import dev.earshot.core.ConnectionState
 import dev.earshot.core.ConnectionStatus
+import dev.earshot.protocol.qcultra2.BoseModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -153,6 +154,9 @@ class ConnectionManager(
             return
         }
         var attempt = 0
+        // Flipped after a silent channel while none has been learned yet: the name-based model
+        // guess may be wrong (or the user renamed the headphones).
+        var tryOtherChannel = false
         while (true) {
             val found = finder.find()
             val device = when (found) {
@@ -179,13 +183,20 @@ class ConnectionManager(
             setState(ConnectionStatus.CONNECTING, name, address, message = null)
 
             var connection: BmapConnection? = null
+            val learnedChannel = prefs.channelFor(address)
             try {
-                val transport = RfcommTransport.connect(device)
+                // Channel 2 for the QC Ultra 2 family, 8 for the QC45 / QC Headphones; the
+                // transport falls back to the other one, and the one that answers is remembered.
+                val guessed = learnedChannel ?: (BoseModel.fromName(name)?.rfcommChannel ?: RfcommTransport.CHANNEL)
+                val channel = if (tryOtherChannel) BoseModel.otherChannel(guessed) else guessed
+                val transport = RfcommTransport.connect(device, channel)
                 connection = BmapConnection(transport, scope)
-                // A socket that opens but never answers is another app holding channel 2; find
-                // out now (one 2 s GET) rather than after publishing CONNECTED with empty state.
-                // Throws RfcommConnectException(looksBusy) → the busy message below.
+                // A socket that opens but never answers is another app holding the channel (or the
+                // wrong channel); find out now (one 2 s GET) rather than after publishing CONNECTED
+                // with empty state. Throws RfcommConnectException(looksBusy) → the busy message below.
                 LivenessProbe.check(connection)
+                transport.channel?.let { if (it != learnedChannel) prefs.saveChannel(address, it) }
+                tryOtherChannel = false
                 _connection.value = connection
                 setState(ConnectionStatus.CONNECTED, name, address, message = null)
                 val attemptsBefore = attempt
@@ -208,6 +219,7 @@ class ConnectionManager(
                 setState(ConnectionStatus.NO_PERMISSION, name, address, message = "Bluetooth permission refused")
                 return
             } catch (e: Exception) {
+                if (learnedChannel == null && e is RfcommConnectException && e.looksBusy) tryOtherChannel = !tryOtherChannel
                 val linked = finder.isAudioConnected(address)
                 val message = SessionEnd.connectFailureMessage(e, linked)
                 BtLog.w("connect to $address failed (linked=$linked): ${e.message}")

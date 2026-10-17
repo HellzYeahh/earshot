@@ -84,6 +84,12 @@ own module. Never edit another area's files, the Gradle files, the version catal
   payload), `[4.9]` AppAddress = this phone, `[5.1]` active source, `[4.12]` START `[0x82 + mac]` to
   route (retry: routing table fills only while the target streams; its GET is FuncNotSupp on 10.12).
 - Only one app can hold channel 2: the Bose app must be closed while Earshot is connected.
+- Other models: `protocol/.../qcultra2/BoseModel.kt` is the catalogue (QC Ultra 1/2, QC Headphones
+  1st/2nd Gen + QC SC, QC45 + QC SE, Ultra Open Earbuds), detected from `[0.3]` (`[0.15]` name for
+  unknown ids). QC45/QC Headphones: **channel 8**, 47/39-byte `[31.6]` (`ModeLayout.COMPACT`, no ANC
+  byte), no `[31.10]` (noise edits rewrite the active custom slot), QC45 needs GET `[0.1]` first
+  (the liveness probe sends it). The working channel is remembered per device in `DevicePrefs`.
+  Only the QC Ultra 2 is tested on our hardware; the others follow bosectl or are best guesses.
 - **Never write to block 3 (FirmwareUpdate) or 18 (Authentication).** bosectl's "[3.2] NC state"
   START is really FirmwareUpdate Init: it opens an update session; Run applies an image and
   reboots; Reset erases a staged image. Safe GETs: `[3.0] [3.1] [3.4] [3.6] [3.16]`. `[7.5]`

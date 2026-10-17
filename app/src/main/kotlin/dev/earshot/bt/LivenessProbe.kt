@@ -15,8 +15,12 @@ import java.io.IOException
  * and sends the failure down the existing busy-channel path.
  */
 internal object LivenessProbe {
-    /** Battery: GET-only, answered by every firmware, tiny reply. */
-    val ADDRESS = FunctionAddress(2, 2)
+    /**
+     * `[0.1]` BmapVersion: answered by every firmware, tiny reply, and it doubles as the init
+     * packet the QC45 / QC SE wait for before answering anything else (bosectl `INIT_PACKET`).
+     * It was the battery `[2.2]` until older models were supported; that stays silent there.
+     */
+    val ADDRESS = FunctionAddress(0, 1)
     const val TIMEOUT_MS = 2_000L
 
     /**
@@ -38,9 +42,9 @@ internal object LivenessProbe {
             val dropped = connection.closeCause
             connection.close()
             if (dropped != null) throw IOException("Link dropped during the liveness probe: ${dropped.message}", dropped)
-            BtLog.w("liveness probe: no reply to $ADDRESS within ${timeoutMs}ms; channel 2 is open but silent (another app holding BMAP?)")
+            BtLog.w("liveness probe: no reply to $ADDRESS within ${timeoutMs}ms; the channel is open but silent (another app holding BMAP?)")
             throw RfcommConnectException(
-                "Channel 2 opened but the headphones did not answer (another app is probably holding it)",
+                "The control channel opened but the headphones did not answer (another app is probably holding it)",
                 looksBusy = true,
                 cause = e,
             )

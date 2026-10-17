@@ -128,9 +128,14 @@ class ServiceNotification(private val context: Context) {
         return listOfNotNull(mode, noise).joinToString(" · ").ifEmpty { "Connected" }
     }
 
-    /** Favourites (or the first three presets), minus the active one, at most two when ANC is shown. */
+    /**
+     * Favourites (or the first three slots that exist: Quiet/Aware/Immersion on the QC Ultra, a
+     * custom slot 2 on the QC45), minus the active one, at most two when ANC is shown.
+     */
     private fun modeButtons(s: Snapshot): List<Int> {
-        val pool = s.favorites.ifEmpty { listOf(ListeningMode.QUIET, ListeningMode.AWARE, ListeningMode.IMMERSION) }
+        val pool = s.favorites.ifEmpty {
+            listOf(ListeningMode.QUIET, ListeningMode.AWARE, ListeningMode.IMMERSION).filter { s.modeNames.isEmpty() || it in s.modeNames }
+        }
         val max = if (s.ancEnabled != null) 2 else 3
         return pool.filter { it != s.currentModeIndex }.take(max)
     }
@@ -156,7 +161,7 @@ class ServiceNotification(private val context: Context) {
     companion object {
         const val CHANNEL_ID = "connection"
         const val NOTIFICATION_ID = 1001
-        private const val DEFAULT_NAME = "Bose QC Ultra"
+        private const val DEFAULT_NAME = "Bose headphones"
 
         /** Presets to fall back on when nothing is marked favourite. */
         val DEFAULT_MODE_NAMES: Map<Int, String> = ListeningMode.PRESET_NAMES.withIndex().associate { it.index to it.value }

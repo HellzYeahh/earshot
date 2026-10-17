@@ -3,7 +3,7 @@
     <string name="app_name">Earshot</string>
     <string name="tile_label">Headphone mode</string>
     <string name="widget_label">Earshot</string>
-    <string name="widget_description">Battery, listening mode and quick switches for your Bose QC Ultra.</string>
+    <string name="widget_description">Battery, listening mode and quick switches for your Bose headphones.</string>
 
     <!-- Lab deep scan -->
     <string name="lab_deep_scan">Deep scan (all 64 blocks)</string>
@@ -46,11 +46,11 @@
     <string name="error_firmware_unsupported">The headphones\' firmware doesn\'t support changing this.</string>
 
     <!-- Connection -->
-    <string name="device_generic_name">QC Ultra Headphones</string>
+    <string name="device_generic_name">Bose headphones</string>
     <string name="status_connected">Connected</string>
     <string name="status_connecting">Connecting…</string>
     <string name="status_disconnected">Not connected</string>
-    <string name="status_no_paired_device">No paired QC Ultra found</string>
+    <string name="status_no_paired_device">No paired Bose headphones found</string>
     <string name="status_no_permission">Bluetooth permission needed</string>
     <string name="disconnected_title">Headphones not connected</string>
     <string name="disconnected_body">Close the Bose app, then tap Connect. Only one app at a time can use the headphones\' control channel.</string>
@@ -61,15 +61,15 @@
 
     <!-- Onboarding -->
     <string name="onboarding_title">Welcome to Earshot</string>
-    <string name="onboarding_body">A fast, account-free controller for your Bose QC Ultra Headphones. Everything stays on this phone.</string>
+    <string name="onboarding_body">A fast, account-free controller for your Bose QuietComfort headphones and Ultra Open Earbuds. Everything stays on this phone.</string>
     <string name="onboarding_permission_title">Bluetooth access</string>
     <string name="onboarding_permission_body">Earshot talks to the headphones directly over Bluetooth. Android needs your permission for nearby-device access first.</string>
     <string name="onboarding_permission_denied">Android won\'t ask again. Allow “Nearby devices” for Earshot in app settings.</string>
     <string name="action_open_app_settings">Open app settings</string>
     <string name="notifications_denied">Notifications are off, so Earshot can\'t show the headphones\' status while connected. You can allow them in app settings.</string>
     <string name="onboarding_pick_title">Your headphones</string>
-    <string name="onboarding_pick_body">Pick your paired QC Ultra to connect.</string>
-    <string name="onboarding_pick_body_unpaired">No paired QC Ultra was found. Pair the headphones in Bluetooth settings first, then come back and tap Connect.</string>
+    <string name="onboarding_pick_body">Pick your paired Bose headphones to connect.</string>
+    <string name="onboarding_pick_body_unpaired">No paired Bose headphones were found. Pair the headphones in Bluetooth settings first, then come back and tap Connect.</string>
     <string name="onboarding_no_devices">No paired Bluetooth devices.</string>
     <string name="onboarding_scanning">Looking at paired devices…</string>
     <string name="onboarding_candidate_bose">Looks like Bose headphones</string>
@@ -106,6 +106,7 @@
     <string name="noise_label_aware">Aware</string>
     <string name="noise_hint_anc_off">The level has no effect while noise cancelling is off.</string>
     <string name="noise_hint_wind_on">The level has no effect while Wind Block is on.</string>
+    <string name="noise_hint_mode_only">On these headphones noise settings belong to a mode. Switch to a custom mode to adjust them.</string>
     <string name="noise_anc">Noise cancelling</string>
     <string name="noise_anc_subtitle">Turn the cancelling microphones on or off</string>
     <string name="noise_wind_block">Wind Block</string>
@@ -444,7 +445,7 @@
 
     <!-- About -->
     <string name="about_version">Version %1$s</string>
-    <string name="about_tagline">A native controller for the Bose QC Ultra Headphones (2nd Gen): no account, no cloud, no internet permission.</string>
+    <string name="about_tagline">A native controller for Bose QC Ultra Headphones (1st and 2nd Gen), QC Headphones (1st and 2nd Gen), QC SC, QC45, QC SE and Ultra Open Earbuds: no account, no cloud, no internet permission.</string>
     <string name="about_not_affiliated">Not affiliated with, endorsed by or supported by Bose Corporation. Bose and QuietComfort are trademarks of Bose Corporation.</string>
     <string name="about_control_channel">Only one app can use the headphones\' control channel at a time. Close the Bose app while Earshot is connected (and vice versa).</string>
     <string name="about_credits">Credits</string>

@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.earshot.R
 import dev.earshot.core.HeadphoneRepository
+import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.ListeningMode
 import dev.earshot.core.NoiseSettings
@@ -136,6 +137,7 @@ fun ModesContent(
             initialName = mode?.name.orEmpty(),
             initialSettings = mode?.settings ?: state.noise ?: NoiseSettings(),
             busy = state.isBusy,
+            capabilities = state.capabilities,
             onDismiss = { editing = null },
             onSave = { name, settings -> onSave(editIndex, name, settings) { editing = null } },
             onReset = if (mode?.isConfigured == true) ({ confirmReset = editIndex }) else null,
@@ -229,6 +231,7 @@ fun ModeEditorSheet(
     initialName: String,
     initialSettings: NoiseSettings,
     busy: Boolean,
+    capabilities: HeadphoneCapabilities = HeadphoneCapabilities(),
     onDismiss: () -> Unit,
     onSave: (String, NoiseSettings) -> Unit,
     /** Shown as a destructive "Reset slot" button when non-null (configured custom slots only). */
@@ -260,7 +263,7 @@ fun ModeEditorSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(12.dp))
-            NoiseControls(settings = settings, enabled = !busy, onChange = { settings = it })
+            NoiseControls(settings = settings, enabled = !busy, onChange = { settings = it }, capabilities = capabilities)
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                 if (onReset != null) {

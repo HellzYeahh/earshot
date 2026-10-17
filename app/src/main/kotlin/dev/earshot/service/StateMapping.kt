@@ -5,6 +5,7 @@ import dev.earshot.core.ButtonAction
 import dev.earshot.core.ButtonAssignment
 import dev.earshot.core.ButtonPress
 import dev.earshot.core.DeviceProfiles
+import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneState
@@ -23,6 +24,7 @@ import dev.earshot.core.VoicePrompts
 import dev.earshot.protocol.BmapException
 import dev.earshot.protocol.qcultra2.AudioSettings
 import dev.earshot.protocol.qcultra2.AudioStatus
+import dev.earshot.protocol.qcultra2.BoseModel
 import dev.earshot.protocol.qcultra2.ButtonConfig
 import dev.earshot.protocol.qcultra2.ClassicProfile
 import dev.earshot.protocol.qcultra2.DeviceExtendedInfo
@@ -65,6 +67,18 @@ internal fun NoiseSettings.toAudioSettings(): AudioSettings = AudioSettings(
     autoCnc = false,
 )
 
+// ── Model ────────────────────────────────────────────────────────────────────────────────
+
+internal fun BoseModel.toCapabilities(): HeadphoneCapabilities = HeadphoneCapabilities(
+    spatialAudio = hasSpatialAudio,
+    ancToggle = hasNoiseCancelling && modeLayout.hasAncToggle,
+    liveNoiseControl = hasLiveAudioSettings,
+    windExcludesCancelling = windExcludesCnc,
+    noiseCancelling = hasNoiseCancelling,
+    editableModes = canEditModes,
+    verified = verified,
+)
+
 // ── Listening modes [31.6] + [31.8] ──────────────────────────────────────────────────────
 
 /**
@@ -73,15 +87,18 @@ internal fun NoiseSettings.toAudioSettings(): AudioSettings = AudioSettings(
  * firmware's own `configured` bit is set on first write and never cleared, so it is useless
  * for that). An empty slot gets an empty name and no settings, which is what the UI expects.
  */
-internal fun ModeConfig.toListeningMode(favorite: Boolean): ListeningMode {
-    val preset = index in QcUltra2.PRESET_MODE_SLOTS
+internal fun ModeConfig.toListeningMode(favorite: Boolean, model: BoseModel = BoseModel.DEFAULT): ListeningMode {
+    // A built-in slot the model does not name (Ultra Open) is only a mode if the firmware named it;
+    // otherwise an unused "None" slot would show up in the carousel as a blank built-in mode.
+    val preset = index in model.presetSlots && (index < model.presetNames.size || !isEmptySlot)
     val configured = preset || !isEmptySlot
     return ListeningMode(
         index = index,
         name = if (configured) name.trim() else "",
         isPreset = preset,
-        // The 40-byte SET_GET echo has no editable bit; fall back to the slot range.
-        isEditable = editable ?: (index in QcUltra2.EDITABLE_MODE_SLOTS),
+        // The SET_GET echo has no editable bit; fall back to the slot range. A model whose write
+        // layout is unknown (Ultra Open) never offers editing, whatever the byte says.
+        isEditable = model.canEditModes && (editable ?: (index in model.editableSlots)),
         isConfigured = configured,
         isFavorite = favorite,
         settings = if (configured) toAudioSettings().toNoiseSettings() else null,
@@ -98,15 +115,20 @@ internal fun ModeField.toModeSetting(): ModeSetting = when (this) {
 }
 
 /** What to show for a slot the dump did not report: the previous entry, else a sensible blank. */
-internal fun placeholderMode(index: Int, previous: ListeningMode?, favorite: Boolean): ListeningMode {
+internal fun placeholderMode(
+    index: Int, previous: ListeningMode?, favorite: Boolean, model: BoseModel = BoseModel.DEFAULT,
+): ListeningMode {
     if (previous != null) return previous.copy(isFavorite = favorite)
-    val preset = index in QcUltra2.PRESET_MODE_SLOTS
+    val preset = index in model.presetSlots
+    val name = model.presetNames.getOrNull(index)
+    // A built-in slot whose name is unknown (Ultra Open) stays hidden until the dump names it.
+    val known = preset && name != null
     return ListeningMode(
         index = index,
-        name = QcUltra2.PRESET_MODE_NAMES[index] ?: "",
-        isPreset = preset,
-        isEditable = !preset,
-        isConfigured = preset,
+        name = name ?: "",
+        isPreset = known,
+        isEditable = index in model.editableSlots,
+        isConfigured = known,
         isFavorite = favorite,
         settings = null,
     )
@@ -121,11 +143,15 @@ internal fun buildModeList(
     configs: Map<Int, ModeConfig>,
     favorites: Set<Int>?,
     previous: List<ListeningMode>,
+    model: BoseModel = BoseModel.DEFAULT,
+    slotCount: Int = model.slotCount,
 ): List<ListeningMode> {
     val before = previous.associateBy { it.index }
-    return (0 until QcUltra2.MODE_SLOT_COUNT).map { index ->
+    // A dump may report more slots than the model's default (e.g. an unverified model).
+    val count = maxOf(slotCount, (configs.keys.maxOrNull() ?: -1) + 1)
+    return (0 until count).map { index ->
         val favorite = favorites?.contains(index) ?: (before[index]?.isFavorite ?: false)
-        configs[index]?.toListeningMode(favorite) ?: placeholderMode(index, before[index], favorite)
+        configs[index]?.toListeningMode(favorite, model) ?: placeholderMode(index, before[index], favorite, model)
     }
 }
 
@@ -133,9 +159,9 @@ internal fun List<ListeningMode>.withFavorites(favorites: Set<Int>): List<Listen
     map { it.copy(isFavorite = it.index in favorites) }
 
 /** Replace (or insert, keeping index order) one slot, preserving its favourite flag. */
-internal fun List<ListeningMode>.withSlot(config: ModeConfig): List<ListeningMode> {
+internal fun List<ListeningMode>.withSlot(config: ModeConfig, model: BoseModel = BoseModel.DEFAULT): List<ListeningMode> {
     val favorite = firstOrNull { it.index == config.index }?.isFavorite ?: false
-    val updated = config.toListeningMode(favorite)
+    val updated = config.toListeningMode(favorite, model)
     return if (any { it.index == config.index }) map { if (it.index == config.index) updated else it }
     else (this + updated).sortedBy { it.index }
 }

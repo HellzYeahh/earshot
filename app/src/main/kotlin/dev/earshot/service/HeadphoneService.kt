@@ -211,8 +211,13 @@ class HeadphoneService : LifecycleService() {
          * not been read yet.
          */
         fun nextModeIndex(state: HeadphoneState): Int? {
+            val configured = state.modes.filter { it.isConfigured }.map { it.index }.toSet()
             val pool = state.favoriteModes.filter { it.isConfigured }.map { it.index }
-                .ifEmpty { listOf(ListeningMode.QUIET, ListeningMode.AWARE, ListeningMode.IMMERSION) }
+                .ifEmpty {
+                    // Slot 2 is Immersion on the QC Ultra but a custom (maybe empty) slot on the QC45.
+                    listOf(ListeningMode.QUIET, ListeningMode.AWARE, ListeningMode.IMMERSION)
+                        .filter { state.modes.isEmpty() || it in configured }
+                }
             if (pool.isEmpty()) return null
             val at = pool.indexOf(state.currentModeIndex)
             return pool[(at + 1) % pool.size]

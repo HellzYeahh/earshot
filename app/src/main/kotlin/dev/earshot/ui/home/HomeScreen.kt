@@ -110,14 +110,25 @@ fun HomeContent(
                 modifier = Modifier.padding(start = 4.dp, top = 2.dp),
             )
         }
-        SectionCard(title = stringResource(R.string.home_noise_title)) {
+        val caps = state.capabilities
+        if (caps.noiseCancelling || caps.spatialAudio) SectionCard(title = stringResource(R.string.home_noise_title)) {
             val noise = state.noise ?: NoiseSettings()
+            // Older models keep noise settings in the modes: only a custom mode can be adjusted.
+            val adjustable = caps.liveNoiseControl || state.currentMode?.isEditable == true
             NoiseControls(
                 settings = noise,
-                enabled = controlsEnabled && state.noise != null,
+                enabled = controlsEnabled && state.noise != null && adjustable,
                 onChange = onNoiseChange,
                 compact = true,
+                capabilities = caps,
             )
+            if (!adjustable) {
+                Text(
+                    stringResource(R.string.noise_hint_mode_only),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         Spacer(Modifier.height(8.dp))
     }

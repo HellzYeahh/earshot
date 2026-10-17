@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -31,8 +32,25 @@ class DevicePrefs(context: Context) {
 
     suspend fun save(address: String, name: String?) {
         store.edit { prefs ->
+            // A different device may use the other channel: forget the learned one.
+            if (!prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs.remove(KEY_CHANNEL)
             prefs[KEY_ADDRESS] = address.uppercase()
             if (name != null) prefs[KEY_NAME] = name else prefs.remove(KEY_NAME)
+        }
+    }
+
+    /**
+     * The RFCOMM channel that last answered for [address] (2 on the QC Ultra 2 family, 8 on the
+     * QC45 / QC Headphones), so reconnects go straight to it. Null until one has worked.
+     */
+    suspend fun channelFor(address: String): Int? {
+        val prefs = store.data.first()
+        return if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_CHANNEL] else null
+    }
+
+    suspend fun saveChannel(address: String, channel: Int) {
+        store.edit { prefs ->
+            if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_CHANNEL] = channel
         }
     }
 
@@ -43,5 +61,6 @@ class DevicePrefs(context: Context) {
     private companion object {
         val KEY_ADDRESS = stringPreferencesKey("address")
         val KEY_NAME = stringPreferencesKey("name")
+        val KEY_CHANNEL = intPreferencesKey("rfcomm_channel")
     }
 }

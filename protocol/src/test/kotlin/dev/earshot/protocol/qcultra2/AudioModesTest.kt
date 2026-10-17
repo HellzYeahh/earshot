@@ -134,7 +134,7 @@ class AudioModesTest {
 
         assertEquals(SpatialMode.HEAD, ModeConfigs.parse(immersion)!!.spatial)
         assertEquals(SpatialMode.ROOM, ModeConfigs.parse(cinema)!!.spatial)
-        assertNull(ModeConfigs.parse(ByteArray(39)))
+        assertNull(ModeConfigs.parse(ByteArray(38))) // 39 is the QC45 / QC Headphones echo
     }
 
     @Test
