@@ -1,4 +1,4 @@
-﻿# Earshot
+# Earshot
 
 **A faster, more capable, account-free Android app for the Bose QuietComfort Ultra Headphones (2nd Gen).**
 
@@ -34,7 +34,7 @@ calls, a Quick Settings tile, a widget and automations.
 | Equaliser | 3 bands on the headphones | Those 3 bands **plus** a 10-band graphic / parametric Pro EQ, presets, AutoEq import and a measured **"Tuned for QC Ultra"** correction curve |
 | Volume | Phone limits | **Volume boost** up to +12 dB with a brick-wall limiter and hearing-safety guard |
 | Calls | Often too quiet on Android | **Automatic in-call volume boost**, call-codec readout (CVSD / mSBC / LC3) |
-| Codec | Hidden in Developer options | Live codec panel; **switch AAC â†” SBC** from the app (via Shizuku, no root) |
+| Codec | Hidden in Developer options | Live codec panel; **switch AAC ↔ SBC** from the app (via Shizuku, no root) |
 | LE Audio | Buried per-device toggle | LE Audio on/off with status, per-device LE vs Classic view |
 | Latency | Not shown | Reported latency, low-latency tips, experimental latency control |
 | Per-app sound | No | Different EQ per app (e.g. music vs. video) |
@@ -55,7 +55,7 @@ renaming, editing the four built-in modes) are shown as such instead of silently
 
 | | |
 |---|---|
-| Android | **9.0 (API 28) or newer**. Developed and tested on Android 17 / One UI 9 (a Samsung Galaxy); also exercised on Android 16â€“17 emulators. |
+| Android | **9.0 (API 28) or newer**. Developed and tested on Android 17 / One UI 9 (a Samsung Galaxy); also exercised on Android 16–17 emulators. |
 | CPU | Any: arm64-v8a, armeabi-v7a, x86_64. The APK contains no native code, so one ~5 MB file fits every phone. |
 | Bluetooth | Classic Bluetooth (RFCOMM) for control; LE Audio features need a phone with LE Audio support (Android 13+). |
 | Headphones | Bose QuietComfort Ultra Headphones (2nd Gen), paired in Android's Bluetooth settings. Firmware 10.x tested. |
@@ -84,12 +84,12 @@ the app answers the real protocol, so every screen works.
 
 ## How it works
 
-- `protocol/` â€” pure-Kotlin implementation of BMAP (framing, the QC Ultra 2 function catalogue,
+- `protocol/` — pure-Kotlin implementation of BMAP (framing, the QC Ultra 2 function catalogue,
   parsers/builders), unit-tested against captured frames from real headphones.
-- `app/` â€” Kotlin + Jetpack Compose. Bluetooth RFCOMM transport with auto-reconnect, a foreground
+- `app/` — Kotlin + Jetpack Compose. Bluetooth RFCOMM transport with auto-reconnect, a foreground
   service, the sound engine (`DynamicsProcessing`), codec control through a Shizuku user service,
   call audio, widgets, tile, automations.
-- `docs/bmap-from-bose-app-13.3.4.md` â€” the full BMAP function table and payload layouts, derived
+- `docs/bmap-from-bose-app-13.3.4.md` — the full BMAP function table and payload layouts, derived
   from the official app and verified against a scan of real hardware. Useful for anyone building
   Bose tooling.
 
