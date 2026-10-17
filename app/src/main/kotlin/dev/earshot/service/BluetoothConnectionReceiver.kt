@@ -1,0 +1,79 @@
+package dev.earshot.service
+
+import android.bluetooth.BluetoothA2dp
+import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.util.Log
+import dev.earshot.appContainer
+import dev.earshot.bt.DeviceFinder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+/**
+ * Manifest-registered: wakes the process when the headphones link to the phone and, if
+ * `AppPreferences.autoConnectOnBluetooth` is on, starts the service and connects.
+ *
+ * This is the *only* link-up path: [dev.earshot.bt.ConnectionManager]'s own receiver does not
+ * listen for ACL / A2DP connected, because a manifest receiver is delivered whether or not the
+ * process is alive and the same broadcast used to reach the manager twice. `connect()` is
+ * idempotent, so the ACL and A2DP broadcasts for one link-up are harmless together.
+ *
+ * Starting a foreground service from here is allowed on Android 12+ because a Bluetooth
+ * broadcast that needs BLUETOOTH_CONNECT is one of the documented background-start
+ * exemptions; the repository still guards the call in case an OEM disagrees.
+ *
+ * ACL_DISCONNECTED needs nothing: if the process is alive, [dev.earshot.bt.ConnectionManager]
+ * has its own receiver and the socket notices anyway; if it is dead there is nothing to tell.
+ * BOOT_COMPLETED also does nothing: the headphones are not linked yet at boot, and Android
+ * restricts foreground-service starts from boot broadcasts; ACL_CONNECTED follows soon after.
+ */
+class BluetoothConnectionReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {
+        val address = when (intent.action) {
+            BluetoothDevice.ACTION_ACL_CONNECTED -> DeviceFinder.deviceAddressFrom(intent)
+            BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED ->
+                if (DeviceFinder.isProfileConnected(intent)) DeviceFinder.deviceAddressFrom(intent) else null
+            else -> null
+        } ?: return
+
+        val repository = context.appContainer.headphones as? ServiceHeadphoneRepository
+        if (repository == null) {
+            Log.d(TAG, "link up for $address, but the repository is not the service one; ignoring")
+            return
+        }
+        if (!autoConnectEnabled(context)) {
+            Log.d(TAG, "link up for $address, auto-connect off")
+            return
+        }
+
+        // Reading the saved address is a DataStore read: finish it asynchronously but within
+        // the receiver's ~10 s budget.
+        val pending = goAsync()
+        scope.launch {
+            try {
+                val ours = withTimeoutOrNull(RECEIVER_BUDGET_MS) { repository.isOurDevice(address) } ?: false
+                if (ours) {
+                    Log.i(TAG, "headphones linked ($address), connecting")
+                    repository.connect()
+                }
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
+    private fun autoConnectEnabled(context: Context): Boolean =
+        runCatching { context.appContainer.automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true)
+
+    private companion object {
+        const val TAG = "Earshot/BtReceiver"
+        const val RECEIVER_BUDGET_MS = 8_000L
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    }
+}

@@ -1,0 +1,76 @@
+package dev.earshot
+
+import android.content.Context
+import dev.earshot.audio.AudioTuningRepositoryImpl
+import dev.earshot.bt.ByteTransport
+import dev.earshot.call.CallAudioRepositoryImpl
+import dev.earshot.call.HeadsetVolumeControl
+import dev.earshot.codec.CodecRepositoryImpl
+import dev.earshot.core.AudioTuningRepository
+import dev.earshot.core.AutomationRepository
+import dev.earshot.core.CallAudioRepository
+import dev.earshot.core.CodecRepository
+import dev.earshot.core.HeadphoneRepository
+import dev.earshot.core.MicCheckRepository
+import dev.earshot.extras.automation.AutomationRepositoryImpl
+import dev.earshot.mic.MicCheckRepositoryImpl
+import dev.earshot.service.HeadphoneProtocol
+import dev.earshot.service.QcUltra2Protocol
+import dev.earshot.service.ServiceHeadphoneRepository
+import dev.earshot.virtual.DemoMode
+import dev.earshot.virtual.VirtualQcUltra2
+import dev.earshot.virtual.VirtualTransport
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+
+/**
+ * Manual dependency container. One instance per process, owned by [EarshotApp].
+ *
+ * Everything shares one application-lifetime scope: the repositories register receivers and
+ * listeners in their constructors and are never torn down while the process lives.
+ */
+class AppContainer(private val appContext: Context) {
+    val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** Demo mode: talk to an in-process virtual QC Ultra 2 instead of real Bluetooth. */
+    val demoMode: DemoMode by lazy { DemoMode(appContext) }
+
+    /** One virtual unit per process so its state survives demo reconnects. */
+    private val virtualHeadphones: VirtualQcUltra2 by lazy { VirtualQcUltra2() }
+
+    private val demoTransport: () -> (() -> ByteTransport)? = {
+        if (demoMode.isEnabledBlocking()) VirtualTransport.factory(virtualHeadphones) else null
+    }
+
+    /** The QC Ultra 2 command layer (BMAP addresses, payloads and state mapping). */
+    private val headphoneProtocol: HeadphoneProtocol by lazy { QcUltra2Protocol() }
+
+    val headphones: HeadphoneRepository by lazy {
+        ServiceHeadphoneRepository(appContext, headphoneProtocol, applicationScope, demoTransport)
+    }
+    val tuning: AudioTuningRepository by lazy { AudioTuningRepositoryImpl(appContext, applicationScope) }
+    val codec: CodecRepository by lazy { CodecRepositoryImpl(appContext, applicationScope) }
+    val micCheck: MicCheckRepository by lazy { MicCheckRepositoryImpl(appContext, applicationScope) }
+    val automation: AutomationRepository by lazy { AutomationRepositoryImpl(appContext, applicationScope) }
+
+    /**
+     * In-call volume boost and call-codec readout. Created eagerly by [EarshotApp]: its call
+     * listeners only exist once constructed. The headset-volume hook is wired by the integrator
+     * once `HeadphoneRepository.setVolume` exists.
+     */
+    val callAudio: CallAudioRepository by lazy {
+        CallAudioRepositoryImpl(
+            appContext, applicationScope, headphones,
+            headsetVolume = HeadsetVolumeControl { percent ->
+                // `[5.5]` absolute volume, 0..volumeMax (31 on firmware 10.12). Only raise, never lower.
+                val state = headphones.state.value
+                val max = state.volumeMax ?: return@HeadsetVolumeControl false
+                val target = (max * percent / 100.0).toInt().coerceIn(0, max)
+                if ((state.volume ?: 0) >= target) return@HeadsetVolumeControl true
+                headphones.setVolume(target)
+                true
+            },
+        )
+    }
+}

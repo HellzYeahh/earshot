@@ -1,0 +1,24 @@
+# Gradle / build output
+.gradle/
+build/
+.kotlin/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Upstream clones used for research (the useful parts are copied to docs/reference)
+/reference/
+
+# Signing / secrets
+*.jks
+*.keystore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Agent worktrees and local Claude settings
+.claude/

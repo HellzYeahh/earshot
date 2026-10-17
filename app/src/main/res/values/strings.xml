@@ -1,0 +1,455 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Earshot</string>
+    <string name="tile_label">Headphone mode</string>
+    <string name="widget_label">Earshot</string>
+    <string name="widget_description">Battery, listening mode and quick switches for your Bose QC Ultra.</string>
+
+    <!-- Lab deep scan -->
+    <string name="lab_deep_scan">Deep scan (all 64 blocks)</string>
+    <string name="lab_deep_scan_hint">Reads every block 0–63 and function 0–63 once. Takes a few minutes; results are also saved under Android/data/dev.earshot/files/lab.</string>
+
+    <!-- Demo mode -->
+    <string name="prefs_demo">Demo</string>
+    <string name="prefs_demo_mode">Demo mode</string>
+    <string name="onboarding_try_demo">Try demo mode — no headphones needed</string>
+    <string name="prefs_demo_mode_subtitle">Use a virtual QC Ultra built into the app instead of real headphones. Handy for trying the app or on a phone without the headphones.</string>
+
+    <!-- Tabs -->
+    <string name="tab_home">Home</string>
+    <string name="tab_sound">Sound</string>
+    <string name="tab_tools">Tools</string>
+    <string name="tab_more">More</string>
+
+    <!-- Generic actions -->
+    <string name="action_back">Back</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
+    <string name="action_save">Save</string>
+    <string name="action_add">Add</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_copy">Copy to clipboard</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_connect">Connect</string>
+    <string name="action_use">Use</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_record">Record</string>
+    <string name="action_play">Play</string>
+    <string name="action_discard">Discard recording</string>
+    <string name="action_edit_modes">Edit modes</string>
+    <string name="action_allow_bluetooth">Allow Bluetooth</string>
+    <string name="action_bluetooth_settings">Bluetooth settings</string>
+
+    <!-- Errors -->
+    <string name="error_generic">Something went wrong</string>
+    <string name="error_firmware_unsupported">The headphones\' firmware doesn\'t support changing this.</string>
+
+    <!-- Connection -->
+    <string name="device_generic_name">QC Ultra Headphones</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_disconnected">Not connected</string>
+    <string name="status_no_paired_device">No paired QC Ultra found</string>
+    <string name="status_no_permission">Bluetooth permission needed</string>
+    <string name="disconnected_title">Headphones not connected</string>
+    <string name="disconnected_body">Close the Bose app, then tap Connect. Only one app at a time can use the headphones\' control channel.</string>
+    <string name="disconnected_body_demo">The demo headphones reconnect on their own in a moment, or tap Connect.</string>
+    <string name="battery_percent">Battery %1$d percent</string>
+    <string name="battery_charging_percent">Battery %1$d percent, charging</string>
+    <string name="battery_unknown">Battery level unknown</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">Welcome to Earshot</string>
+    <string name="onboarding_body">A fast, account-free controller for your Bose QC Ultra Headphones. Everything stays on this phone.</string>
+    <string name="onboarding_permission_title">Bluetooth access</string>
+    <string name="onboarding_permission_body">Earshot talks to the headphones directly over Bluetooth. Android needs your permission for nearby-device access first.</string>
+    <string name="onboarding_permission_denied">Android won\'t ask again. Allow “Nearby devices” for Earshot in app settings.</string>
+    <string name="action_open_app_settings">Open app settings</string>
+    <string name="notifications_denied">Notifications are off, so Earshot can\'t show the headphones\' status while connected. You can allow them in app settings.</string>
+    <string name="onboarding_pick_title">Your headphones</string>
+    <string name="onboarding_pick_body">Pick your paired QC Ultra to connect.</string>
+    <string name="onboarding_pick_body_unpaired">No paired QC Ultra was found. Pair the headphones in Bluetooth settings first, then come back and tap Connect.</string>
+    <string name="onboarding_no_devices">No paired Bluetooth devices.</string>
+    <string name="onboarding_scanning">Looking at paired devices…</string>
+    <string name="onboarding_candidate_bose">Looks like Bose headphones</string>
+    <string name="onboarding_candidate_audio">Audio device</string>
+    <string name="action_import">Import</string>
+    <string name="action_allow_location">Allow location</string>
+    <string name="sound_global_session">Also apply to apps that don\'t share their session (experimental)</string>
+    <string name="sound_global_session_subtitle">Attaches to the global audio output; some phones ignore this</string>
+    <string name="sound_preamp_auto">Auto</string>
+    <string name="sound_preamp_recommended">Recommended preamp for these bands: %1$s dB</string>
+    <string name="sound_import_autoeq">Import AutoEq</string>
+    <string name="sound_import_autoeq_hint">Paste the contents of an AutoEq “ParametricEQ.txt” (Filter N: ON PK Fc … Hz Gain … dB Q … lines).</string>
+    <string name="sound_import_autoeq_paste">Paste here</string>
+    <string name="sound_autoeq_imported">Imported “%1$s” (%2$d bands)</string>
+    <string name="sound_autoeq_imported_one">Imported “%1$s” (1 band)</string>
+    <string name="sound_autoeq_parse_error">Couldn\'t read that AutoEq text: %1$s</string>
+    <string name="sound_boost_cap_no_limiter">Without the limiter the boost is capped at %1$s dB.</string>
+    <string name="sound_boost_overshoot">Peaks may exceed full scale by %1$s dB; relying on the limiter.</string>
+    <string name="trigger_wifi_location_needed">Location permission is needed to read the Wi-Fi name, and location services must be on.</string>
+    <string name="automation_saved_needs_usage_access">Saved “%1$s” — it won\'t fire until Usage access is granted.</string>
+    <string name="about_autoeq_credit">Headphone correction curve from AutoEq (Jaakko Pasanen, MIT)</string>
+
+    <!-- Home -->
+    <string name="home_modes_title">Modes</string>
+    <string name="home_modes_hint">Tap to switch · hold to favourite</string>
+    <string name="home_noise_title">Noise</string>
+    <string name="mode_favourite">Favourite</string>
+    <string name="mode_current">Current mode</string>
+    <string name="mode_custom">Custom</string>
+    <string name="mode_custom_subtitle">Settings changed from the active mode</string>
+    <string name="mode_slot_number">Slot %1$d</string>
+    <string name="noise_cancelling">Noise cancelling</string>
+    <string name="noise_label_quiet">Quiet</string>
+    <string name="noise_label_aware">Aware</string>
+    <string name="noise_hint_anc_off">The level has no effect while noise cancelling is off.</string>
+    <string name="noise_hint_wind_on">The level has no effect while Wind Block is on.</string>
+    <string name="noise_anc">Noise cancelling</string>
+    <string name="noise_anc_subtitle">Turn the cancelling microphones on or off</string>
+    <string name="noise_wind_block">Wind Block</string>
+    <string name="noise_wind_block_subtitle">Cuts wind noise; overrides the level</string>
+    <string name="noise_immersive">Immersive Audio</string>
+
+    <!-- Home: now playing + status chips -->
+    <string name="now_playing_title">Now playing</string>
+    <string name="playback_playing">Playing</string>
+    <string name="playback_paused">Paused</string>
+    <string name="playback_stopped">Stopped</string>
+    <string name="playback_fast_forwarding">Fast-forwarding</string>
+    <string name="playback_rewinding">Rewinding</string>
+    <string name="playback_unknown">Playback state unknown</string>
+    <string name="transport_play">Play</string>
+    <string name="transport_pause">Pause</string>
+    <string name="transport_next">Next track</string>
+    <string name="transport_previous">Previous track</string>
+    <string name="volume_label">Volume</string>
+    <string name="volume_value">%1$d / %2$d</string>
+    <string name="chip_mic_muted">Mic muted</string>
+    <string name="chip_charging">Charging</string>
+    <string name="chip_live_updates">Live updates</string>
+    <string name="chip_live_updates_hint">Headphones report changes instantly</string>
+    <string name="firmware_update_mode_warning">Firmware-update mode: the headphones are waiting to finish an update and most settings are unavailable until it completes.</string>
+    <string name="button_press_line">%1$s: %2$s → %3$s</string>
+
+    <!-- Modes editor -->
+    <string name="modes_title">Listening modes</string>
+    <string name="modes_intro">Four built-in modes and seven custom slots. The headphones keep them in this order; reordering isn\'t supported by the firmware.</string>
+    <string name="modes_builtin">Built-in, can\'t be edited</string>
+    <string name="modes_empty_slot">Empty slot</string>
+    <string name="modes_tap_to_set_up">Tap to set up</string>
+    <string name="modes_edit_slot">Custom mode · slot %1$d</string>
+    <string name="modes_name_label">Name</string>
+    <string name="modes_name_counter">%1$d / %2$d bytes</string>
+    <string name="modes_saved">Saved “%1$s”</string>
+    <string name="modes_desc_cancelling">Cancelling %1$d</string>
+    <string name="modes_desc_anc_off">ANC off</string>
+    <string name="modes_desc_immersive">Immersive %1$s</string>
+    <string name="modes_reset_slot">Reset slot</string>
+    <string name="modes_reset_slot_title">Reset slot %1$d?</string>
+    <string name="modes_reset_slot_text">“%1$s” will be cleared from the headphones and the slot becomes empty again.</string>
+    <string name="modes_reset_done">Reset slot %1$d</string>
+
+    <!-- Sound -->
+    <string name="sound_headphone_eq">Headphone EQ</string>
+    <string name="sound_headphone_eq_subtitle">The three bands inside the headphones. Applies to every source.</string>
+    <string name="sound_bass">Bass</string>
+    <string name="sound_mid">Mid</string>
+    <string name="sound_treble">Treble</string>
+    <string name="sound_pro_eq">Pro EQ</string>
+    <string name="sound_pro_eq_enable">Enable Pro EQ</string>
+    <string name="sound_pro_eq_subtitle">Phone-side equaliser for apps that share their audio session</string>
+    <string name="sound_pro_eq_unavailable">This phone can\'t create the audio effect Pro EQ needs.</string>
+    <string name="sound_pro_eq_attached">Active on %1$d audio session(s)</string>
+    <string name="sound_pro_eq_waiting">On — waiting for an app to start playing</string>
+    <string name="sound_presets_hint">Hold a saved preset to delete it</string>
+    <string name="sound_curve_description">Equaliser frequency response curve</string>
+    <string name="sound_mode_graphic">Graphic</string>
+    <string name="sound_mode_parametric">Parametric</string>
+    <string name="sound_preamp">Preamp</string>
+    <string name="sound_save_preset">Save as preset</string>
+    <string name="sound_preset_name">Preset name</string>
+    <string name="sound_preset">Preset</string>
+    <string name="sound_preset_saved">Saved preset “%1$s”</string>
+    <string name="sound_preset_deleted">Deleted “%1$s”</string>
+    <string name="sound_delete_preset_title">Delete preset?</string>
+    <string name="sound_delete_preset_text">“%1$s” will be removed. Built-in presets can\'t be deleted.</string>
+    <string name="sound_add_band">Add band</string>
+    <string name="sound_remove_band">Remove band</string>
+    <string name="sound_band_number">Band %1$d</string>
+    <string name="sound_frequency">Frequency</string>
+    <string name="sound_gain">Gain</string>
+    <string name="sound_q">Q</string>
+    <string name="sound_filter_peak">Peak</string>
+    <string name="sound_filter_low_shelf">Low shelf</string>
+    <string name="sound_filter_high_shelf">High shelf</string>
+    <string name="sound_boost">Volume boost</string>
+    <string name="sound_boost_level">Boost</string>
+    <string name="sound_boost_needs_pro_eq">Turn on Pro EQ to use volume boost.</string>
+    <string name="sound_boost_warning">Hearing-safety warning: more than 6 dB of boost on top of a loud source can damage your hearing. Keep sessions short and the limiter on.</string>
+    <string name="sound_limiter">Limiter</string>
+    <string name="sound_limiter_subtitle">Stops the boost from clipping. Recommended.</string>
+    <string name="sound_boost_samsung_note">Samsung\'s own volume limiter (Sounds and vibration › Volume › Media volume limit) may cap the result.</string>
+    <string name="sound_app_profiles">Per-app profiles</string>
+    <string name="sound_app_profiles_subtitle">Pick a preset to apply automatically when an app plays.</string>
+    <string name="sound_app_profiles_empty">No per-app profiles yet.</string>
+    <string name="sound_app_profile_pick_preset">Which preset should this app get?</string>
+    <string name="sound_remove_profile">Remove profile for %1$s</string>
+
+    <!-- App picker -->
+    <string name="app_picker_title">Choose an app</string>
+    <string name="app_picker_search">Search apps</string>
+    <string name="app_picker_label">App name</string>
+    <string name="app_picker_package">Package name</string>
+    <string name="app_picker_manual_hint">Type the app\'s package name, for example com.spotify.music.</string>
+
+    <!-- Tools -->
+    <string name="tools_codec">Codec</string>
+    <string name="tools_mic_check">Mic check</string>
+    <string name="tools_mic_check_subtitle">Record a few seconds and play it back</string>
+    <string name="tools_lab">Lab</string>
+    <string name="tools_lab_subtitle">Read-only protocol explorer</string>
+    <string name="tools_call_audio">Call audio</string>
+    <string name="tools_call_audio_subtitle">Louder calls, call codec</string>
+    <string name="tools_connection">Connection &amp; latency</string>
+    <string name="tools_connection_subtitle">LE Audio, codec, latency</string>
+
+    <!-- Connection screen -->
+    <string name="conn_le_audio">LE Audio</string>
+    <string name="conn_le_supported">Supported by the firmware</string>
+    <string name="conn_le_not_supported">Not supported by this firmware</string>
+    <string name="conn_le_support_unknown">Support unknown (not read yet)</string>
+    <string name="conn_le_enabled_switch">LE Audio on</string>
+    <string name="conn_le_enabled_subtitle">Switching restarts the headphones</string>
+    <string name="conn_le_pref_preferred">Headphones prefer LE Audio for this phone</string>
+    <string name="conn_le_pref_not_preferred">Headphones don\'t prefer LE Audio for this phone</string>
+    <string name="conn_le_pref_prohibited">LE Audio prohibited for this connection</string>
+    <string name="conn_le_pref_unsupported">LE Audio not available for this connection</string>
+    <string name="conn_le_pref_unknown">Preference not read yet</string>
+    <string name="conn_le_devices">Per device</string>
+    <string name="conn_profile_le">LE Audio</string>
+    <string name="conn_profile_classic_named">Classic (%1$s)</string>
+    <string name="conn_profile_le_paired">LE Audio paired, not in use</string>
+    <string name="conn_profile_unknown">Profiles not read</string>
+    <string name="conn_le_confirm_title">Switch LE Audio %1$s?</string>
+    <string name="conn_le_confirm_body">Your headphones will restart to switch LE Audio on/off. Audio stops for a few seconds and Earshot reconnects by itself. With LE Audio on, the voice-assistant and Spotify Tap shortcuts and multipoint may not work, and this phone may keep using Classic Bluetooth (AAC/SBC) if it does not support LE Audio for these headphones.</string>
+    <string name="conn_le_confirm_action">Restart and switch</string>
+    <string name="conn_le_restarting">Headphones restarting… reconnecting</string>
+    <string name="conn_on">on</string>
+    <string name="conn_off">off</string>
+    <string name="conn_codec_row">Codec</string>
+    <string name="conn_latency">Latency</string>
+    <string name="conn_latency_reported">Reported latency: %1$d ms</string>
+    <string name="conn_latency_unknown">Latency not reported</string>
+    <string name="conn_latency_range">Firmware range %1$d–%2$d ms. Probably a measurement rather than a setting.</string>
+    <string name="conn_experimental">Experimental</string>
+    <string name="conn_latency_experimental_body">Experimental: asks the headphones for a different audio latency. The Bose app never uses this, so the headphones may ignore it or change the sound timing unexpectedly. Reset by moving it back to the original value (shown in grey).</string>
+    <string name="conn_latency_acknowledge">I understand, unlock the slider</string>
+    <string name="conn_latency_slider">Requested latency</string>
+    <string name="conn_latency_ms">%1$d ms</string>
+    <string name="conn_latency_reset">Reset to original (%1$d ms)</string>
+    <string name="conn_latency_original">Original this session: %1$d ms</string>
+    <string name="conn_tips_title">Low-latency tips</string>
+    <string name="conn_tip_immersive">Turn Immersive Audio off: the head-tracking renderer adds its own delay.</string>
+    <string name="conn_tip_pro_eq">Turn Pro EQ off, or keep it on the low-latency path; every phone-side effect adds buffering.</string>
+    <string name="conn_tip_le_audio">Prefer LE Audio (LC3) when both the phone and the headphones support it; it buffers less than Classic.</string>
+    <string name="conn_tip_codec">On Classic Bluetooth, SBC usually has a little less delay than AAC on Android; the Codec panel can switch between them.</string>
+
+    <!-- Codec -->
+    <string name="codec_current">Streaming now</string>
+    <string name="codec_not_streaming">Not streaming to the headphones</string>
+    <string name="codec_profiles">One-tap profiles</string>
+    <string name="codec_profiles_subtitle">Best quality picks the highest-resolution codec both sides support; Most stable picks the most robust one for crowded places.</string>
+    <string name="codec_best_quality">Best quality</string>
+    <string name="codec_most_stable">Most stable</string>
+    <string name="codec_picker">Choose a codec</string>
+    <string name="codec_picker_empty">No codec is selectable right now.</string>
+    <string name="codec_label">Codec</string>
+    <string name="codec_sample_rate">Sample rate</string>
+    <string name="codec_bit_depth">Bit depth</string>
+    <string name="codec_quality">Quality</string>
+    <string name="codec_apply">Apply</string>
+    <string name="codec_switched">Switched to %1$s</string>
+    <string name="codec_supported">What both support</string>
+    <string name="codec_supported_subtitle">Codecs the phone offers; ticked ones are also supported by the headphones.</string>
+    <string name="codec_supported_both">Supported by both</string>
+    <string name="codec_supported_phone_only">Phone only</string>
+    <string name="codec_priv_granted">Shizuku access granted. Codec switching works from here.</string>
+    <string name="codec_priv_grant">Shizuku is running. Grant Earshot permission to switch codecs.</string>
+    <string name="codec_priv_not_running">Shizuku isn\'t running. Start it from the Shizuku app (wireless debugging), then retry.</string>
+    <string name="codec_priv_unavailable">Switching codecs needs Shizuku (free, no root). Install it, or change the codec by hand in Developer options.</string>
+    <string name="codec_action_grant">Grant</string>
+    <string name="codec_action_retry">Retry</string>
+    <string name="codec_open_developer_options">Open Developer options</string>
+    <string name="codec_developer_options_hint">In Developer options, scroll to “Bluetooth audio codec” while the headphones are connected.</string>
+    <string name="codec_open_call_audio">Call audio →</string>
+
+    <!-- Call audio -->
+    <string name="call_live_title">Live call</string>
+    <string name="call_on_call_via">On a call via %1$s</string>
+    <string name="call_on_call_not_headphones">On a call — not on the headphones</string>
+    <string name="call_device_fallback">a Bluetooth headset</string>
+    <string name="call_volume">Call volume</string>
+    <string name="call_volume_value">%1$d / %2$d</string>
+    <string name="call_boost_now">Boost now</string>
+    <string name="call_boosted">Call volume set to %1$d %%</string>
+    <string name="call_codec_msbc">mSBC · wideband 16 kHz</string>
+    <string name="call_codec_cvsd">CVSD · narrowband 8 kHz</string>
+    <string name="call_codec_lc3_swb">LC3 · super-wideband 32 kHz</string>
+    <string name="call_codec_lc3_le">LC3 (LE Audio)</string>
+    <string name="call_codec_aptx_swb">aptX SWB · super-wideband 32 kHz</string>
+    <string name="call_codec_unknown">Codec unknown</string>
+    <string name="call_codec_unknown_hint">Reading the call codec needs Shizuku, the same setup as the Codec panel.</string>
+    <string name="call_narrowband_hint">Reconnect the headphones or check multipoint</string>
+    <string name="call_idle_title">Call codec</string>
+    <string name="call_last_codec">Last call: %1$s</string>
+    <string name="call_no_codec_yet">Make a call to see the codec</string>
+    <string name="call_boost_section">Auto-boost</string>
+    <string name="call_boost_enabled">Boost call volume automatically</string>
+    <string name="call_boost_enabled_subtitle">Raises the phone\'s call volume to the target shortly after a call starts on the headphones. It only ever raises; turning it down later in the call sticks.</string>
+    <string name="call_boost_target">Target volume</string>
+    <string name="call_boost_raise_headset">Also raise the headphones\' own volume</string>
+    <string name="call_boost_raise_headset_subtitle">When they are the call device and Earshot is connected</string>
+    <string name="call_advanced">Advanced</string>
+    <string name="call_abs_volume">Unlink phone and headset volume (absolute volume off)</string>
+    <string name="call_abs_volume_needs_shizuku">Needs Shizuku</string>
+    <string name="call_abs_volume_reconnect">Reconnect the headphones to apply</string>
+    <string name="call_abs_volume_caveat">An experiment. On some Samsung phones it leaves more headroom so calls can get louder, but it mostly changes how media volume behaves (you may need to turn up both sides for music) and the in-call effect isn\'t guaranteed. To revert, switch it back here, or in Developer options → “Disable absolute volume”, then reconnect.</string>
+    <string name="call_honest_title">Your voice on calls</string>
+    <string name="call_honest_body">No app can process the call microphone: on Android it goes from the headset to the modem or the calling app without passing through other apps, and this firmware has no mic EQ. What does help is a wideband call codec (mSBC or LC3) and LE Audio; if you still sound bad on mSBC or LC3, the limit is the network or the calling app. Self Voice (More → Sidetone) changes only what you hear.</string>
+
+    <!-- Mic check -->
+    <string name="mic_intro">Records up to 8 seconds through the active microphone, then plays it back so you can hear what callers hear.</string>
+    <string name="mic_idle">Ready to record up to %1$d seconds</string>
+    <string name="mic_recording">Recording… %1$.1f s</string>
+    <string name="mic_ready">%1$.1f s recorded</string>
+    <string name="mic_playing">Playing %1$.1f / %2$.1f s</string>
+    <string name="mic_no_permission">Microphone permission needed</string>
+    <string name="mic_permission_hint">Allow microphone access for Earshot in system settings, then try again.</string>
+    <string name="mic_used_headset">The headset microphone was used.</string>
+    <string name="mic_used_phone">The phone\'s own microphone was used, not the headset\'s.</string>
+    <string name="mic_level_description">Input level %1$d percent</string>
+
+    <!-- Lab -->
+    <string name="lab_read_only">The scanner only reads: it sends GET requests to the headphones and shows the raw replies. The Print console below is the one part of Lab that writes.</string>
+    <string name="lab_blocks">Function blocks to scan</string>
+    <string name="lab_functions_hint">Functions 0–%1$d in each block</string>
+    <string name="lab_progress">%1$d / %2$d read</string>
+    <string name="lab_scan">Scan</string>
+    <string name="lab_console_title">Print console</string>
+    <string name="lab_console_experimental">Experimental, and the one part of Lab that writes: each line is sent to the firmware\'s debug console. Only the verbs below are accepted; anything else is refused before it is sent.</string>
+    <string name="lab_console_hint">bind|unbind|verbosity &lt;arg&gt; · output [n]</string>
+    <string name="lab_console_label">Console command</string>
+    <string name="lab_console_send">Send</string>
+    <string name="lab_console_empty">Replies appear here.</string>
+    <string name="lab_console_clear">Clear output</string>
+
+    <!-- More / settings -->
+    <string name="settings_not_connected">Connect the headphones to change their settings.</string>
+    <string name="settings_headphones">Headphones</string>
+    <string name="settings_app">App</string>
+    <string name="settings_sidetone">Sidetone (hear your own voice on calls)</string>
+    <string name="settings_sidetone_persistent">Remember sidetone</string>
+    <string name="settings_sidetone_persistent_subtitle">Keep the level after the headphones restart</string>
+    <string name="settings_auto_play_pause">Auto play / pause</string>
+    <string name="settings_auto_play_pause_subtitle">Pause when you take them off</string>
+    <string name="settings_auto_answer">Auto-answer calls</string>
+    <string name="settings_auto_answer_subtitle">Answer when you put them on</string>
+    <string name="settings_multipoint">Multipoint</string>
+    <string name="settings_multipoint_subtitle">Stay connected to two devices at once</string>
+    <string name="settings_devices">Devices</string>
+    <string name="settings_voice_prompts">Voice prompts</string>
+    <string name="settings_voice_language">Prompt language</string>
+    <string name="settings_shortcut_button">Shortcut button</string>
+    <string name="settings_rename">Rename headphones</string>
+    <string name="settings_rename_subtitle">May not be supported by the firmware</string>
+    <string name="settings_rename_warning">Current firmware may not support changing the name; if that\'s the case you\'ll see a message and nothing changes.</string>
+    <string name="settings_touch_controls">Touch controls</string>
+    <string name="settings_touch_controls_subtitle">The touch strip on the right ear cup (volume swipes)</string>
+    <string name="settings_renamed">Renamed to “%1$s”</string>
+    <string name="settings_power_off">Power off</string>
+    <string name="settings_power_off_confirm">Turn the headphones off? You\'ll need to press their power button to reconnect.</string>
+    <string name="settings_automations">Automations</string>
+    <string name="settings_automations_subtitle">Rules that change modes or sound on their own</string>
+    <string name="settings_preferences">App preferences</string>
+    <string name="settings_preferences_subtitle">Alerts, notification, tile</string>
+    <string name="settings_about">About</string>
+
+    <!-- Devices -->
+    <string name="devices_paired">Paired devices</string>
+    <string name="devices_none">The headphones haven\'t reported any paired devices yet.</string>
+    <string name="devices_active">Active</string>
+    <string name="devices_this_phone">This phone</string>
+    <string name="devices_switch">Switch to this device</string>
+    <string name="devices_switch_hint">Start playback on the other device first, then switch; the headphones only route to a device that is streaming.</string>
+    <string name="devices_pairing_mode">Pairing mode</string>
+    <string name="devices_pairing_hint">Makes the headphones discoverable so you can pair a new device.</string>
+    <string name="devices_connected">Connected</string>
+    <string name="devices_not_connected">Not connected</string>
+    <string name="devices_bose_product">Bose product</string>
+    <string name="devices_available_to_connect">The headphones can take another connection.</string>
+    <string name="devices_not_available_to_connect">Both connection slots are in use; disconnect a device before adding another.</string>
+
+    <!-- Automations -->
+    <string name="automation_new">New automation</string>
+    <string name="automation_edit">Edit automation</string>
+    <string name="automation_empty">No automations yet. Tap New automation to create one.</string>
+    <string name="automation_recent">Recent activity</string>
+    <string name="automation_recent_empty">Nothing has fired yet.</string>
+    <string name="automation_name">Name</string>
+    <string name="automation_when">When</string>
+    <string name="automation_then">Then</string>
+    <string name="automation_mode">Mode</string>
+    <string name="automation_saved">Saved “%1$s”</string>
+    <string name="automation_delete_title">Delete automation?</string>
+    <string name="automation_delete_text">“%1$s” will be removed.</string>
+    <string name="trigger_connect">Connect</string>
+    <string name="trigger_wifi">Wi-Fi</string>
+    <string name="trigger_app">App</string>
+    <string name="trigger_schedule">Schedule</string>
+    <string name="trigger_connect_hint">Runs each time the headphones connect.</string>
+    <string name="trigger_wifi_ssid">Network name (SSID)</string>
+    <string name="trigger_wifi_hint">Android needs location access to read the network name. Without background location it only reveals the name while Earshot is open, so the rule may fire the next time you open the app on that network.</string>
+    <string name="trigger_app_none">No app chosen</string>
+    <string name="trigger_app_pick">Choose app</string>
+    <string name="trigger_app_usage_access">Usage access needed to notice which app is in front.</string>
+    <string name="trigger_app_usage_access_action">Open settings</string>
+    <string name="trigger_schedule_time">Time</string>
+    <string name="trigger_on_connect">When the headphones connect</string>
+    <string name="trigger_wifi_named">On Wi-Fi “%1$s”</string>
+    <string name="trigger_app_named">When %1$s is in front</string>
+    <string name="trigger_schedule_named">At %1$s on %2$s</string>
+    <string name="action_set_mode">Set mode</string>
+    <string name="action_set_eq">Set EQ preset</string>
+    <string name="action_set_noise">Set noise settings</string>
+    <string name="action_set_mode_named">Mode: %1$s</string>
+    <string name="action_set_eq_named">EQ: %1$s</string>
+    <string name="action_set_noise_named">Noise: %1$s</string>
+    <string name="action_eq_flat">Flat (off)</string>
+
+    <!-- Preferences -->
+    <string name="prefs_alerts">Alerts and connection</string>
+    <string name="prefs_low_battery">Low-battery alert</string>
+    <string name="prefs_low_battery_subtitle">Notify when the headphones run low</string>
+    <string name="prefs_low_battery_threshold">Alert below</string>
+    <string name="prefs_persistent_notification">Persistent notification</string>
+    <string name="prefs_persistent_notification_subtitle">Battery and mode switches while connected</string>
+    <string name="prefs_auto_connect">Auto-connect</string>
+    <string name="prefs_auto_connect_subtitle">Connect when the headphones appear on Bluetooth</string>
+    <string name="prefs_tile">Quick Settings tile</string>
+    <string name="prefs_tile_subtitle">Modes the tile cycles through.</string>
+    <string name="prefs_tile_default">None selected: the tile cycles through your favourites, or the built-in modes if there are none.</string>
+
+    <!-- About -->
+    <string name="about_version">Version %1$s</string>
+    <string name="about_tagline">A native controller for the Bose QC Ultra Headphones (2nd Gen): no account, no cloud, no internet permission.</string>
+    <string name="about_not_affiliated">Not affiliated with, endorsed by or supported by Bose Corporation. Bose and QuietComfort are trademarks of Bose Corporation.</string>
+    <string name="about_control_channel">Only one app can use the headphones\' control channel at a time. Close the Bose app while Earshot is connected (and vice versa).</string>
+    <string name="about_credits">Credits</string>
+    <string name="about_credits_body">Protocol knowledge comes from two open-source projects, both MIT licensed:</string>
+    <string name="about_licence">Licence</string>
+    <string name="about_licence_body">Earshot is released under the MIT licence.</string>
+    <string name="about_privacy">Privacy</string>
+    <string name="about_privacy_body">Earshot has no internet permission. Settings, presets and automations are stored only on this phone.</string>
+</resources>

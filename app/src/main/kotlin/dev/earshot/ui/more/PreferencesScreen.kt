@@ -1,0 +1,149 @@
+@file:OptIn(ExperimentalLayoutApi::class)
+
+package dev.earshot.ui.more
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.earshot.R
+import dev.earshot.appContainer
+import kotlinx.coroutines.launch
+import dev.earshot.core.AppPreferences
+import dev.earshot.core.ListeningMode
+import dev.earshot.core.fake.FakeHeadphoneRepository
+import dev.earshot.ui.common.EarshotPreview
+import dev.earshot.ui.common.LightDarkPreview
+import dev.earshot.ui.common.SectionCard
+import dev.earshot.ui.common.SubScreenScaffold
+import dev.earshot.ui.common.SwitchRow
+import dev.earshot.ui.common.ValueSlider
+import dev.earshot.ui.common.earshotViewModel
+import kotlin.math.roundToInt
+
+@Composable
+fun PreferencesScreen(onBack: () -> Unit) {
+    val vm = earshotViewModel { AutomationsViewModel(it.automation, it.headphones, it.tuning, it.messenger) }
+    val prefs by vm.preferences.collectAsStateWithLifecycle()
+    val headphones by vm.headphoneState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val demoMode = remember(context) { context.appContainer.demoMode }
+    val demoEnabled by demoMode.isEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val scope = rememberCoroutineScope()
+    val headphonesRepo = remember(context) { context.appContainer.headphones }
+    PreferencesContent(
+        prefs, headphones.modes, onBack, vm::setPreferences,
+        demoEnabled = demoEnabled,
+        onDemoChange = { enabled ->
+            scope.launch {
+                demoMode.set(enabled)
+                // Demo mode is read at the start of a connect loop: restart it so the switch
+                // takes effect at once instead of on the next natural reconnect.
+                headphonesRepo.disconnect()
+                headphonesRepo.connect()
+            }
+        },
+    )
+}
+
+@Composable
+fun PreferencesContent(
+    prefs: AppPreferences,
+    modes: List<ListeningMode>,
+    onBack: () -> Unit,
+    onChange: (AppPreferences) -> Unit,
+    demoEnabled: Boolean = false,
+    onDemoChange: (Boolean) -> Unit = {},
+) {
+    SubScreenScaffold(title = stringResource(R.string.settings_preferences), onBack = onBack) { padding ->
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SectionCard(title = stringResource(R.string.prefs_alerts)) {
+                SwitchRow(
+                    title = stringResource(R.string.prefs_low_battery),
+                    subtitle = stringResource(R.string.prefs_low_battery_subtitle),
+                    checked = prefs.lowBatteryThreshold != null,
+                    onCheckedChange = { onChange(prefs.copy(lowBatteryThreshold = if (it) 20 else null)) },
+                )
+                val threshold = prefs.lowBatteryThreshold
+                if (threshold != null) {
+                    var drag by remember(threshold) { mutableFloatStateOf(threshold.toFloat()) }
+                    ValueSlider(
+                        label = stringResource(R.string.prefs_low_battery_threshold),
+                        value = drag,
+                        valueRange = 5f..50f,
+                        steps = 8,
+                        valueText = "${drag.roundToInt()} %",
+                        onValueChange = { drag = it },
+                        onValueChangeFinished = { onChange(prefs.copy(lowBatteryThreshold = drag.roundToInt())) },
+                    )
+                }
+                SwitchRow(
+                    title = stringResource(R.string.prefs_persistent_notification),
+                    subtitle = stringResource(R.string.prefs_persistent_notification_subtitle),
+                    checked = prefs.persistentNotification,
+                    onCheckedChange = { onChange(prefs.copy(persistentNotification = it)) },
+                )
+                SwitchRow(
+                    title = stringResource(R.string.prefs_auto_connect),
+                    subtitle = stringResource(R.string.prefs_auto_connect_subtitle),
+                    checked = prefs.autoConnectOnBluetooth,
+                    onCheckedChange = { onChange(prefs.copy(autoConnectOnBluetooth = it)) },
+                )
+            }
+            SectionCard(title = stringResource(R.string.prefs_tile)) {
+                Text(stringResource(R.string.prefs_tile_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    modes.filter { it.isPreset || it.isConfigured }.forEach { mode ->
+                        val selected = mode.index in prefs.tileCycleModes
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                val next = if (selected) prefs.tileCycleModes - mode.index else prefs.tileCycleModes + mode.index
+                                onChange(prefs.copy(tileCycleModes = next.sorted()))
+                            },
+                            label = { Text(mode.name) },
+                        )
+                    }
+                }
+                if (prefs.tileCycleModes.isEmpty()) {
+                    Text(stringResource(R.string.prefs_tile_default), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+            SectionCard(title = stringResource(R.string.prefs_demo)) {
+                SwitchRow(
+                    title = stringResource(R.string.prefs_demo_mode),
+                    subtitle = stringResource(R.string.prefs_demo_mode_subtitle),
+                    checked = demoEnabled,
+                    onCheckedChange = onDemoChange,
+                )
+            }
+        }
+    }
+}
+
+@LightDarkPreview
+@Composable
+private fun PreferencesPreview() {
+    EarshotPreview { PreferencesContent(AppPreferences(tileCycleModes = listOf(0, 1)), FakeHeadphoneRepository.connectedState().modes, {}, {}) }
+}

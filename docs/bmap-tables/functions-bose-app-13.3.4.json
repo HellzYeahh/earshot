@@ -1,0 +1,436 @@
+{
+ "source": "Bose app com.bose.bosemusic 13.3.4 (versionCode 35696), enums com.bose.bmap.messages.enums.spec.BmapFunctionBlock / BmapFunction; derived names only",
+ "operators": {
+  "0": "Set",
+  "1": "Get",
+  "2": "SetGet",
+  "3": "Status",
+  "4": "Error",
+  "5": "Start",
+  "6": "Result",
+  "7": "Processing"
+ },
+ "blocks": [
+  {
+   "id": 0,
+   "name": "ProductInfo",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "BmapVersion",
+    "2": "AllFblocks",
+    "3": "ProductIdVariants",
+    "4": "GetAllFunctions",
+    "5": "FirmwareVersion",
+    "6": "MacAddress",
+    "7": "SerialNumber",
+    "8": "DateOfManufacture",
+    "9": "BoardSerialNumber",
+    "10": "HardwareRevision",
+    "11": "ComponentDevices",
+    "12": "Guid",
+    "13": "ProductSalesRegion",
+    "14": "ProductMarking",
+    "15": "OriginalProductName",
+    "16": "UnifiedCommunicationsConfig",
+    "17": "ComponentId",
+    "18": "EarbudMode",
+    "19": "PeerId",
+    "20": "MacAddressForRole",
+    "21": "MacAddressForComponent",
+    "22": "BondedGroupSupport",
+    "23": "LeAudioSupported"
+   }
+  },
+  {
+   "id": 1,
+   "name": "Settings",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "ProductName",
+    "3": "VoicePrompts",
+    "4": "StandbyTimer",
+    "5": "Cnc",
+    "6": "Anr",
+    "7": "RangeControl",
+    "8": "Alerts",
+    "9": "Buttons",
+    "10": "Multipoint",
+    "11": "Sidetone",
+    "12": "SetupComplete",
+    "13": "ConversationMode",
+    "14": "CncPersistence",
+    "15": "CncPresets",
+    "16": "OnHeadDetection",
+    "19": "LedBrightness",
+    "20": "MotionInactivityAutoOff",
+    "22": "FlipToOff",
+    "24": "AutoPlayPause",
+    "26": "TeamsButtonMode",
+    "27": "AutoAnswer",
+    "28": "VolumeControl",
+    "29": "AutoAwareMode",
+    "30": "SourceBargeIn",
+    "32": "AutoVolumeLevel",
+    "33": "Grouping",
+    "34": "DisableCaptouch",
+    "37": "LeAudioControl",
+    "38": "LeAudioBroadcastConfig",
+    "39": "HeadGesture",
+    "41": "LeaGrouping",
+    "47": "LeaGroupMember"
+   }
+  },
+  {
+   "id": 2,
+   "name": "Status",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "BatteryLevel",
+    "3": "AuxCableDetection",
+    "4": "MicrophoneLevel",
+    "5": "ChargerDetect",
+    "6": "Preset",
+    "7": "NetworkUp",
+    "8": "CrashData",
+    "9": "InEar",
+    "10": "ChargingCaseLid",
+    "11": "UnifiedCommunicationsLink",
+    "12": "Button",
+    "13": "BatteryLog",
+    "14": "BatteryLogRaw",
+    "15": "BatteryCondition",
+    "16": "OperationMode",
+    "17": "BatteryCapacity",
+    "18": "ProcessorTemperature",
+    "19": "MoistureDetection",
+    "20": "Monotime",
+    "21": "MicMute"
+   }
+  },
+  {
+   "id": 3,
+   "name": "FirmwareUpdate",
+   "functions": {
+    "0": "FunctionBlockInfo",
+    "1": "State",
+    "2": "Init",
+    "3": "DataTransfer",
+    "4": "Synchronize",
+    "5": "Validate",
+    "6": "Run",
+    "7": "Reset",
+    "8": "DataTransferWithSequenceNumber",
+    "9": "DataTransferCrc",
+    "10": "SubComponentProgress",
+    "11": "Commit",
+    "12": "Abort",
+    "13": "Count",
+    "14": "Log",
+    "15": "UpdateMode",
+    "16": "DataTransferProgress"
+   }
+  },
+  {
+   "id": 4,
+   "name": "DeviceManagement",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "Connect",
+    "2": "Disconnect",
+    "3": "RemoveDevice",
+    "4": "ListDevices",
+    "5": "Info",
+    "6": "ExtendedInfo",
+    "7": "ClearDeviceList",
+    "8": "PairingMode",
+    "9": "AppAddress",
+    "10": "PrepareP2p",
+    "11": "P2pMode",
+    "12": "Routing",
+    "13": "P2pFeatures",
+    "14": "Features",
+    "15": "BoseProduct",
+    "16": "ConnectionPriority",
+    "17": "UserCarouselSelect",
+    "18": "AvailableToConnect",
+    "19": "LeAudioCheck"
+   }
+  },
+  {
+   "id": 5,
+   "name": "AudioManagement",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "Source",
+    "2": "GetAll",
+    "3": "Control",
+    "4": "Status",
+    "5": "Volume",
+    "6": "NowPlaying",
+    "7": "Latency",
+    "8": "ChannelParameter",
+    "9": "SignalClip",
+    "10": "ChannelCount",
+    "11": "ToneMatchPreset",
+    "14": "ChannelParameterCapabilities",
+    "15": "SpatialAudioMode",
+    "16": "SpatialAudioStatus",
+    "17": "SpatialAudioCalibration"
+   }
+  },
+  {
+   "id": 6,
+   "name": "CallManagement",
+   "functions": {}
+  },
+  {
+   "id": 7,
+   "name": "Control",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "Chirp",
+    "3": "BmapRole",
+    "4": "Power",
+    "5": "FactoryDefault",
+    "6": "ShipMode",
+    "7": "ANROnly",
+    "8": "MaxSourceCurrent",
+    "9": "ChargingCaseLidStatus",
+    "10": "ClientInteraction",
+    "11": "Reset",
+    "12": "BatteryRecoveryPending",
+    "13": "PrepareToPowerOff",
+    "14": "SecondaryProcessorTest",
+    "15": "FitQuality"
+   }
+  },
+  {
+   "id": 8,
+   "name": "Debug",
+   "functions": {}
+  },
+  {
+   "id": 9,
+   "name": "Notification",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "Reset",
+    "2": "ByFblock",
+    "3": "ByFunction",
+    "4": "Periodic"
+   }
+  },
+  {
+   "id": 10,
+   "name": "ReservedBosebuild1",
+   "functions": {}
+  },
+  {
+   "id": 11,
+   "name": "ReservedBosebuild2",
+   "functions": {}
+  },
+  {
+   "id": 12,
+   "name": "HearingAssistance",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "WdrcCompleteUpdate",
+    "2": "WdrcIndividualUpdates",
+    "3": "Directionality",
+    "4": "DirectionalitySettings",
+    "5": "NoiseReductionControl",
+    "6": "NoiseReductionSettings",
+    "7": "MappedSettings",
+    "8": "WdrcBandDefinitions",
+    "9": "EqBandDefinitions",
+    "10": "SubprocessorVersion",
+    "11": "Muting",
+    "12": "BoostEq",
+    "13": "Limits",
+    "14": "SubprocessorStatus",
+    "15": "MappedSettingsMode",
+    "16": "MappedSettingsOffsetMode",
+    "17": "GlobalMute",
+    "18": "AlgorithmControl",
+    "19": "LiveMetrics",
+    "20": "DoffAutoOffTime",
+    "21": "PresetManagement"
+   }
+  },
+  {
+   "id": 13,
+   "name": "DataCollection",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "Records",
+    "5": "Uid",
+    "6": "Enable",
+    "7": "OneRecord",
+    "8": "Confirmation",
+    "9": "CrashLog",
+    "10": "DeleteCrashLog",
+    "11": "DeleteAllRecords",
+    "12": "CrashLogWithDelay"
+   }
+  },
+  {
+   "id": 14,
+   "name": "HeartRate",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "HeartRate",
+    "3": "HeartRateStats",
+    "4": "SpeedAndDistance",
+    "5": "StepRateStats",
+    "6": "Calories",
+    "7": "Vo2",
+    "8": "UserInfo",
+    "9": "WorkoutInfo",
+    "10": "HeartRateReadingReliability",
+    "11": "OpticalSensorStatus",
+    "12": "PostStatus",
+    "13": "CalibrationInfo",
+    "14": "FirmwareVersion",
+    "15": "HardwareInfo"
+   }
+  },
+  {
+   "id": 15,
+   "name": "PeerBud",
+   "functions": {}
+  },
+  {
+   "id": 16,
+   "name": "Vpa",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "SupportedVpas",
+    "3": "Wuw",
+    "4": "Language",
+    "5": "Trigger"
+   }
+  },
+  {
+   "id": 17,
+   "name": "Wifi",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "AvailableNetworks",
+    "3": "ConfigureNetwork",
+    "4": "GetSecurityType",
+    "5": "RemoveNetwork",
+    "6": "EncryptedConfigureNetwork",
+    "7": "SupportedSecurityTypes",
+    "8": "SoftAPConnection",
+    "9": "SupportedFrequencies"
+   }
+  },
+  {
+   "id": 18,
+   "name": "Authentication",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "RotatingPublicKey",
+    "3": "Challenge",
+    "4": "EcdhePublicKey",
+    "5": "GenerateChallenge",
+    "6": "VerifyChallengeResponse",
+    "7": "ProductIrk",
+    "8": "CondensedChallenge",
+    "9": "DeviceIdentityPublicKey",
+    "10": "FeatureLock",
+    "11": "OtpKeyType",
+    "12": "ProductName",
+    "13": "PlatformName",
+    "14": "AppIrk",
+    "15": "GenerateActivationChallenge",
+    "16": "VerifyActivationChallenge",
+    "17": "Activation",
+    "18": "CondensedCloudChallenge",
+    "19": "ValidatedDeviceIdentityKeypair",
+    "20": "Reset",
+    "21": "ExtendedChallenge",
+    "22": "GenerateFastActivationChallenge",
+    "23": "VerifyFastActivationChallengeResponse",
+    "24": "UnencryptedProductIrk",
+    "25": "PropagateProductIrk",
+    "26": "NoTokenChallenge",
+    "27": "ProductToCloudChallenge",
+    "28": "ProductToCloudChallengeVerifyReponse",
+    "29": "CloudToProductChallenge",
+    "30": "Ciphers",
+    "31": "PublicKeyWithCipher",
+    "32": "GoogleFeatureKeys",
+    "33": "GoogleFeatureKeyData"
+   }
+  },
+  {
+   "id": 19,
+   "name": "Experimental",
+   "functions": {}
+  },
+  {
+   "id": 20,
+   "name": "Cloud",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "Activate",
+    "3": "Synchronize",
+    "4": "UpdateState",
+    "5": "InstallUpdate",
+    "6": "UpdateProgress"
+   }
+  },
+  {
+   "id": 21,
+   "name": "AugmentedReality",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "Status"
+   }
+  },
+  {
+   "id": 22,
+   "name": "Print",
+   "functions": {
+    "0": "FBlockInfo",
+    "1": "GetAll",
+    "2": "Output",
+    "3": "Bind",
+    "4": "Unbind",
+    "5": "Verbosity",
+    "6": "Transports",
+    "7": "Clients"
+   }
+  },
+  {
+   "id": 31,
+   "name": "AudioModes",
+   "functions": {
+    "0": "FblockInfo",
+    "1": "GetAll",
+    "2": "Capabilities",
+    "3": "CurrentMode",
+    "4": "DefaultMode",
+    "5": "Persistence",
+    "6": "ModeConfig",
+    "7": "UserIndices",
+    "8": "Favorites",
+    "9": "Reset",
+    "10": "SettingsConfig",
+    "11": "NamesSupported"
+   }
+  }
+ ]
+}
