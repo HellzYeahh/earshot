@@ -12,6 +12,8 @@
     <!-- Demo mode -->
     <string name="prefs_headphone_type">Headphone type</string>
     <string name="prefs_headphone_type_subtitle">Earshot recognises your headphones by their Bluetooth name. If you renamed them, choose the type here.</string>
+    <string name="prefs_forget_pairing">Forget secure pairing</string>
+    <string name="prefs_forget_pairing_subtitle">Use this after resetting your headphones. Earshot reconnects and asks you to pair again.</string>
     <string name="prefs_type_auto">Automatic</string>
     <string name="prefs_type_bose">Bose</string>
     <string name="prefs_type_crusher">Skullcandy Crusher</string>

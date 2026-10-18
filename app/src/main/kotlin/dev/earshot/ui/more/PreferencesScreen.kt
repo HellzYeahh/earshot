@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -29,6 +30,7 @@ import dev.earshot.appContainer
 import kotlinx.coroutines.launch
 import dev.earshot.core.AppPreferences
 import dev.earshot.core.ListeningMode
+import dev.earshot.core.SecureSessionStatus
 import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.virtual.DemoDevice
@@ -55,6 +57,15 @@ fun PreferencesScreen(onBack: () -> Unit) {
     val headphonesRepo = remember(context) { context.appContainer.headphones }
     PreferencesContent(
         prefs, headphones.modes, onBack, vm::setPreferences,
+        canForgetPairing = headphones.secureSession.status != SecureSessionStatus.NOT_REQUIRED,
+        onForgetPairing = {
+            scope.launch {
+                runCatching { headphonesRepo.forgetPairing() }
+                // The next connect pairs again.
+                headphonesRepo.disconnect()
+                headphonesRepo.connect()
+            }
+        },
         familyOverride = familyOverride,
         onFamilyChange = { key ->
             scope.launch {
@@ -91,6 +102,8 @@ fun PreferencesContent(
     modes: List<ListeningMode>,
     onBack: () -> Unit,
     onChange: (AppPreferences) -> Unit,
+    canForgetPairing: Boolean = false,
+    onForgetPairing: () -> Unit = {},
     familyOverride: String? = null,
     onFamilyChange: (String?) -> Unit = {},
     demoDevice: DemoDevice = DemoDevice.QC_ULTRA,
@@ -166,6 +179,12 @@ fun PreferencesContent(
                     FilterChip(selected = familyOverride == null, onClick = { onFamilyChange(null) }, label = { Text(stringResource(R.string.prefs_type_auto)) })
                     FilterChip(selected = familyOverride == "bose", onClick = { onFamilyChange("bose") }, label = { Text(stringResource(R.string.prefs_type_bose)) })
                     FilterChip(selected = familyOverride == "bragi", onClick = { onFamilyChange("bragi") }, label = { Text(stringResource(R.string.prefs_type_crusher)) })
+                }
+                if (canForgetPairing) {
+                    TextButton(onClick = onForgetPairing, modifier = Modifier.padding(top = 4.dp)) {
+                        Text(stringResource(R.string.prefs_forget_pairing))
+                    }
+                    Text(stringResource(R.string.prefs_forget_pairing_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             SectionCard(title = stringResource(R.string.prefs_demo)) {
