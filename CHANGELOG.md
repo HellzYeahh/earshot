@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+**Skullcandy Crusher 1080 ANC (experimental).** The Crusher's "Sound by Bose" features run on a
+different protocol from the Bose headphones (Bragi BOS-RPC), so Earshot gains a second stack behind
+the same screens. It is complete in the virtual-headphones tests and in demo mode, but has not been
+run on real hardware: see [docs/crusher-1080.md](docs/crusher-1080.md).
+
+### Added
+- Crusher control: Quiet / Aware / Off modes with a gain slider, Immersive Audio (Still / Motion),
+  sidetone, battery, and a **Crusher bass** card (on/off, intensity, high / medium / low feel).
+- One-time pairing dialog and encrypted session for firmware that requires one (the passcode you
+  compare with the headphones); keys stay on the phone, the identity key is wrapped by the Android
+  Keystore.
+- **Headphone type** setting (Automatic / Bose / Skullcandy Crusher) for headphones you renamed.
+- Lab: **Copy connection report** (model, link variants tried, services the phone has seen, recent
+  log) for bug reports; the read-only scan also covers the Crusher.
+- Demo mode can emulate a Crusher, or a Crusher that asks for pairing.
+
+### Changed
+- `ConnectionManager` is generic over the session type with a per-family link factory; the Bose
+  path behaves as before. A routing layer picks the Bose or Crusher repository for the paired
+  headphones, so Home, the widget, the tile and automations work unchanged on either.
+
 ## 0.2.0 — 2026-10-17
 
 **More Bose headphones.** Earshot now reads which model is connected and adapts to it, instead of

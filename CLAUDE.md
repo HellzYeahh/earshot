@@ -99,6 +99,27 @@ own module. Never edit another area's files, the Gradle files, the version catal
   sequence number, 1 = image key mismatch). Error 24 is still unexplained. `[2.13]`/`[2.15]` are
   FUNC_NOT_SUPPORTED on firmware 10.12.
 
+## Skullcandy Crusher 1080 ANC (Bragi BOS-RPC, not BMAP)
+
+A second stack behind the same screens; full notes in `docs/crusher-1080.md`. Never run on real
+headphones: its facts come from interoperability analysis of the Skullcandy app plus a virtual device.
+
+- `:protocol` `dev.earshot.protocol.bragi`: `BosRpcPacket` (4-byte header + protobuf), `PppFraming`
+  (`7E FF 80 <94 clear / 95 secure> <len> <CRC-8/ROHC> body <CRC-16/MCRF4XX>`, golden frames in
+  `BragiWireTest`), minimal `ProtoWriter`/`ProtoReader`, feature messages (`CrusherMessages.kt`),
+  `BragiServices` (numeric ids; also the allow-list: no FOTA, no feature.set_state), secure-session
+  crypto (`BragiHandshake`, `ChannelCipher`, `AuthMessages`). `dev_info` body is `08 00`.
+- `:app`: `BragiConnection` (tagged calls, streaming subscriptions, overlapping calls to different
+  methods), `BragiLinkFactory` (service UUID `A4602B24-…` first, fallback profiles, remembered in
+  `DevicePrefs`), `BragiSession` (pairing + ECDHE), `CrusherProtocol`, `CrusherHeadphoneRepository`,
+  `RoutingHeadphoneRepository` (picks Bose or Crusher by name / "Headphone type" / demo device).
+- `ConnectionManager<C : ManagedLink>` takes a `LinkFactory`; `BoseLinkFactory` holds the old channel logic.
+- Crusher modes: slot 0 Quiet, 1 Aware, 2 Off (so slots 0/1 match Bose for rules, tile, widget).
+- `VirtualCrusher` (+ `VirtualCrusherTransport`) is the device side incl. the secure session; the
+  end-to-end tests run the real connection and protocol against it. In `runTest`, `advanceUntilIdle()`
+  ignores `backgroundScope` work: use `testScheduler.runCurrent()`.
+- Do not vendor the Bragi `.proto` files (copyright notice); only field numbers live in the source.
+
 ## Build
 
 Always go through `gw.cmd` (it sets JAVA_HOME to Android Studio's bundled JDK; plain

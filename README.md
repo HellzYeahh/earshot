@@ -2,7 +2,8 @@
 
 **A faster, more capable, account-free Android app for Bose QuietComfort headphones**, built
 around the QC Ultra Headphones (2nd Gen) and also supporting the QC Ultra (1st Gen), QC Headphones,
-QC SC, QC45, QC SE and Ultra Open Earbuds ([see what works on each](#supported-headphones)).
+QC SC, QC45, QC SE, Ultra Open Earbuds and, experimentally, the Skullcandy Crusher 1080 ANC
+([see what works on each](#supported-headphones)).
 
 Earshot talks to the headphones directly over Bluetooth using Bose's own control protocol (BMAP),
 the same channel the official app uses. No Bose account, no cloud, no analytics, **no internet
@@ -66,6 +67,7 @@ has.
 | QC Headphones (1st Gen), QC SC | Layout verified by [bosectl](https://github.com/aaronsb/bosectl) | Via the active custom mode | No ANC on/off, no Immersive Audio; built-in Quiet / Aware |
 | QC45, QC SE | Layout verified by bosectl | Via the active custom mode | No ANC on/off, no Immersive Audio; Wind Block sets the level to 0 |
 | Ultra Open Earbuds (1st and 2nd Gen) | Partial, unverified | None (open-ear) | Battery, EQ, settings, mode switching, Immersive Audio; modes can't be edited |
+| **Skullcandy Crusher 1080 ANC** | **Experimental, never run on real headphones** | Quiet / Aware / Off, with a gain slider | A different protocol (Bragi BOS-RPC, not Bose BMAP): Immersive Audio (Still / Motion), sidetone and the **Crusher bass** card. See [docs/crusher-1080.md](docs/crusher-1080.md) |
 
 **Noise control, "via the active custom mode":** the older headphones have no live noise setting,
 so Earshot saves the slider and Wind Block into the custom mode you are using (as the Bose app
