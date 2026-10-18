@@ -63,19 +63,13 @@ class BragiLinkTest {
         assertEquals(f.toHex(), RawPppWrapper.wrap(f).toHex())
     }
 
-    @Test fun `RACE custom wrapper matches the Skullcandy app's own helper`() {
-        // 05 5A <len LE16 = request + 4> 01 0D 05 FF <request>
-        val request = byteArrayOf(0x7E, 0x01, 0x02)
-        val w = AirohaRaceWrapper(type = 0x5A, opcode = 0x0D01, prefix = byteArrayOf(0x05, 0xFF.toByte()))
-        assertEquals("055a07000 10d05ff 7e0102".replace(" ", ""), w.wrap(request).toHex())
-    }
 
     // ── Link profile order ───────────────────────────────────────────────────────────────
 
     @Test fun `profiles are tried in order and the remembered one goes first`() {
         val f = BragiLinkFactory()
         assertEquals(BragiLinkProfile.DEFAULTS.map { it.id }, f.orderFor(null).map { it.id })
-        val learned = BragiLinkProfile.DEFAULTS[2].id
+        val learned = BragiLinkProfile.DEFAULTS[1].id
         val order = f.orderFor(learned).map { it.id }
         assertEquals(learned, order.first())
         assertEquals(BragiLinkProfile.DEFAULTS.size, order.size)
@@ -84,9 +78,9 @@ class BragiLinkTest {
         assertEquals(BragiLinkProfile.DEFAULTS.map { it.id }, f.orderFor("no-such-profile").map { it.id })
     }
 
-    @Test fun `the verified control service comes first`() {
-        assertEquals(BragiLinkProfile.SERVICE_THIRD_PARTY, BragiLinkProfile.DEFAULTS.first().uuid)
-        assertEquals(RawPppWrapper, BragiLinkProfile.DEFAULTS.first().wrapper)
+    @Test fun `BOS-RPC goes raw on the data service first and nothing is ever RACE-wrapped`() {
+        assertEquals(BragiLinkProfile.SERVICE_DATA, BragiLinkProfile.DEFAULTS.first().uuid)
+        assertTrue(BragiLinkProfile.DEFAULTS.all { it.wrapper === RawPppWrapper })
     }
 
     // ── Which stack drives a device ──────────────────────────────────────────────────────

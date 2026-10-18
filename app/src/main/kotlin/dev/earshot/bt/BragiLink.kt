@@ -6,11 +6,11 @@ import dev.earshot.protocol.bragi.PppFraming
  * How a finished `bos_ppp_framing` frame is carried on the Bluetooth socket, and how frames are
  * found again in what comes back.
  *
- * The inner frame (`7E FF 80 94 ...`) is verified. What the Airoha vendor stack puts around it on
- * the real RFCOMM link is not statically provable, so the transmit side is pluggable
- * ([BragiTxWrapper]) and [BragiConnection] can try the candidates in turn. The receive side does
- * not care: [BragiFrameReader] looks for valid PPP frames anywhere in the byte stream, so a vendor
- * header in front of (or between) frames is simply skipped.
+ * The official app writes the frame **as it is** to a Bragi data socket (the Airoha RACE protocol
+ * lives on a different socket and is never used here). The transmit side is still a small
+ * interface ([BragiTxWrapper]) so a wrapper can be added without touching the connection, and the
+ * receive side does not depend on it: [BragiFrameReader] looks for valid PPP frames anywhere in the
+ * byte stream, so any header in front of (or between) frames is skipped.
  */
 fun interface BragiTxWrapper {
     /** Bytes to write to the socket for one PPP [frame]. */
@@ -21,34 +21,6 @@ fun interface BragiTxWrapper {
 object RawPppWrapper : BragiTxWrapper {
     override fun wrap(frame: ByteArray): ByteArray = frame
     override fun toString() = "raw PPP"
-}
-
-/**
- * Airoha RACE command wrapper: `05 <type> <len LE16> <opcode LE16> <prefix> <payload>` where len
- * counts everything after itself. A fallback candidate for a vendor header around the PPP frame:
- * the Skullcandy app's own RACE helper builds `05 5A len 01 0D 05 FF <request>` for its native
- * custom commands, which is `AirohaRaceWrapper(opcode = 0x0D01, prefix = 05 FF)`. The opcode bytes
- * go out low byte first, so 0x0D01 appears as `01 0D`.
- */
-class AirohaRaceWrapper(
-    private val type: Int = 0x5A,
-    private val opcode: Int,
-    private val prefix: ByteArray = ByteArray(0),
-) : BragiTxWrapper {
-    override fun wrap(frame: ByteArray): ByteArray {
-        val len = 2 + prefix.size + frame.size
-        val out = ByteArray(4 + len)
-        out[0] = 0x05
-        out[1] = type.toByte()
-        out[2] = (len and 0xFF).toByte()
-        out[3] = ((len ushr 8) and 0xFF).toByte()
-        out[4] = (opcode and 0xFF).toByte()
-        out[5] = ((opcode ushr 8) and 0xFF).toByte()
-        prefix.copyInto(out, 6)
-        frame.copyInto(out, 6 + prefix.size)
-        return out
-    }
-    override fun toString() = "RACE type=0x%02x opcode=0x%04x%s".format(type, opcode, if (prefix.isEmpty()) "" else " +prefix")
 }
 
 /**

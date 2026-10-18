@@ -1,6 +1,5 @@
 package dev.earshot.virtual
 
-import dev.earshot.bt.AirohaRaceWrapper
 import dev.earshot.bt.BragiConnection
 import dev.earshot.bt.BtLog
 import dev.earshot.core.HeadphoneCommandException
@@ -219,13 +218,13 @@ class VirtualCrusherEndToEndTest {
     }
 
     @Test
-    fun `a device that only answers the RACE wrapping ignores raw frames`() = runTest {
-        val raceOnly: (ByteArray) -> Boolean = { bytes -> bytes.size > 6 && bytes[0] == 0x05.toByte() && bytes[1] == 0x5A.toByte() }
-        // Raw writes are ignored: a probe times out instead of connecting.
-        val raw = rig(accepts = raceOnly)
+    fun `a pluggable transmit wrapper reaches a device that needs it`() = runTest {
+        // A made-up 2-byte header: proves the wrapper plumbing and the reader's resync, nothing about real hardware.
+        val header = byteArrayOf(0x55, 0xAA.toByte())
+        val needsHeader: (ByteArray) -> Boolean = { bytes -> bytes.size > 2 && bytes[0] == header[0] && bytes[1] == header[1] }
+        val raw = rig(accepts = needsHeader)
         assertFailsWith<HeadphoneCommandException> { raw.conn.callUnwatched(BragiServices.DEV_INFO, timeoutMs = 500) }
-        // The same device answers once the frame is wrapped.
-        val wrapped = rig(wrapper = AirohaRaceWrapper(opcode = 0x010D), accepts = raceOnly)
+        val wrapped = rig(wrapper = dev.earshot.bt.BragiTxWrapper { header + it }, accepts = needsHeader)
         val reply = wrapped.conn.callUnwatched(BragiServices.DEV_INFO, timeoutMs = 500)
         assertTrue(reply.payload.isNotEmpty())
         assertNull(wrapped.conn.closeCause)

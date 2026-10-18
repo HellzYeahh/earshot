@@ -110,8 +110,8 @@ headphones: its facts come from interoperability analysis of the Skullcandy app 
   `BragiServices` (numeric ids; also the allow-list: no FOTA, no feature.set_state), secure-session
   crypto (`BragiHandshake`, `ChannelCipher`, `AuthMessages`). `dev_info` body is `08 00`.
 - `:app`: `BragiConnection` (tagged calls, streaming subscriptions, overlapping calls to different
-  methods), `BragiLinkFactory` (service UUID `A4602B24-…` first, fallback profiles, remembered in
-  `DevicePrefs`), `BragiSession` (pairing + ECDHE), `CrusherProtocol`, `CrusherHeadphoneRepository`,
+  methods), `BragiLinkFactory` (data service `54C5BF4C-…` first, then `A4602B24-…`; raw PPP frames,
+  never RACE; the answering profile is remembered in `DevicePrefs`), `BragiSession` (pairing + ECDHE), `CrusherProtocol`, `CrusherHeadphoneRepository`,
   `RoutingHeadphoneRepository` (picks Bose or Crusher by name / "Headphone type" / demo device).
 - `ConnectionManager<C : ManagedLink>` takes a `LinkFactory`; `BoseLinkFactory` holds the old channel logic.
 - Crusher modes: slot 0 Quiet, 1 Aware, 2 Off (so slots 0/1 match Bose for rules, tile, widget).

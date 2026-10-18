@@ -15,7 +15,7 @@ Crusher bass and a parametric equaliser.
 
 | Layer | Bose headphones | Crusher 1080 ANC |
 |---|---|---|
-| Link | RFCOMM channel 2 (or 8), `createInsecureRfcommSocket` | RFCOMM service `A4602B24-F9F1-4AC3-988C-228D764B97A6`, secure socket, channel from SDP |
+| Link | RFCOMM channel 2 (or 8), `createInsecureRfcommSocket` | RFCOMM data service `54C5BF4C-C52F-4635-98DC-EEBF97C6726F`, secure socket, channel from SDP (the third-party service `A4602B24-…` carries Airoha's own RACE protocol, which Earshot never speaks) |
 | Framing | BMAP packets | `bos_ppp_framing`: `7E FF 80 <id> <len> <CRC-8> body <CRC-16>` |
 | Calls | `[block.function]` GET / SET_GET / START | `(service, method)` + protobuf body |
 | Security | none | optional one-time pairing + per-session ECDHE (when the headphones ask) |
@@ -47,15 +47,14 @@ layer but not wired into the UI yet; Earshot's own Pro EQ works with any headpho
 | Message layouts, enums, service and method numbers | protobuf definitions shipped in the app, cross-checked with its service registry |
 | PPP framing and both CRCs | reproduced byte for byte from frames recovered from the app (CRC-8/ROHC `2D` and CRC-16/MCRF4XX `5480` for `dev_info` tag 0) |
 | `dev_info` is the first call, with body `08 00`; nothing is sent on connect | the app's own connect sequence |
-| The control service UUID | the Crusher's device configuration in the app (`thirdPartyService`) |
+| BOS-RPC frames go raw on the data service socket; the third-party socket is Airoha RACE only | the app's transport wiring (two separate RFCOMM sockets), decompiled; the data and third-party UUIDs come from the Crusher's device configuration |
 | Secure-session crypto (P-256 ECDHE, ECDSA-SHA512, HKDF-SHA256, AES-GCM / CCM / ChaCha20) | the protocol description in the app plus an independent implementation tested end to end against the virtual Crusher |
 
 ## Still to be confirmed on real hardware
 
-1. **The outer wrapper on the socket.** The PPP frame is almost certainly written as it is (the
-   Airoha send API carries whole packets), but the Airoha library lives in closed code. Earshot
-   therefore tries the likely candidates on the first connection and remembers the one that answers
-   (`BragiLinkProfile`). The connection report lists what was tried.
+1. **Which service answers.** The data service is tried first and the third-party one second; the
+   one that answers is remembered (`BragiLinkProfile`). The connection report lists what was tried.
+   Earshot only ever writes PPP-framed BOS-RPC: no Airoha RACE command is sent.
 2. **Whether the headphones require the secure session** (`dev_info.authenticated_access`). If they
    do, Earshot shows a one-time pairing dialog with a passcode to compare with the headphones.
    If not, nothing changes. The official app carries on without it if the pairing fails.

@@ -12,32 +12,26 @@ import java.util.UUID
 
 /**
  * One way to reach a Bragi device: which RFCOMM service to open and how outgoing frames are
- * wrapped. The Skullcandy app's own configuration for the Crusher 1080 ANC opens the third-party
- * service `A4602B24-…` and writes the PPP frame as is; the other entries are fallbacks in case a
- * firmware or phone behaves differently, so the first connection can discover what works. The one
- * that answers is remembered per device ([DevicePrefs.bragiProfileFor]).
+ * wrapped. The official app keeps **two** sockets per Crusher: BOS-RPC frames go raw on the *data*
+ * service (`54C5BF4C-…`), while the *third-party* service (`A4602B24-…`) carries only Airoha's
+ * native RACE protocol, which Earshot never speaks. So the data service comes first and the
+ * third-party one is only a fallback in case a firmware differs; the one that answers is remembered
+ * per device ([DevicePrefs.bragiProfileFor]). Nothing but PPP-framed BOS-RPC is ever written.
  */
 class BragiLinkProfile(val id: String, val uuid: UUID, val wrapper: BragiTxWrapper) {
     override fun toString() = "$id (${wrapper})"
 
     companion object {
-        /** `thirdPartyService` of the Crusher's device config: the link the Skullcandy app opens. */
-        val SERVICE_THIRD_PARTY: UUID = UUID.fromString("A4602B24-F9F1-4AC3-988C-228D764B97A6")
+        /** The Bragi data service of the Crusher's device config: where BOS-RPC frames go, raw. */
         val SERVICE_DATA: UUID = UUID.fromString("54C5BF4C-C52F-4635-98DC-EEBF97C6726F")
-        val SERVICE_AUDIO: UUID = UUID.fromString("EA4F0F8F-89AF-4914-9DFF-AA14E4185810")
-        /** Airoha's own SPP UUID, the SDK default when a device config names no service. */
-        val SERVICE_AIROHA_DEFAULT: UUID = UUID.fromString("00000000-0000-0000-0099-AABBCCDDEEFF")
 
-        /** The Skullcandy app's native RACE custom-command wrapper: `05 5A len 01 0D 05 FF <request>`. */
-        private val RACE_CUSTOM = AirohaRaceWrapper(type = 0x5A, opcode = 0x0D01, prefix = byteArrayOf(0x05, 0xFF.toByte()))
+        /** The third-party service: Airoha's native RACE socket in the official app. Only a fallback here. */
+        val SERVICE_THIRD_PARTY: UUID = UUID.fromString("A4602B24-F9F1-4AC3-988C-228D764B97A6")
 
         /** In the order they are tried when nothing is remembered. */
         val DEFAULTS: List<BragiLinkProfile> = listOf(
-            BragiLinkProfile("third-party/raw", SERVICE_THIRD_PARTY, RawPppWrapper),
             BragiLinkProfile("data/raw", SERVICE_DATA, RawPppWrapper),
-            BragiLinkProfile("third-party/race", SERVICE_THIRD_PARTY, RACE_CUSTOM),
-            BragiLinkProfile("airoha/raw", SERVICE_AIROHA_DEFAULT, RawPppWrapper),
-            BragiLinkProfile("data/race", SERVICE_DATA, RACE_CUSTOM),
+            BragiLinkProfile("third-party/raw", SERVICE_THIRD_PARTY, RawPppWrapper),
         )
     }
 }
