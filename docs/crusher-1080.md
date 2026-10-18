@@ -55,6 +55,11 @@ layer but not wired into the UI yet; Earshot's own Pro EQ works with any headpho
 1. **Which service answers.** The data service is tried first and the third-party one second; the
    one that answers is remembered (`BragiLinkProfile`). The connection report lists what was tried.
    Earshot only ever writes PPP-framed BOS-RPC: no Airoha RACE command is sent.
+   For comparison, the official app opens **both** sockets: its bundled Airoha SDK talks RACE on
+   the third-party one (it reads the chip name and device type there, and treats that as part of
+   "connected"), while every BOS-RPC call, `dev_info` included, goes over the data one. Whether the
+   headphones answer BOS-RPC without that RACE conversation is untested; if the connection report
+   shows the data service connecting but never answering, that is the first thing to look at.
 2. **Whether the headphones require the secure session** (`dev_info.authenticated_access`). If they
    do, Earshot shows a one-time pairing dialog with a passcode to compare with the headphones.
    If not, nothing changes. The official app carries on without it if the pairing fails.
