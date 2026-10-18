@@ -31,6 +31,7 @@ import dev.earshot.ui.tools.CodecScreen
 import dev.earshot.ui.tools.ConnectionScreen
 import dev.earshot.ui.tools.LabScreen
 import dev.earshot.ui.tools.MicCheckScreen
+import dev.earshot.ui.tools.ShortcutsRemapperScreen
 import dev.earshot.ui.tools.ToolsScreen
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
@@ -81,6 +82,7 @@ fun EarshotNavHost(
                     onOpenCallAudio = { navController.navigate(Routes.CALL_AUDIO) },
                     onOpenMicCheck = { navController.navigate(Routes.MIC_CHECK) },
                     onOpenLab = { navController.navigate(Routes.LAB) },
+                    onOpenShortcuts = { navController.navigate(Routes.SHORTCUTS_REMAPPER) },
                 )
             }
             composable(Routes.CONNECTION) {
@@ -96,6 +98,7 @@ fun EarshotNavHost(
             composable(Routes.CALL_AUDIO) { CallAudioScreen(onBack = navController::popBackStack) }
             composable(Routes.MIC_CHECK) { MicCheckScreen(onBack = navController::popBackStack) }
             composable(Routes.LAB) { LabScreen(onBack = navController::popBackStack) }
+            composable(Routes.SHORTCUTS_REMAPPER) { ShortcutsRemapperScreen(onBack = navController::popBackStack) }
 
             composable(Routes.MORE) {
                 MoreScreen(

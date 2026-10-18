@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SettingsInputAntenna
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -50,10 +51,11 @@ fun ToolsScreen(
     onOpenCallAudio: () -> Unit,
     onOpenMicCheck: () -> Unit,
     onOpenLab: () -> Unit,
+    onOpenShortcuts: () -> Unit,
 ) {
     val deps = LocalUiDependencies.current
     val codec by deps.codec.state.collectAsStateWithLifecycle()
-    ToolsContent(codec, contentPadding, onOpenConnection, onOpenCodec, onOpenCallAudio, onOpenMicCheck, onOpenLab)
+    ToolsContent(codec, contentPadding, onOpenConnection, onOpenCodec, onOpenCallAudio, onOpenMicCheck, onOpenLab, onOpenShortcuts)
 }
 
 @Composable
@@ -65,6 +67,7 @@ fun ToolsContent(
     onOpenCallAudio: () -> Unit,
     onOpenMicCheck: () -> Unit,
     onOpenLab: () -> Unit,
+    onOpenShortcuts: () -> Unit,
 ) {
     Column(
         Modifier
@@ -99,6 +102,12 @@ fun ToolsContent(
             title = stringResource(R.string.tools_mic_check),
             subtitle = stringResource(R.string.tools_mic_check_subtitle),
             onClick = onOpenMicCheck,
+        )
+        ToolCard(
+            icon = Icons.Default.TouchApp,
+            title = stringResource(R.string.tools_shortcuts),
+            subtitle = stringResource(R.string.tools_shortcuts_subtitle),
+            onClick = onOpenShortcuts,
         )
         ToolCard(
             icon = Icons.Default.Science,
@@ -138,5 +147,5 @@ fun describeRate(hz: Int?): String = when {
 @Composable
 private fun ToolsPreview() {
     val state by remember { FakeCodecRepository() }.state.collectAsStateWithLifecycle()
-    EarshotPreview { ToolsContent(state, PaddingValues(0.dp), {}, {}, {}, {}, {}) }
+    EarshotPreview { ToolsContent(state, PaddingValues(0.dp), {}, {}, {}, {}, {}, {}) }
 }

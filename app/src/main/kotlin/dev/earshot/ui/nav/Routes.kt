@@ -27,6 +27,7 @@ object Routes {
     const val CALL_AUDIO = "tools/call"
     const val MIC_CHECK = "tools/mic"
     const val LAB = "tools/lab"
+    const val SHORTCUTS_REMAPPER = "tools/shortcuts-remapper"
 
     const val DEVICES = "more/devices"
     const val AUTOMATIONS = "more/automations"

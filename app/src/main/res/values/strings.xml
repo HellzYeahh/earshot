@@ -592,4 +592,87 @@
     <string name="alert_low_text">%1$d%% left. Time to charge.</string>
     <string name="alert_low_text_left">Left earbud at %1$d%%. Time to charge.</string>
     <string name="alert_low_text_right">Right earbud at %1$d%%. Time to charge.</string>
+
+    <!-- Shortcuts remapper (headset press-and-hold) -->
+    <string name="shortcut_trigger_label">Earshot</string>
+    <string name="tools_shortcuts">Shortcuts remapper</string>
+    <string name="tools_shortcuts_subtitle">Headset press-and-hold: EQ, voice memo, apps</string>
+    <string name="shortcut_intro">Give your headset\'s press-and-hold a new job. This works with any Bluetooth headset whose press-and-hold calls the phone\'s voice assistant, not only Bose.</string>
+    <string name="shortcut_setup_title">Setup</string>
+    <string name="shortcut_setup_headset_app">First, in your headset\'s own app (Bose, Galaxy Wearable, Sony Sound Connect, Jabra, Beats…), set press-and-hold or touch-and-hold to Voice assistant (the phone\'s assistant). On Bose: More → Shortcut button → Voice assistant.</string>
+    <string name="shortcut_setup_done">Earshot answers the headset\'s assistant gesture.</string>
+    <string name="shortcut_setup_other">%1$s answers the headset\'s assistant gesture right now.</string>
+    <string name="shortcut_setup_other_steps">1. Tap Set up. In %1$s\'s settings, open “Set as default” (or “Open by default”) and tap Clear defaults.\n2. Come back and tap Test the chooser, or press and hold the headset button.\n3. Pick Earshot, then Always.</string>
+    <string name="shortcut_setup_chooser">Android asks which app to use each time.</string>
+    <string name="shortcut_setup_chooser_steps">Tap Test the chooser, or press and hold the headset button, then pick Earshot and Always.</string>
+    <string name="shortcut_set_up">Set up</string>
+    <string name="shortcut_test_chooser">Test the chooser</string>
+    <string name="shortcut_mic_needed">Voice memos need the microphone permission.</string>
+    <string name="shortcut_allow_mic">Allow</string>
+    <string name="shortcut_default_title">Action</string>
+    <string name="shortcut_default_action">When the headset asks for the assistant</string>
+    <string name="shortcut_app">App</string>
+    <string name="shortcut_choose">Choose</string>
+    <string name="shortcut_assistant">Assistant</string>
+    <string name="shortcut_spoken">Spoken feedback</string>
+    <string name="shortcut_spoken_sub">Say the preset name or “Saved” in the headset</string>
+    <string name="shortcut_try">Try it now</string>
+    <string name="shortcut_try_stop">Stop the voice memo</string>
+    <string name="shortcut_per_headset">Per headset</string>
+    <string name="shortcut_no_headsets">No paired headsets found. Earshot needs the Nearby devices permission to list them.</string>
+    <string name="shortcut_uses_default">Uses the action above</string>
+    <string name="shortcut_wired">Also wired and USB-C headsets (experimental)</string>
+    <string name="shortcut_wired_sub">Long-press play/pause while the phone is locked or the screen is off. They always use the action above.</string>
+    <string name="shortcut_good_to_know">Good to know</string>
+    <string name="shortcut_note_which">Works with headsets whose press-and-hold calls the phone\'s voice assistant. Some headsets with a built-in Google Assistant talk to Google directly and never reach Earshot.</string>
+    <string name="shortcut_note_bose">On Bose headphones, set the Shortcut button to Voice assistant (More → Shortcut button).</string>
+    <string name="shortcut_note_buttons">Play/pause and skip can\'t be remapped: Android sends them straight to the app that last played audio.</string>
+    <string name="shortcut_note_assistant">With Earshot as the handler, your assistant opens through Earshot when the action is “Open my assistant”.</string>
+
+    <string name="shortcut_action_cycle_eq">Cycle EQ preset</string>
+    <string name="shortcut_action_voice_memo">Voice memo</string>
+    <string name="shortcut_action_launch_named">Open %1$s</string>
+    <string name="shortcut_action_launch_none">Open an app (none chosen)</string>
+    <string name="shortcut_action_assistant_named">My assistant (%1$s)</string>
+    <string name="shortcut_assistant_auto_short">automatic</string>
+    <string name="shortcut_kind_launch">Open an app</string>
+    <string name="shortcut_kind_assistant">Open my assistant</string>
+    <string name="shortcut_kind_cycle_eq_sub">Next Pro EQ preset; turns the Pro EQ on if it\'s off</string>
+    <string name="shortcut_kind_voice_memo_sub">Press to start recording, press again to save</string>
+    <string name="shortcut_kind_launch_sub">Asks you to unlock first when the phone is locked</string>
+    <string name="shortcut_kind_assistant_sub">Google, Gemini, Bixby or another assistant</string>
+    <string name="shortcut_pick_action">Choose an action</string>
+    <string name="shortcut_use_default">Use the default action</string>
+    <string name="shortcut_pick_assistant">Choose your assistant</string>
+    <string name="shortcut_assistant_auto">Automatic</string>
+    <string name="shortcut_assistant_auto_now">Now: %1$s</string>
+    <string name="shortcut_assistant_none_found">No other assistant found</string>
+    <string name="shortcut_assistant_kind_command">Headset voice command</string>
+    <string name="shortcut_assistant_kind_assist">Assistant app</string>
+
+    <string name="shortcut_no_presets">No EQ presets</string>
+    <string name="shortcut_eq_unavailable">The Pro EQ isn\'t available on this phone</string>
+    <string name="shortcut_no_app">Choose an app for the headset shortcut in Earshot first</string>
+    <string name="shortcut_app_missing">The app for the headset shortcut isn\'t installed any more</string>
+    <string name="shortcut_no_assistant">No other assistant app found</string>
+    <string name="shortcut_start_failed">Couldn\'t open it</string>
+    <string name="shortcut_no_headset">No headset connected</string>
+
+    <!-- Voice memo -->
+    <string name="memo_channel_name">Voice memos</string>
+    <string name="memo_channel_description">Recording in progress and saved memos</string>
+    <string name="memo_notif_starting">Starting voice memo…</string>
+    <string name="memo_notif_recording">Recording a voice memo</string>
+    <string name="memo_notif_headset_mic">Headset mic · stops after %1$d min</string>
+    <string name="memo_notif_phone_mic">Phone mic · stops after %1$d min</string>
+    <string name="memo_notif_saved">Voice memo saved</string>
+    <string name="memo_start_refused">Android didn\'t allow the recording to start. Open Earshot and try again.</string>
+    <string name="memo_no_permission">Earshot needs the microphone permission for voice memos. Allow it in Tools → Shortcuts remapper.</string>
+    <string name="memo_failed">Couldn\'t start the voice memo (is another app using the mic?)</string>
+    <string name="memo_note_limit">Stopped at the %1$d-minute limit.</string>
+    <string name="memo_note_error">Stopped by a recorder error.</string>
+    <string name="memo_note_headset_lost">Stopped: the headset mic went away.</string>
+    <string name="memo_note_headset_stopped">Stopped from the headset.</string>
+    <string name="memo_spoken_saved">Saved</string>
+    <string name="memo_too_short">Voice memo too short, not saved</string>
 </resources>

@@ -4,6 +4,7 @@ import android.content.Context
 import dev.earshot.audio.AudioTuningRepositoryImpl
 import dev.earshot.bt.ByteTransport
 import dev.earshot.bt.DeviceFamily
+import dev.earshot.bt.DeviceFinder
 import dev.earshot.call.CallAudioRepositoryImpl
 import dev.earshot.call.HeadsetVolumeControl
 import dev.earshot.codec.CodecRepositoryImpl
@@ -21,6 +22,8 @@ import dev.earshot.service.HeadphoneProtocol
 import dev.earshot.service.QcUltra2Protocol
 import dev.earshot.service.RoutingHeadphoneRepository
 import dev.earshot.service.ServiceHeadphoneRepository
+import dev.earshot.shortcut.ShortcutEngine
+import dev.earshot.shortcut.ShortcutPrefs
 import dev.earshot.virtual.DemoDevice
 import dev.earshot.virtual.DemoMode
 import dev.earshot.virtual.VirtualCrusher
@@ -113,6 +116,14 @@ class AppContainer(private val appContext: Context) {
     val codec: CodecRepository by lazy { CodecRepositoryImpl(appContext, applicationScope) }
     val micCheck: MicCheckRepository by lazy { MicCheckRepositoryImpl(appContext, applicationScope) }
     val automation: AutomationRepository by lazy { AutomationRepositoryImpl(appContext, applicationScope) }
+
+    /** Bonded-device lookup shared with the connection code (the Shortcuts remapper lists headsets with it). */
+    val deviceFinder: DeviceFinder get() = boseHeadphones.deviceFinder
+
+    /** Shortcuts remapper: what a headset's press-and-hold does, and the code that does it. */
+    val shortcuts: ShortcutEngine by lazy {
+        ShortcutEngine(appContext, ShortcutPrefs(appContext), tuning, devicePrefs, applicationScope)
+    }
 
     /**
      * In-call volume boost and call-codec readout. Created eagerly by [EarshotApp]: its call

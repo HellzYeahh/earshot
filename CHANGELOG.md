@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Shortcuts remapper** (Tools): give a headset's press-and-hold a new job: cycle the Pro EQ
+  presets (spoken in the headset), start and stop a voice memo (headset mic, saved to
+  Recordings/Earshot), open an app, or open your assistant. Works with any Bluetooth headset whose
+  press-and-hold calls the phone's voice assistant; pick Earshot once in Android's chooser. Per-
+  headset actions, and an experimental switch for wired and USB-C headsets.
+
 ## 0.4.0 — 2026-10-18
 
 **Earshot adapts to your Bose model.** Like the Bose app, it now takes most of what it shows from

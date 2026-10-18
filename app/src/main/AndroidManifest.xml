@@ -10,6 +10,8 @@
     <!-- Foreground service that owns the connection -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Voice memos from the headset shortcut (shortcut/VoiceMemoService) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -34,6 +36,19 @@
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Shortcuts remapper: the assistants it can forward to, and the TextToSpeech engine. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VOICE_COMMAND" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VOICE_ASSIST" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 
     <application
         android:name=".EarshotApp"
@@ -112,6 +127,42 @@
         <receiver
             android:name=".extras.automation.ScheduleReceiver"
             android:exported="false" />
+
+        <!-- Shortcuts remapper (shortcut/): the headset's press-and-hold (HFP voice recognition)
+             arrives as VOICE_COMMAND once the user picks Earshot in Android's chooser. No UI. -->
+        <activity
+            android:name=".shortcut.ShortcutTriggerActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/shortcut_trigger_label"
+            android:showWhenLocked="true"
+            android:taskAffinity="dev.earshot.shortcut"
+            android:theme="@style/Theme.Earshot.Trigger">
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Wired / USB-C headsets' long press (locked or screen off). Disabled until the
+             experimental switch on the Shortcuts remapper screen enables it. -->
+        <activity-alias
+            android:name=".shortcut.WiredHeadsetTrigger"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/shortcut_trigger_label"
+            android:targetActivity=".shortcut.ShortcutTriggerActivity">
+            <intent-filter>
+                <action android:name="android.speech.action.VOICE_SEARCH_HANDS_FREE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- Voice memo recording started by the headset shortcut -->
+        <service
+            android:name=".shortcut.VoiceMemoService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- Shizuku -->
         <provider
