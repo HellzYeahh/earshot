@@ -18,7 +18,17 @@ import java.util.UUID
  * third-party one is only a fallback in case a firmware differs; the one that answers is remembered
  * per device ([DevicePrefs.bragiProfileFor]). Nothing but PPP-framed BOS-RPC is ever written.
  */
-class BragiLinkProfile(val id: String, val uuid: UUID, val wrapper: BragiTxWrapper) {
+class BragiLinkProfile(
+    val id: String,
+    val uuid: UUID,
+    val wrapper: BragiTxWrapper,
+    /**
+     * A second service opened alongside and then left silent. The official app has both sockets up
+     * at once; some firmware may only answer the data socket once the vendor one is connected.
+     * Nothing is ever written to it.
+     */
+    val companion: UUID? = null,
+) {
     override fun toString() = "$id (${wrapper})"
 
     companion object {
@@ -31,6 +41,7 @@ class BragiLinkProfile(val id: String, val uuid: UUID, val wrapper: BragiTxWrapp
         /** In the order they are tried when nothing is remembered. */
         val DEFAULTS: List<BragiLinkProfile> = listOf(
             BragiLinkProfile("data/raw", SERVICE_DATA, RawPppWrapper),
+            BragiLinkProfile("data/raw+companion", SERVICE_DATA, RawPppWrapper, companion = SERVICE_THIRD_PARTY),
             BragiLinkProfile("third-party/raw", SERVICE_THIRD_PARTY, RawPppWrapper),
         )
     }
@@ -64,7 +75,7 @@ class BragiLinkFactory(
         var lastIo: Exception? = null
         for (profile in order) {
             val transport = try {
-                RfcommTransport.connectService(device, profile.uuid)
+                openProfile(device, profile)
             } catch (e: SecurityException) {
                 throw e
             } catch (e: CancellationException) {
@@ -107,6 +118,29 @@ class BragiLinkFactory(
 
     override fun adopt(transport: ByteTransport, scope: CoroutineScope): BragiConnection =
         BragiConnection(transport, scope)
+
+    /** Open the profile's data socket, plus its idle companion if it has one (a companion that will not open is skipped). */
+    private suspend fun openProfile(device: BluetoothDevice, profile: BragiLinkProfile): ByteTransport {
+        val companion = profile.companion?.let { uuid ->
+            try {
+                RfcommTransport.connectService(device, uuid)
+            } catch (e: SecurityException) {
+                throw e
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                BtLog.w("bragi ${profile.id}: companion socket did not open (${e.message}); continuing without it")
+                null
+            }
+        }
+        val primary = try {
+            RfcommTransport.connectService(device, profile.uuid)
+        } catch (e: Exception) {
+            companion?.close()
+            throw e
+        }
+        return if (companion == null) primary else CompanionTransport(primary, companion)
+    }
 
     /** The remembered profile first, then the defaults in order, each once. */
     internal fun orderFor(learnedId: String?): List<BragiLinkProfile> {

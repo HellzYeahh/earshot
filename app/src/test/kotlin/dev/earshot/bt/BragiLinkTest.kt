@@ -69,7 +69,7 @@ class BragiLinkTest {
     @Test fun `profiles are tried in order and the remembered one goes first`() {
         val f = BragiLinkFactory()
         assertEquals(BragiLinkProfile.DEFAULTS.map { it.id }, f.orderFor(null).map { it.id })
-        val learned = BragiLinkProfile.DEFAULTS[1].id
+        val learned = BragiLinkProfile.DEFAULTS[2].id
         val order = f.orderFor(learned).map { it.id }
         assertEquals(learned, order.first())
         assertEquals(BragiLinkProfile.DEFAULTS.size, order.size)
@@ -81,6 +81,27 @@ class BragiLinkTest {
     @Test fun `BOS-RPC goes raw on the data service first and nothing is ever RACE-wrapped`() {
         assertEquals(BragiLinkProfile.SERVICE_DATA, BragiLinkProfile.DEFAULTS.first().uuid)
         assertTrue(BragiLinkProfile.DEFAULTS.all { it.wrapper === RawPppWrapper })
+        // The second rung keeps the vendor socket connected but idle: the data socket is still what is written to.
+        val companionRung = BragiLinkProfile.DEFAULTS.first { it.companion != null }
+        assertEquals(BragiLinkProfile.SERVICE_DATA, companionRung.uuid)
+        assertEquals(BragiLinkProfile.SERVICE_THIRD_PARTY, companionRung.companion)
+    }
+
+    @Test fun `a companion transport reads and writes the primary and closes both`() {
+        class Fake : ByteTransport {
+            var closed = false; val written = ArrayList<ByteArray>()
+            override val isConnected get() = !closed
+            override val incoming = kotlinx.coroutines.flow.emptyFlow<ByteArray>()
+            override suspend fun write(bytes: ByteArray) { written += bytes }
+            override fun close() { closed = true }
+        }
+        val primary = Fake(); val companion = Fake()
+        val t = CompanionTransport(primary, companion)
+        kotlinx.coroutines.runBlocking { t.write(byteArrayOf(1, 2)) }
+        assertEquals(1, primary.written.size)
+        assertTrue(companion.written.isEmpty(), "nothing is ever written to the companion")
+        t.close()
+        assertTrue(primary.closed && companion.closed)
     }
 
     // ── Which stack drives a device ──────────────────────────────────────────────────────
