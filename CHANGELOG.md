@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-10-17
 
 **Skullcandy Crusher 1080 ANC (experimental).** The Crusher's "Sound by Bose" features run on a
 different protocol from the Bose headphones (Bragi BOS-RPC), so Earshot gains a second stack behind
@@ -17,6 +17,17 @@ run on real hardware: see [docs/crusher-1080.md](docs/crusher-1080.md).
 - Lab: **Copy connection report** (model, link variants tried, services the phone has seen, recent
   log) for bug reports; the read-only scan also covers the Crusher.
 - Demo mode can emulate a Crusher, or a Crusher that asks for pairing.
+
+### Fixed (found in review before release)
+- A saved "Headphone type" now wins over the device name in every place that picks a stack, so a
+  renamed Crusher or Bose no longer connects with the wrong one.
+- A lost link during the Crusher's optional reads is no longer swallowed; the session closes and
+  reconnects instead of showing "Connected" on a dead socket.
+- Sidetone levels read back as the level that was written, whatever volume range the firmware reports.
+- A Keystore failure while setting up the secure session no longer aborts the connect; a regenerated
+  identity forgets the headphones it can no longer authenticate to; the pairing dialog shows on any
+  tab and waits as long as the headphones do; the battery poll no longer greys the controls out.
+- The link-up receiver waits until the right stack has started before finishing.
 
 ### Changed
 - `ConnectionManager` is generic over the session type with a per-family link factory; the Bose

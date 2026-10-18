@@ -15,8 +15,8 @@ android {
         applicationId = "dev.earshot"
         minSdk = 28 // DynamicsProcessing (the pro EQ) needs Android 9+
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.0"
+        versionCode = 4
+        versionName = "0.3.0"
     }
 
     buildTypes {
