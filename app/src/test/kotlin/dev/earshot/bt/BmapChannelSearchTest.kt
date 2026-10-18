@@ -79,6 +79,23 @@ class BmapChannelSearchTest {
     }
 
     @Test
+    fun `the HFP channel is closed and skipped on the way to BMAP`() = runTest {
+        val found = run(mapOf(
+            Channel(2) to { ScriptedTransport(chatter = ScriptedTransport.HFP_OPENER) },
+            Channel(9) to { ScriptedTransport.bmap() },
+        ))
+        assertEquals(Channel(9), found.candidate)
+        assertFalse(opened.getValue(Channel(2)).isConnected, "the HFP socket is not held")
+    }
+
+    @Test
+    fun `only the HFP channel opening is not reported as the Bose app holding BMAP`() = runTest {
+        val e = assertFailsWith<RfcommConnectException> { run(mapOf(Channel(8) to { ScriptedTransport(chatter = ScriptedTransport.HFP_OPENER) })) }
+        assertFalse(e.looksBusy)
+        assertTrue("HFP" in e.message.orEmpty(), e.message)
+    }
+
+    @Test
     fun `nothing opens at all is an ordinary failure`() = runTest {
         val e = assertFailsWith<RfcommConnectException> { run(emptyMap()) }
         assertFalse(e.looksBusy)

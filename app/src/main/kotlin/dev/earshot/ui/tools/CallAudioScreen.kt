@@ -43,6 +43,7 @@ import dev.earshot.R
 import dev.earshot.core.CallAudioPreferences
 import dev.earshot.core.CallAudioRepository
 import dev.earshot.core.CallAudioState
+import dev.earshot.core.HFP_GAIN_MAX
 import dev.earshot.core.fake.FakeCallAudioRepository
 import dev.earshot.ui.common.BannerTone
 import dev.earshot.ui.common.EarshotPreview
@@ -157,6 +158,7 @@ private fun LiveCallCard(state: CallAudioState, onBoostNow: () -> Unit) {
             progress = { if (state.callVolumeMax > 0) (state.callVolume.toFloat() / state.callVolumeMax).coerceIn(0f, 1f) else 0f },
             modifier = Modifier.fillMaxWidth(),
         )
+        HfpLinkRows(state)
 
         Spacer(Modifier.height(12.dp))
         val codec = describeCallCodec(state)
@@ -186,6 +188,46 @@ private fun LiveCallCard(state: CallAudioState, onBoostNow: () -> Unit) {
                 Text(stringResource(R.string.call_boost_now))
             }
         }
+    }
+}
+
+/**
+ * What the HFP link itself says (read with the codec, so Shizuku only): the gain the headset
+ * applies, its mic gain, and whether the phone's own voice processing runs on top of the
+ * headphones'. Each row hides while its value is unknown.
+ */
+@Composable
+private fun HfpLinkRows(state: CallAudioState) {
+    val gain = state.headsetCallGain
+    val mic = state.headsetMicGain
+    val nrec = state.phoneNoiseReduction
+    if (gain == null && mic == null && nrec == null) return
+    Spacer(Modifier.height(8.dp))
+    gain?.let { LinkRow(stringResource(R.string.call_headset_gain), stringResource(R.string.call_volume_value, it, HFP_GAIN_MAX)) }
+    mic?.let { LinkRow(stringResource(R.string.call_headset_mic_gain), stringResource(R.string.call_volume_value, it, HFP_GAIN_MAX)) }
+    if (gain != null || mic != null) {
+        Text(
+            stringResource(R.string.call_gain_caption),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+    }
+    if (nrec != null) {
+        LinkRow(stringResource(R.string.call_phone_nr), stringResource(if (nrec) R.string.call_phone_nr_on else R.string.call_phone_nr_off))
+        Text(
+            stringResource(if (nrec) R.string.call_phone_nr_on_hint else R.string.call_phone_nr_off_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun LinkRow(label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp)) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.titleSmall)
     }
 }
 
@@ -338,6 +380,7 @@ private fun CallAudioNarrowbandPreview() {
         inCall = true, onHeadphones = true, routedDeviceName = "Bose QC Ultra Headphones",
         callVolume = 2, callVolumeMax = 7,
         callCodec = "CVSD", wideband = false, callSampleRateHz = 8_000, codecReadAt = 0L,
+        headsetCallGain = 4, phoneNoiseReduction = true,
         absoluteVolumeDisabled = true, absoluteVolumeNeedsReconnect = true,
         lastError = "Changing absolute volume needs Shizuku: start it and grant Earshot.",
     )

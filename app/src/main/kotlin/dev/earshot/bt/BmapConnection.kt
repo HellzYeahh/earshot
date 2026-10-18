@@ -108,14 +108,25 @@ class BmapConnection(
     @Volatile private var deviceFrames = 0
     @Volatile private var oddFrames = 0
     @Volatile private var junkBytes = 0L
+    // The first bytes as they came, so the probe can recognise another profile's opener (HFP's
+    // `AT+BRSF=`) that BMAP framing would only count as junk.
+    private val head = ByteArray(HEAD_BYTES)
+    @Volatile private var headSize = 0
 
     /** Counts of what arrived on this connection; see [LivenessProbe.judge]. */
-    data class Traffic(val bytes: Long, val deviceFrames: Int, val oddFrames: Int, val junkBytes: Long) {
+    data class Traffic(
+        val bytes: Long,
+        val deviceFrames: Int,
+        val oddFrames: Int,
+        val junkBytes: Long,
+        /** The first [HEAD_BYTES] bytes received, unframed. */
+        val head: ByteArray = ByteArray(0),
+    ) {
         /** Something arrived and every byte of it framed as device-side BMAP on a known block. */
         val looksLikeBmap: Boolean get() = deviceFrames > 0 && oddFrames == 0 && junkBytes == 0L
     }
 
-    fun traffic(): Traffic = Traffic(bytesIn, deviceFrames, oddFrames, junkBytes)
+    fun traffic(): Traffic = Traffic(bytesIn, deviceFrames, oddFrames, junkBytes, head.copyOf(headSize))
     private val closedSignal = CompletableDeferred<Throwable?>()
 
     private val _unsolicited = MutableSharedFlow<BmapPacket>(extraBufferCapacity = 64)
@@ -168,6 +179,11 @@ class BmapConnection(
                 silentInARow = 0
                 silentStreak = emptyList()
                 bytesIn += chunk.size
+                if (headSize < HEAD_BYTES) {
+                    val n = minOf(chunk.size, HEAD_BYTES - headSize)
+                    chunk.copyInto(head, headSize, 0, n)
+                    headSize += n
+                }
                 frames.feed(chunk).forEach(::dispatch)
             }
             finish(null)
@@ -395,6 +411,8 @@ class BmapConnection(
 
     companion object {
         const val DEFAULT_TIMEOUT_MS = 3_000L
+        /** How much of the start of the stream [Traffic.head] keeps: enough for an `AT+BRSF=<features>` line. */
+        const val HEAD_BYTES = 64
         const val DEFAULT_QUIET_GAP_MS = 400L
         const val DEFAULT_MIN_WRITE_GAP_MS = 80L
         const val DEFAULT_MAX_SILENT_REPLIES = 3

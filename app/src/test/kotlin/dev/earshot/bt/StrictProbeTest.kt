@@ -15,6 +15,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -51,6 +52,13 @@ internal class ScriptedTransport(
         const val BEACON = "ff550203 010203 ff550203 010203"
         /** channel 22: a log stream that "dumps data regardless of input". */
         const val LOG = "5b3132333435365d206274206c696e6b207570 0a 5b3132333435375d2061636c20636f6e6e6563746564 0a"
+
+        /**
+         * A headset's HFP channel: the hands-free side opens with `AT+BRSF=<features>` (HFP 1.8
+         * §4.2.1.1). 1919 = EC/NR, call waiting, CLI, voice recognition, remote volume, codec
+         * negotiation, HF indicators, eSCO S4 and enhanced VR status.
+         */
+        const val HFP_OPENER = "41542b425253463d313931390d"
 
         fun bmap() = ScriptedTransport(answer = { bytes -> if (bytes[0] == 0.toByte() && bytes[1] == 1.toByte()) BMAP_VERSION_REPLY else null })
     }
@@ -94,6 +102,26 @@ class StrictProbeTest {
         assertSame(LivenessProbe.Verdict.Alive, LivenessProbe.judge(null, BmapConnection.Traffic(5, 1, 0, 0)))
     }
 
+    @Test
+    fun `an AT command line is the HFP channel, binary streams are not`() {
+        fun ascii(s: String) = s.toByteArray(Charsets.US_ASCII)
+        assertEquals("AT+BRSF=1919", LivenessProbe.hfpOpener(ascii("AT+BRSF=1919\r")))
+        assertEquals("AT+CKPD=200", LivenessProbe.hfpOpener(ascii("\r\nAT+CKPD=200\r\n"))) // HSP button
+        assertEquals("AT+BRSF=19", LivenessProbe.hfpOpener(ascii("AT+BRSF=19"))) // cut off by the 64-byte head
+        assertNull(LivenessProbe.hfpOpener(ascii("at+brsf=1\r")))
+        assertNull(LivenessProbe.hfpOpener(ScriptedTransport.BEACON.replace(" ", "").hexToBytes()))
+        assertNull(LivenessProbe.hfpOpener(ScriptedTransport.LOG.replace(" ", "").hexToBytes()))
+        assertNull(LivenessProbe.hfpOpener(byteArrayOf(0x41, 0x54, 0x2b, 0x01, 0x02)), "binary after AT+")
+        assertNull(LivenessProbe.hfpOpener(ByteArray(0)))
+    }
+
+    @Test
+    fun `judge names the HFP channel instead of calling it junk`() {
+        val head = ScriptedTransport.HFP_OPENER.hexToBytes()
+        val v = LivenessProbe.judge(null, BmapConnection.Traffic(head.size.toLong(), 0, 1, 9, head))
+        assertEquals(LivenessProbe.Verdict.Hfp("AT+BRSF=1919"), v)
+    }
+
     // ── over a connection ────────────────────────────────────────────────────────────────
 
     @Test
@@ -106,6 +134,17 @@ class StrictProbeTest {
 
         val e = assertFailsWith<RfcommConnectException> { LivenessProbe.check(connection(ScriptedTransport(chatter = ScriptedTransport.BEACON))) }
         assertTrue(e.looksBusy)
+    }
+
+    @Test
+    fun `the HFP channel is recognised from its AT+BRSF greeting and is not the busy signature`() = runTest {
+        val c = connection(ScriptedTransport(chatter = ScriptedTransport.HFP_OPENER))
+        assertEquals(LivenessProbe.Verdict.Hfp("AT+BRSF=1919"), LivenessProbe.probe(c))
+
+        val t = ScriptedTransport(chatter = ScriptedTransport.HFP_OPENER)
+        val e = assertFailsWith<RfcommConnectException> { LivenessProbe.check(connection(t)) }
+        assertFalse(e.looksBusy)
+        assertFalse(t.isConnected, "closed at once")
     }
 
     @Test

@@ -86,6 +86,9 @@ internal class BmapChannelSearch(
             BtLog.w("$candidate opened but is not the BMAP channel: $verdict")
             when (verdict) {
                 is LivenessProbe.Verdict.Dropped -> dropped = verdict.cause
+                // Closed at once above: holding it would look to the headset like a second phone
+                // connecting for calls. It is not the "Bose app holds the channel" signature.
+                is LivenessProbe.Verdict.Hfp -> Unit
                 else -> openedButMute++
             }
         }

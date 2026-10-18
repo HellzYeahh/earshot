@@ -3,6 +3,7 @@ package dev.earshot.core.fake
 import dev.earshot.core.CallAudioPreferences
 import dev.earshot.core.CallAudioRepository
 import dev.earshot.core.CallAudioState
+import dev.earshot.core.HFP_GAIN_MAX
 import dev.earshot.core.HeadphoneCommandException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +30,9 @@ class FakeCallAudioRepository(inCall: Boolean = true, private val shizukuReady: 
             wideband = true,
             callSampleRateHz = 16_000,
             codecReadAt = System.currentTimeMillis(),
+            headsetCallGain = if (inCall) 9 else null,
+            headsetMicGain = if (inCall) 15 else null,
+            phoneNoiseReduction = if (inCall) false else null,
             absoluteVolumeDisabled = if (shizukuReady) false else null,
         ),
     )
@@ -46,7 +50,9 @@ class FakeCallAudioRepository(inCall: Boolean = true, private val shizukuReady: 
         if (!s.inCall) throw HeadphoneCommandException("Start a call first: Android keeps a separate call volume for each output.")
         delay(100)
         val target = (s.callVolumeMax * _preferences.value.boostPercent / 100.0).roundToInt()
-        _state.update { it.copy(callVolume = target, lastBoostAppliedAt = System.currentTimeMillis(), lastError = null) }
+        // Android maps the call index onto the headset's 0..15 HFP gain.
+        val gain = if (s.callVolumeMax > 0) (target * HFP_GAIN_MAX + s.callVolumeMax / 2) / s.callVolumeMax else null
+        _state.update { it.copy(callVolume = target, headsetCallGain = gain, lastBoostAppliedAt = System.currentTimeMillis(), lastError = null) }
     }
 
     override suspend fun setAbsoluteVolumeDisabled(disabled: Boolean) {

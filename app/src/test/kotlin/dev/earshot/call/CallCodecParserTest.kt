@@ -256,4 +256,82 @@ class CallCodecParserTest {
         assertNull(VoiceCodec.normalize("true"))
         assertNull(VoiceCodec.normalize("null"))
     }
+
+    // ── HFP gains and NREC (HFP 1.8 §4.29 / §4.24) ─────────────────────────────────────────
+
+    @Test fun `speaker and mic gain and the phone's NREC flag come from the headset block`() {
+        val parsed = CallCodecParser.parse(dump(headsetSection(wbs = true)))
+        val link = assertNotNull(CallCodecParser.hfpLink(parsed, CallRoute.BLUETOOTH_SCO))
+        assertEquals(15, link.speakerGain)
+        assertEquals(15, link.micGain)
+        assertEquals(false, link.phoneNrec)
+    }
+
+    @Test fun `gains of the headset carrying the call, not the other multipoint one`() {
+        val text = """
+            Profile: HeadsetService
+              mActiveDevice: 4C:87:5D:AA:BB:CC
+              ==== StateMachine for 11:22:33:44:55:66 ====
+                mCurrentDevice: 11:22:33:44:55:66
+                mCurrentState: Connected
+                mAudioState: 10
+                mSpeakerVolume: 3
+                mHasNrecEnabled: false
+              ==== StateMachine for 4C:87:5D:AA:BB:CC ====
+                mCurrentDevice: 4C:87:5D:AA:BB:CC
+                mCurrentState: AudioOn
+                mAudioState: 12
+                mSpeakerVolume: 9
+                mMicVolume: 11
+                mHasNrecEnabled: true
+                StateMachine: HeadsetStateMachine:
+                 rec[0]: time=10-17 09:12:01.123 processed=AudioOn org=AudioOn dest=<null> what=STACK_EVENT mSpeakerVolume: 1
+        """.trimIndent()
+        val link = assertNotNull(CallCodecParser.hfpLink(CallCodecParser.parse(text), CallRoute.UNKNOWN))
+        assertEquals("4C:87:5D:AA:BB:CC", link.address)
+        assertEquals(9, link.speakerGain)
+        assertEquals(11, link.micGain)
+        assertEquals(true, link.phoneNrec)
+    }
+
+    @Test fun `a dump without gain or NREC lines leaves them null, and odd values are ignored`() {
+        val text = """
+            Profile: HeadsetService
+              ==== StateMachine for 4C:87:5D:AA:BB:CC ====
+                mCurrentDevice: 4C:87:5D:AA:BB:CC
+                mCurrentState: AudioOn
+                mSpeakerVolume: 42
+                mHasWbsEnabled: true
+        """.trimIndent()
+        val link = assertNotNull(CallCodecParser.hfpLink(CallCodecParser.parse(text), CallRoute.BLUETOOTH_SCO))
+        assertNull(link.speakerGain)
+        assertNull(link.micGain)
+        assertNull(link.phoneNrec)
+    }
+
+    @Test fun `no HFP link while the call is on LE Audio`() {
+        val parsed = CallCodecParser.parse(dump(headsetSection(wbs = true, state = "Connected", audioState = 10), leSectionInCall))
+        assertNull(CallCodecParser.hfpLink(parsed, CallRoute.LE_AUDIO))
+    }
+
+    @Test fun `headset volume reports are counted from this headset's history only`() {
+        val text = """
+            Profile: HeadsetService
+              ==== StateMachine for 4C:87:5D:AA:BB:CC ====
+                mCurrentDevice: 4C:87:5D:AA:BB:CC
+                mCurrentState: AudioOn
+                mSpeakerVolume: 9
+                StateMachine: HeadsetStateMachine:
+                 rec[0]: time=10-17 09:12:01.123 processed=AudioOn what=STACK_EVENT HeadsetStackEvent[EVENT_TYPE_VOLUME_CHANGED, valInt=0, valInt2=9]
+                 rec[1]: time=10-17 09:12:02.000 processed=AudioOn what=INTENT_SCO_VOLUME_CHANGED
+                 rec[2]: time=10-17 09:12:03.000 processed=AudioOn what=STACK_EVENT AT+VGS=9
+              ==== StateMachine for 11:22:33:44:55:66 ====
+                mCurrentDevice: 11:22:33:44:55:66
+                 rec[0]: time=10-17 09:12:04.000 processed=Connected what=STACK_EVENT AT+VGM=4
+        """.trimIndent()
+        val devices = CallCodecParser.parse(text).hfpDevices
+        // INTENT_SCO_VOLUME_CHANGED is the phone's own change: not a report from the headset.
+        assertEquals(2, devices[0].headsetVolumeReports)
+        assertEquals(1, devices[1].headsetVolumeReports)
+    }
 }

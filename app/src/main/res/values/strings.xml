@@ -340,6 +340,14 @@
     <string name="call_volume">Call volume</string>
     <string name="call_volume_value">%1$d / %2$d</string>
     <string name="call_boost_now">Boost now</string>
+    <string name="call_headset_gain">Headset call volume</string>
+    <string name="call_headset_mic_gain">Headset mic gain</string>
+    <string name="call_gain_caption">What the headphones were last told over the call link (HFP, 0–15)</string>
+    <string name="call_phone_nr">Phone noise reduction</string>
+    <string name="call_phone_nr_on">On</string>
+    <string name="call_phone_nr_off">Off</string>
+    <string name="call_phone_nr_on_hint">The headphones run their own echo cancelling and noise reduction, and the phone is running its own on top. That can make your voice sound processed. Only the headphones can ask the phone to stop (AT+NREC).</string>
+    <string name="call_phone_nr_off_hint">The headphones asked the phone to switch its own off, so only theirs works on your voice.</string>
     <string name="call_boosted">Call volume set to %1$d %%</string>
     <string name="call_codec_msbc">mSBC · wideband 16 kHz</string>
     <string name="call_codec_cvsd">CVSD · narrowband 8 kHz</string>
@@ -362,7 +370,7 @@
     <string name="call_abs_volume">Unlink phone and headset volume (absolute volume off)</string>
     <string name="call_abs_volume_needs_shizuku">Needs Shizuku</string>
     <string name="call_abs_volume_reconnect">Reconnect the headphones to apply</string>
-    <string name="call_abs_volume_caveat">An experiment. On some Samsung phones it leaves more headroom so calls can get louder, but it mostly changes how media volume behaves (you may need to turn up both sides for music) and the in-call effect isn\'t guaranteed. To revert, switch it back here, or in Developer options → “Disable absolute volume”, then reconnect.</string>
+    <string name="call_abs_volume_caveat">An experiment. On some Samsung phones it leaves more headroom so calls can get louder, but it mostly changes how media volume behaves (you may need to turn up both sides for music) and any in-call effect is up to the phone: absolute volume is a media setting, while call volume travels on the call link (HFP) as its own 0–15 setting. To revert, switch it back here, or in Developer options → “Disable absolute volume”, then reconnect.</string>
     <string name="call_honest_title">Your voice on calls</string>
     <string name="call_honest_body">No app can process the call microphone: on Android it goes from the headset to the modem or the calling app without passing through other apps, and this firmware has no mic EQ. What does help is a wideband call codec (mSBC or LC3) and LE Audio; if you still sound bad on mSBC or LC3, the limit is the network or the calling app. Self Voice (More → Sidetone) changes only what you hear.</string>
 

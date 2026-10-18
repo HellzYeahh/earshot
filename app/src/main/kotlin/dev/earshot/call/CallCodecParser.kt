@@ -1,5 +1,7 @@
 package dev.earshot.call
 
+import dev.earshot.core.HFP_GAIN_MAX
+
 /** Voice codec names, as shown in [dev.earshot.core.CallAudioState.callCodec]. */
 object VoiceCodec {
     const val CVSD = "CVSD"
@@ -46,7 +48,29 @@ data class HfpDeviceDump(
     val audioOn: Boolean?,
     /** Normalised voice codec, from an explicit codec line or the WBS/SWB flags. */
     val codec: String?,
+    /**
+     * HFP speaker gain `+VGS` / `AT+VGS`, 0..[HFP_GAIN_MAX] (`mSpeakerVolume`): the call volume as the
+     * headset applies it. HFP 1.8 §4.29: an absolute value on the headset's own scale, set by the
+     * phone and reported back by the headset at connect and after its own buttons change it.
+     */
+    val speakerGain: Int? = null,
+    /** HFP microphone gain `+VGM` / `AT+VGM`, 0..[HFP_GAIN_MAX] (`mMicVolume`). */
+    val micGain: Int? = null,
+    /**
+     * `mHasNrecEnabled`: the *phone's* echo cancelling / noise reduction is on for this headset.
+     * AOSP sets it on every connect and clears it when the headset sends `AT+NREC=0` (HFP 1.8
+     * §4.24: a headset with its own EC/NR asks for that). Not printed by every build: null then.
+     */
+    val phoneNrec: Boolean? = null,
+    /**
+     * History lines (`rec[n]`) in this headset's block that record a volume event *from the
+     * headset* (the stack's `EVENT_TYPE_VOLUME_CHANGED`, or a raw `AT+VGS`/`AT+VGM`; not the
+     * phone's own `INTENT_SCO_VOLUME_CHANGED`). The history is a
+     * ring buffer, so only a change between two reads means something; used for the log only.
+     */
+    val headsetVolumeReports: Int = 0,
 )
+
 
 data class CallCodecDump(
     val hfpActiveDevice: String?,
@@ -102,6 +126,10 @@ object CallCodecParser {
     private val CURRENT_STATE = Regex("""^\s*mCurrentState:\s*(\S+)""")
     private val AUDIO_STATE = Regex("""^\s*mAudioState:\s*(\S+)""")
     private val SCO_ON = Regex("""isBluetoothScoOn\(\)\s*:\s*(true|false)""", RegexOption.IGNORE_CASE)
+    private val SPEAKER_GAIN = Regex("""^\s*mSpeakerVolume\s*[:=]\s*(-?\d+)""")
+    private val MIC_GAIN = Regex("""^\s*mMicVolume\s*[:=]\s*(-?\d+)""")
+    private val NREC = Regex("""^\s*m?(?:Has|Is)?Nrec\w*\s*[:=]\s*(true|false)""", RegexOption.IGNORE_CASE)
+    private val HEADSET_VOLUME_EVENT = Regex("""EVENT_TYPE_VOLUME_CHANGED|AT\+VG[SM]""")
     private val FLAG = Regex("""^\s*m?(?:Has|Is)?(SwbLc3|SwbAptX|Wbs)\w*\s*[:=]\s*(true|false)""", RegexOption.IGNORE_CASE)
     // Key may contain spaces ("Current SCO codec: CVSD"); A2DP-style `{codecName:` blocks are excluded where used.
     private val CODEC_LINE = Regex("""^\s*([\w .()-]*codec[\w.()-]*)\s*[:=]\s*([A-Za-z0-9+_-]+)""", RegexOption.IGNORE_CASE)
@@ -118,6 +146,10 @@ object CallCodecParser {
     private class HfpBuilder(val address: String?) {
         var audioOn: Boolean? = null
         var explicitCodec: String? = null
+        var speakerGain: Int? = null
+        var micGain: Int? = null
+        var nrec: Boolean? = null
+        var volumeReports = 0
         val flags = mutableMapOf<String, Boolean>()
         fun build(): HfpDeviceDump {
             val fromFlags = when {
@@ -127,7 +159,7 @@ object CallCodecParser {
                 flags["wbs"] == false -> VoiceCodec.CVSD
                 else -> null
             }
-            return HfpDeviceDump(address, audioOn, explicitCodec ?: fromFlags)
+            return HfpDeviceDump(address, audioOn, explicitCodec ?: fromFlags, speakerGain, micGain, nrec, volumeReports)
         }
     }
 
@@ -158,7 +190,10 @@ object CallCodecParser {
                 }
                 device = null
             }
-            if (HISTORY_LINE.containsMatchIn(line)) continue
+            if (HISTORY_LINE.containsMatchIn(line)) {
+                if (section == Section.HFP && HEADSET_VOLUME_EVENT.containsMatchIn(line)) device?.let { it.volumeReports++ }
+                continue
+            }
 
             when (section) {
                 Section.HFP -> {
@@ -177,6 +212,11 @@ object CallCodecParser {
                         if (d != null) d.audioOn = (d.audioOn == true) || v == "12" || v.contains("AUDIO_CONNECTED", true)
                     }
                     FLAG.find(line)?.let { m -> d?.flags?.put(m.groupValues[1].lowercase(), m.groupValues[2].equals("true", true)) }
+                    if (d != null) {
+                        SPEAKER_GAIN.find(line)?.let { d.speakerGain = gain(it.groupValues[1]) }
+                        MIC_GAIN.find(line)?.let { d.micGain = gain(it.groupValues[1]) }
+                        NREC.find(line)?.let { d.nrec = it.groupValues[1].equals("true", true) }
+                    }
                     CODEC_LINE.find(line)?.let { m ->
                         if (line.contains("{codecName:")) return@let // an A2DP config block, not voice
                         val codec = VoiceCodec.normalize(m.groupValues[2]) ?: return@let
@@ -215,12 +255,7 @@ object CallCodecParser {
      *   last two octets are enough to match.
      */
     fun resolve(dump: CallCodecDump, route: CallRoute, preferAddress: String? = null): CallCodecReading? {
-        val leLikely = when (route) {
-            CallRoute.LE_AUDIO -> true
-            CallRoute.BLUETOOTH_SCO -> false
-            else -> dump.leActiveInDevice != null && dump.hfpDevices.none { it.audioOn == true } && dump.scoOn != true
-        }
-        if (leLikely) {
+        if (leLikely(dump, route)) {
             if (route == CallRoute.LE_AUDIO || dump.leAudioActive) {
                 val rate = dump.leSampleRateHz?.takeIf { it in 8_000..48_000 }
                 return CallCodecReading(VoiceCodec.LC3_LE, wideband = rate == null || rate >= 16_000, sampleRateHz = rate)
@@ -231,6 +266,23 @@ object CallCodecParser {
         val codec = device?.codec ?: dump.hfpServiceCodec ?: return null
         return CallCodecReading(codec, VoiceCodec.isWideband(codec), VoiceCodec.impliedSampleRateHz(codec))
     }
+
+    /**
+     * The HFP headset carrying the call, for its gains and NREC flag; picked like [resolve] does,
+     * and null when the call is on LE Audio (no HFP link) or no headset block was printed. Read
+     * separately from the codec so a dump without a codec line still shows the gains.
+     */
+    fun hfpLink(dump: CallCodecDump, route: CallRoute, preferAddress: String? = null): HfpDeviceDump? =
+        if (leLikely(dump, route)) null else pickHfpDevice(dump, preferAddress)
+
+    private fun leLikely(dump: CallCodecDump, route: CallRoute): Boolean = when (route) {
+        CallRoute.LE_AUDIO -> true
+        CallRoute.BLUETOOTH_SCO -> false
+        else -> dump.leActiveInDevice != null && dump.hfpDevices.none { it.audioOn == true } && dump.scoOn != true
+    }
+
+    /** A gain outside 0..15 is a build printing something else under that name: ignore it. */
+    private fun gain(raw: String): Int? = raw.toIntOrNull()?.takeIf { it in 0..HFP_GAIN_MAX }
 
     private fun pickHfpDevice(dump: CallCodecDump, preferAddress: String?): HfpDeviceDump? {
         val devices = dump.hfpDevices

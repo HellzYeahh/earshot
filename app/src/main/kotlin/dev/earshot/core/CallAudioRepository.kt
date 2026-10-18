@@ -31,6 +31,19 @@ data class CallAudioState(
     val callSampleRateHz: Int? = null,
     /** Wall-clock millis of the last successful codec read. */
     val codecReadAt: Long? = null,
+    /**
+     * HFP speaker gain of the call link, 0..[HFP_GAIN_MAX] (`+VGS`): the call volume as the
+     * headset applies it, read with the codec. Shows whether a boost reached the headphones. null
+     * when unknown (no Shizuku, LE Audio call, a build that doesn't print it).
+     */
+    val headsetCallGain: Int? = null,
+    /** HFP microphone gain of the call link, 0..[HFP_GAIN_MAX] (`+VGM`); null when unknown. */
+    val headsetMicGain: Int? = null,
+    /**
+     * The phone's own echo cancelling / noise reduction is on for this call (true) or the headset
+     * switched it off with `AT+NREC=0` (false); null when the build doesn't print it.
+     */
+    val phoneNoiseReduction: Boolean? = null,
     /** Android's "Disable absolute volume" switch; null when Shizuku is unavailable (can't read it). */
     val absoluteVolumeDisabled: Boolean? = null,
     /**
@@ -43,6 +56,9 @@ data class CallAudioState(
     /** Last failure, user-readable. Cleared by the next successful operation of the same kind. */
     val lastError: String? = null,
 )
+
+/** Top of the HFP speaker / mic gain scale (HFP 1.8 §4.29: 0..15). */
+const val HFP_GAIN_MAX = 15
 
 data class CallAudioPreferences(
     /** Raise the call volume automatically when a call starts on the headphones. */

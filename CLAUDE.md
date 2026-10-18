@@ -61,6 +61,8 @@ own module. Never edit another area's files, the Gradle files, the version catal
   `BmapCandidates.order` (learned → name guess → 2 → 8 → 9 → SDP SPP → SDP BMAP) within one
   connect via `BmapChannelSearch` (1.5 s probe each, 20 s budget), keeps the first that passes and
   stores it in `DevicePrefs` (SDP winners as negative codes). Opened-but-mute → `looksBusy`.
+  A socket that greets with an AT line (`AT+BRSF=…`, HFP 1.8 §4.2.1.1) is the headset's HFP
+  channel: `LivenessProbe.Verdict.Hfp`, closed at once, **not** counted as busy.
 - **Strict `LivenessProbe`**: GET `[0.1]` (the QC45 init packet); alive only on a device-side
   STATUS/ERROR/RESULT for `[0.1]` or traffic that frames *entirely* as device-side BMAP on known
   blocks (`BmapConnection.traffic()`). Beacons, logs and echoes fail.

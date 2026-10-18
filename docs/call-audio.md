@@ -36,6 +36,51 @@ also how good your microphone sounds by the time it reaches the phone. If you se
 headset link is the bottleneck. If you see mSBC or LC3 and the other person still says you sound
 bad, the problem is further along: the mobile network or the calling app.
 
+**Call link readout.** Next to the codec, Earshot reads three values from the same Bluetooth
+status (Shizuku again). Each one is hidden when the phone doesn't print it:
+
+- **Headset call volume, N / 15.** The call volume the headphones were last told (see below).
+  After a boost it should read 15 / 15. If it reads less, the boost didn't reach the headphones,
+  or something set it back.
+- **Headset mic gain, N / 15.** The headphones' microphone level on the call link. Android doesn't
+  let apps change it; it is shown so a low value can be spotted.
+- **Phone noise reduction, on / off.** Whether the phone runs its own echo cancelling and noise
+  reduction on your voice *on top of* the headphones'. Off is what you want with the QC Ultra 2.
+  Only the headphones can switch it off (see below). Some Android builds don't print this one.
+
+## How the call link works (HFP)
+
+Calls use a different Bluetooth profile from music: the **Hands-Free Profile** (HFP), on its own
+channel next to Earshot's control channel. Android's Bluetooth stack runs it, so Earshot can't send
+anything on it. What the HFP 1.8 specification says explains most of what you see:
+
+- **Call volume is a 0–15 gain the headphones apply.** The phone sends it (`+VGS`). The headphones
+  report their own value back (`AT+VGS`) when they connect and whenever their buttons change it,
+  and Android then moves its call slider to match. So 100 % in Android means "15 on the
+  headphones' scale". How loud 15 is, is up to the headphones. A volume that drops back right
+  after a call starts can come from the phone restoring its saved value *or* from the headphones
+  reporting theirs. The `Earshot/CallAudio` log tells the two apart when it can (below).
+- **The phone can set the headphones' mic gain too** (`+VGM`, 0–15). There is no app API for it.
+- **Echo cancelling and noise reduction:** a headset with its own processing should tell the phone
+  to switch off the phone's (`AT+NREC=0`) before call audio starts. Android switches it back on at
+  every connect and waits for the headset to say so again. That is the "Phone noise reduction" row.
+- **How the codec is chosen:** the headphones list the codecs they can do (`AT+BAC`), the phone
+  picks one (`+BCS`), the headphones confirm it, then the call audio link opens. Codec ids:
+  1 = CVSD, 2 = mSBC, 3 = LC3-SWB (HFP 1.9). The choice sticks for the whole connection. If the
+  audio link can't be opened with the chosen codec, the phone has to try again and **falls back to
+  CVSD** before giving up. That is why a call that hit a link problem can stay on CVSD until the
+  headphones reconnect, and why reconnecting helps. The headphones can also drop mSBC from their
+  list for a while (for example while busy with another phone over multipoint).
+- **mSBC is a fixed format:** mono, 16 kHz, about 64 kbit/s. The specification's speech range is
+  100–7000 Hz for wideband and 200–3400 Hz for narrowband (CVSD).
+- **Your voice level is the headset's job.** The specification puts the target speech level at the
+  headset end, so the phone and apps don't correct it.
+
+For contributors: Earshot's control-channel search knows this channel by its greeting. The
+headphones open every HFP connection with `AT+BRSF=<features>`. A probed socket that greets like
+that is closed straight away (holding it would look to the headset like a second phone connecting
+for calls) and is not reported as "the Bose app is holding the channel".
+
 **Absolute volume switch (advanced, needs Shizuku).** Normally Android links the phone volume and
 the headphones' volume into one slider ("absolute volume"). Turning that link off gives each side
 its own volume, and on some Samsung phones that leaves more headroom so calls can get louder.
@@ -45,8 +90,9 @@ Treat it as an experiment:
   Bluetooth. Earshot shows "reconnect to apply" until that happens.
 - It mostly changes how *media* volume behaves. Once it's off you may need to turn up both the
   phone and the headphones for music, and the volume steps can feel different.
-- The in-call effect isn't guaranteed. Call volume is synced over a separate channel (HFP), and
-  whether this helps depends on the phone.
+- The in-call effect isn't guaranteed. Absolute volume belongs to the media link (AVRCP); call
+  volume travels on the call link (HFP) as its own 0–15 setting (see below). Whether flipping
+  this switch changes calls at all depends on how the phone maker links the two.
 - **Reverting:** flip it back in Earshot and reconnect the headphones. Without Earshot: Settings →
   Developer options → "Disable absolute volume" (switch it off), or from a computer:
   `adb shell settings put global bluetooth_disable_absolute_volume 0`. Then reconnect.

@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import dev.earshot.core.CallAudioPreferences
 import dev.earshot.core.CallAudioRepository
 import dev.earshot.core.CallAudioState
+import dev.earshot.core.HFP_GAIN_MAX
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneRepository
 import kotlinx.coroutines.CancellationException
@@ -82,6 +83,9 @@ class CallAudioRepositoryImpl(
     private var codecReadInFlight = false
     private var diagnosticsLoggedThisCall = false
     private var noShellLogged = false
+    private var lastLoggedGain: Int? = null
+    private var lastLoggedNrec: Boolean? = null
+    private var lastVolumeReports: Int? = null
 
     /** Absolute-volume value Android is actually using: the one read when the headphones last connected. */
     private var absoluteVolumeInEffect: Boolean? = null
@@ -200,6 +204,9 @@ class CallAudioRepositoryImpl(
             if (inCall) {
                 Log.i(TAG, "call started (${modeName(mode)}), route ${newRoute.route}${newRoute.name?.let { " \"$it\"" } ?: ""}, volume ${_state.value.callVolume}/${_state.value.callVolumeMax}")
                 diagnosticsLoggedThisCall = false
+                lastLoggedGain = null
+                lastLoggedNrec = null
+                lastVolumeReports = null
                 startInCallLoop()
             } else {
                 Log.i(TAG, "call ended, last codec ${prev.callCodec ?: "unknown"}")
@@ -292,6 +299,13 @@ class CallAudioRepositoryImpl(
                 lastError = null,
             )
         }
+        // Read back the HFP gain the headset now has (Android sends +VGS when the index changes), so
+        // the log shows whether the boost reached the headphones. Separate job: the serial
+        // dispatcher stays free meanwhile.
+        if (changed) work.launch {
+            delay(GAIN_CHECK_DELAY_MS)
+            if (_state.value.inCall) refreshCodec(gainCause = reason)
+        }
     }
 
     private suspend fun maybeRaiseHeadset(prefs: CallAudioPreferences, reason: String): Boolean {
@@ -317,7 +331,8 @@ class CallAudioRepositoryImpl(
 
     // ---- Codec ---------------------------------------------------------------------------------
 
-    private suspend fun refreshCodec() {
+    /** @param gainCause what changed the gain, when this read follows our own boost; null for a poll. */
+    private suspend fun refreshCodec(gainCause: String? = null) {
         if (codecReadInFlight) return
         if (!shell.isAvailable()) {
             if (!noShellLogged) Log.i(TAG, "call codec unknown: Shizuku not ready")
@@ -333,6 +348,7 @@ class CallAudioRepositoryImpl(
                 return
             }
             val dump = CallCodecParser.parse(text)
+            recordHfpLink(CallCodecParser.hfpLink(dump, route.route, headphones.state.value.connection.deviceAddress), gainCause)
             val reading = CallCodecParser.resolve(dump, route.route, headphones.state.value.connection.deviceAddress)
             if (reading == null) {
                 if (!diagnosticsLoggedThisCall) {
@@ -357,6 +373,30 @@ class CallAudioRepositoryImpl(
             }
         } finally {
             codecReadInFlight = false
+        }
+    }
+
+    /** Puts the HFP gains and NREC flag into the state and logs every change once. */
+    private fun recordHfpLink(link: HfpDeviceDump?, gainCause: String?) {
+        val gain = link?.speakerGain
+        val nrec = link?.phoneNrec
+        _state.update { it.copy(headsetCallGain = gain, headsetMicGain = link?.micGain, phoneNoiseReduction = nrec) }
+        val reports = link?.headsetVolumeReports
+        val headsetReported = reports != null && lastVolumeReports != null && reports != lastVolumeReports
+        if (reports != null) lastVolumeReports = reports
+        if (gain != null && gain != lastLoggedGain) {
+            val why = when {
+                gainCause != null -> gainCause
+                headsetReported -> "the headset reported a new volume (AT+VGS)"
+                lastLoggedGain == null -> "first read this call"
+                else -> "changed outside Earshot"
+            }
+            Log.i(TAG, "headset call gain ${lastLoggedGain ?: "?"} → $gain/$HFP_GAIN_MAX ($why), mic gain ${link.micGain?.let { "$it/$HFP_GAIN_MAX" } ?: "?"}")
+            lastLoggedGain = gain
+        }
+        if (nrec != null && nrec != lastLoggedNrec) {
+            Log.i(TAG, if (nrec) "phone echo cancelling / noise reduction is ON for this call (no AT+NREC=0 from the headset)" else "phone echo cancelling / noise reduction is off: the headset sent AT+NREC=0")
+            lastLoggedNrec = nrec
         }
     }
 
@@ -396,6 +436,8 @@ class CallAudioRepositoryImpl(
         const val POLL_MS = 2_000L
         /** Codec every 5th poll = every 10 s. */
         const val CODEC_EVERY_TICKS = 5
+        /** After a boost, how long before reading the HFP gain back (the +VGS goes out asynchronously). */
+        const val GAIN_CHECK_DELAY_MS = 500L
         const val DUMPSYS = "dumpsys bluetooth_manager"
         const val SHIZUKU_NEEDED = "Changing absolute volume needs Shizuku: start it and grant Earshot (Tools → Codec → Grant)."
 
