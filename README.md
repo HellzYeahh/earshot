@@ -62,9 +62,11 @@ has.
 | Model | Status | Noise control | Notes |
 |---|---|---|---|
 | QC Ultra Headphones (2nd Gen) | **Tested** on our hardware | Live | Everything above |
-| QC Ultra Headphones (1st Gen) | Best guess, unverified | Live | Assumed to work like the 2nd Gen; built-in modes Quiet / Aware / Immersion |
+| QC Ultra Headphones (1st Gen) | Best guess, checked while connecting | Live, or via the active custom mode if the headphones lack it | Starts from the 2nd Gen layout; since 0.3.1 the channel, noise control and mode format are detected on connect. Built-in modes Quiet / Aware / Immersion |
+| QC Ultra Earbuds (2nd Gen) | Layout verified by bosectl | Live | Same feature layout as the QC Ultra Headphones (2nd Gen) |
+| QC Ultra Earbuds (1st Gen) | Best guess, checked while connecting | Live, or via the active custom mode | Treated like the QC Ultra Headphones (1st Gen) |
 | QC Headphones (2nd Gen) | Best guess, unverified | Live | Same layout as the QC Ultra (2nd Gen), per bosectl |
-| QC Headphones (1st Gen), QC SC | Layout verified by [bosectl](https://github.com/aaronsb/bosectl) | Via the active custom mode | No ANC on/off, no Immersive Audio; built-in Quiet / Aware |
+| QC Headphones (1st Gen), QC SC | Layout verified by [bosectl](https://github.com/aaronsb/bosectl) | Via the active custom mode | No ANC on/off, no Immersive Audio; built-in Quiet / Aware. The control channel is 8 on some units and 9 on others: both are tried |
 | QC45, QC SE | Layout verified by bosectl | Via the active custom mode | No ANC on/off, no Immersive Audio; Wind Block sets the level to 0 |
 | Ultra Open Earbuds (1st and 2nd Gen) | Partial, unverified | None (open-ear) | Battery, EQ, settings, mode switching, Immersive Audio; modes can't be edited |
 | **Skullcandy Crusher 1080 ANC** | **Experimental, never run on real headphones** | Quiet / Aware / Off, with a gain slider | A different protocol (Bragi BOS-RPC, not Bose BMAP): Immersive Audio (Still / Motion), sidetone and the **Crusher bass** card. See [docs/crusher-1080.md](docs/crusher-1080.md) |
@@ -74,7 +76,7 @@ so Earshot saves the slider and Wind Block into the custom mode you are using (a
 does). On the built-in Quiet / Aware modes, switch to a custom mode first.
 
 Reports from owners of the unverified models are very welcome: open an issue with what works and
-what doesn't (the Lab screen's deep scan output helps most).
+what doesn't (Tools, Lab, **Copy connection report** helps most).
 
 ## Requirements
 
