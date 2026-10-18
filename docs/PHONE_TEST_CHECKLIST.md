@@ -45,12 +45,13 @@ Tick what works; note anything odd (wrong value, delay, voice prompt, disconnect
 
 ## 5. More
 - [ ] Sidetone Off/Low/Medium/High audible on a call or voice memo.
-- [ ] Auto play/pause, auto-answer, voice prompts on/off + language.
-- [ ] Devices: paired list, active source badge; "Switch to this device" with playback started on the other device.
+- [ ] Auto play/pause, auto-answer.
+- [ ] Tools → Headphone controls: voice prompts on/off + language.
+- [ ] Tools → Devices: paired list, active source badge; "Switch to this device" with playback started on the other device.
 - [ ] Pairing mode button → headphones announce pairing.
-- [ ] Shortcut button action change (may be refused by firmware — note the message).
-- [ ] Rename → expected message that the firmware doesn't support changing it.
-- [ ] Power off → headphones turn off, app shows disconnected.
+- [ ] Tools → Shortcuts remapper: pick Cycle EQ → the Bose Shortcut button goes to Voice assistant by itself; pick Immersive Audio / Off → the button does that (may be refused by firmware — note the message).
+- [ ] Tools → Rename → expected message that the firmware doesn't support changing it.
+- [ ] Tools → Power off → headphones turn off, app shows disconnected.
 - [ ] Automations: On connect → Quiet; Wi-Fi "home" → Aware (grant location); Schedule 2 min ahead; Foreground app (grant Usage access).
 - [ ] Low-battery alert threshold 90% (for testing) → alert appears once.
 - [ ] About: credits present, version shown.
@@ -61,7 +62,7 @@ Tick what works; note anything odd (wrong value, delay, voice prompt, disconnect
 - [ ] Home now-playing row: play/pause/next/previous work while Spotify plays; volume slider moves the headset volume (and follows the headphone buttons).
 - [ ] Home chips: "Live updates" shown; "Charging" appears on USB; press the shortcut button on the headphones → a toast names the press.
 - [ ] Mode/ANC/battery changes made with the headphone buttons appear in the app within a second (live push).
-- [ ] More → Touch controls off → the touch strip stops responding; on again.
+- [ ] Tools → Touch controls off → the touch strip stops responding; on again.
 - [ ] Edit modes → Reset slot on a custom slot → it becomes empty.
 - [ ] Call audio: during a real call, the live card shows the route, volume meter and codec; call volume gets louder automatically; "Boost now" works; last-call codec stays visible afterwards.
 - [ ] Call audio → Advanced: absolute volume off (Shizuku) → reconnect → louder call volume? Revert if not.

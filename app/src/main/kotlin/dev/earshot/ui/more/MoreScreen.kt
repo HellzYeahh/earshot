@@ -4,23 +4,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,15 +25,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.earshot.R
-import dev.earshot.core.ButtonAction
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.Sidetone
-import dev.earshot.core.VoicePrompts
 import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.ui.common.rememberSettingsLoaded
-import dev.earshot.ui.common.ConfirmDialog
-import dev.earshot.ui.common.DropdownField
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.InfoBanner
 import dev.earshot.ui.common.LightDarkPreview
@@ -52,7 +42,6 @@ import dev.earshot.ui.common.earshotViewModel
 @Composable
 fun MoreScreen(
     contentPadding: PaddingValues,
-    onOpenDevices: () -> Unit,
     onOpenAutomations: () -> Unit,
     onOpenPreferences: () -> Unit,
     onOpenAbout: () -> Unit,
@@ -67,14 +56,8 @@ fun MoreScreen(
             onAutoPlayPause = vm::setAutoPlayPause,
             onAutoAnswer = vm::setAutoAnswer,
             onMultipoint = vm::setMultipoint,
-            onTouchControls = vm::setTouchControls,
             onAutoOff = vm::setAutoOff,
-            onVoicePrompts = vm::setVoicePrompts,
-            onShortcutButton = vm::setShortcutButton,
-            onRename = vm::rename,
-            onPowerOff = vm::powerOff,
         ),
-        onOpenDevices = onOpenDevices,
         onOpenAutomations = onOpenAutomations,
         onOpenPreferences = onOpenPreferences,
         onOpenAbout = onOpenAbout,
@@ -86,33 +69,32 @@ data class SettingsCallbacks(
     val onAutoPlayPause: (Boolean) -> Unit = {},
     val onAutoAnswer: (Boolean) -> Unit = {},
     val onMultipoint: (Boolean) -> Unit = {},
-    val onTouchControls: (Boolean) -> Unit = {},
     val onAutoOff: (Int) -> Unit = {},
-    val onVoicePrompts: (VoicePrompts) -> Unit = {},
-    val onShortcutButton: (ButtonAction) -> Unit = {},
-    val onRename: (String) -> Unit = {},
-    val onPowerOff: () -> Unit = {},
 )
 
+/**
+ * The More tab: the headphones' everyday settings, About these headphones and the App section.
+ * Touch controls, voice prompts, devices, rename and power off live on Tools (Headphone controls);
+ * the Shortcut button is set by the Shortcuts remapper.
+ */
 @Composable
 fun MoreContent(
     state: HeadphoneState,
     contentPadding: PaddingValues,
     callbacks: SettingsCallbacks,
-    onOpenDevices: () -> Unit,
     onOpenAutomations: () -> Unit,
     onOpenPreferences: () -> Unit,
     onOpenAbout: () -> Unit,
 ) {
     val enabled = state.isConnected && !state.isBusy
-    var showRename by rememberSaveable { mutableStateOf(false) }
-    var showPowerOff by rememberSaveable { mutableStateOf(false) }
     var showAutoOff by rememberSaveable { mutableStateOf(false) }
     val buds = HeadphoneLabels.isEarbuds(HeadphoneLabels.formFactor(state))
     // Once the refresh has landed, null means "this model doesn't have it": hide the row rather
     // than leave a switch that can never be used. While loading, rows stay (disabled) so nothing jumps.
     val loaded = rememberSettingsLoaded(state)
     fun has(value: Any?) = !loaded || value != null
+    val hasSidetone = has(state.sidetone)
+    val hasGeneral = has(state.autoPlayPause) || has(state.autoAnswer) || has(state.multipointEnabled) || has(state.autoOffMinutes)
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -122,11 +104,9 @@ fun MoreContent(
 
         if (!state.isConnected) InfoBanner(stringResource(R.string.settings_not_connected))
 
-        SectionCard(title = stringResource(if (buds) R.string.settings_earbuds else R.string.settings_headphones)) {
-            // Four groups; the general one (with Devices) always shows, so dividers sit around it.
-            val prompts = state.voicePrompts
-            val button = state.shortcutButton
-            if (has(state.sidetone)) {
+        // A model with none of these settings gets no empty card.
+        if (hasSidetone || hasGeneral) SectionCard(title = stringResource(if (buds) R.string.settings_earbuds else R.string.settings_headphones)) {
+            if (hasSidetone) {
                 // Sidetone: wire order is 0=off 1=high 2=med 3=low; the enum handles it, we just show labels.
                 Text(stringResource(R.string.settings_sidetone), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
                 SegmentedChoice(
@@ -143,77 +123,19 @@ fun MoreContent(
                     enabled = enabled && state.sidetone != null,
                     onCheckedChange = { callbacks.onSidetone(state.sidetone ?: Sidetone.OFF, it) },
                 )
-                HorizontalDivider()
+                if (hasGeneral) HorizontalDivider()
             }
-            run {
-                if (has(state.autoPlayPause)) SwitchRow(stringResource(R.string.settings_auto_play_pause), state.autoPlayPause ?: false, callbacks.onAutoPlayPause, subtitle = stringResource(R.string.settings_auto_play_pause_subtitle), enabled = enabled && state.autoPlayPause != null)
-                if (has(state.autoAnswer)) SwitchRow(stringResource(R.string.settings_auto_answer), state.autoAnswer ?: false, callbacks.onAutoAnswer, subtitle = stringResource(R.string.settings_auto_answer_subtitle), enabled = enabled && state.autoAnswer != null)
-                if (has(state.multipointEnabled)) SwitchRow(stringResource(R.string.settings_multipoint), state.multipointEnabled ?: false, callbacks.onMultipoint, subtitle = stringResource(R.string.settings_multipoint_subtitle), enabled = enabled && state.multipointEnabled != null)
-                // [1.34] is "disable captouch" on the wire; the state already presents it the right way up.
-                if (has(state.touchControlsEnabled)) SwitchRow(
-                    stringResource(R.string.settings_touch_controls),
-                    state.touchControlsEnabled ?: true,
-                    callbacks.onTouchControls,
-                    subtitle = stringResource(if (buds) R.string.settings_touch_controls_subtitle_buds else R.string.settings_touch_controls_subtitle),
-                    enabled = enabled && state.touchControlsEnabled != null,
-                )
-                if (has(state.autoOffMinutes)) NavRow(
-                    title = stringResource(R.string.settings_auto_off),
-                    subtitle = stringResource(R.string.settings_auto_off_subtitle),
-                    value = state.autoOffMinutes?.let { autoOffLabel(it) },
-                    icon = Icons.Default.Timer,
-                    onClick = { showAutoOff = true },
-                    enabled = enabled && state.autoOffMinutes != null,
-                )
-                NavRow(
-                    title = stringResource(R.string.settings_devices),
-                    value = state.pairedDevices.firstOrNull { it.isActiveSource }?.name,
-                    icon = Icons.Default.Devices,
-                    onClick = onOpenDevices,
-                )
-            }
-            if (has(prompts) || has(button)) {
-                HorizontalDivider()
-                if (has(prompts)) {
-                    SwitchRow(
-                        title = stringResource(R.string.settings_voice_prompts),
-                        checked = prompts?.enabled ?: false,
-                        enabled = enabled && prompts != null,
-                        onCheckedChange = { callbacks.onVoicePrompts(VoicePrompts(it, prompts?.languageId ?: 1)) },
-                    )
-                    DropdownField(
-                        label = stringResource(R.string.settings_voice_language),
-                        options = VOICE_PROMPT_LANGUAGES,
-                        selected = VOICE_PROMPT_LANGUAGES.firstOrNull { it.first == prompts?.languageId },
-                        onSelect = { callbacks.onVoicePrompts(VoicePrompts(prompts?.enabled ?: true, it.first)) },
-                        optionLabel = { it.second },
-                        enabled = enabled && prompts != null,
-                        modifier = Modifier.padding(vertical = 6.dp),
-                    )
-                }
-                if (has(button)) DropdownField(
-                    label = stringResource(R.string.settings_shortcut_button),
-                    // The current action and Disabled are always offered, even when the firmware's
-                    // supported list omits them, so the user can never get stuck on a choice.
-                    options = (button?.supportedActions.orEmpty() + listOfNotNull(button?.action) + ButtonAction.DISABLED).distinct(),
-                    selected = button?.action,
-                    onSelect = callbacks.onShortcutButton,
-                    optionLabel = { it.label },
-                    enabled = enabled && button != null,
-                    modifier = Modifier.padding(vertical = 6.dp),
-                )
-            }
-            HorizontalDivider()
-            run {
-                NavRow(
-                    title = stringResource(if (buds) R.string.settings_rename_buds else R.string.settings_rename),
-                    value = HeadphoneLabels.displayName(state),
-                    subtitle = stringResource(R.string.settings_rename_subtitle),
-                    onClick = { showRename = true },
-                    enabled = enabled,
-                )
-                NavRow(title = stringResource(R.string.settings_power_off), icon = Icons.Default.PowerSettingsNew, onClick = { showPowerOff = true }, enabled = enabled)
-            }
+            if (has(state.autoPlayPause)) SwitchRow(stringResource(R.string.settings_auto_play_pause), state.autoPlayPause ?: false, callbacks.onAutoPlayPause, subtitle = stringResource(R.string.settings_auto_play_pause_subtitle), enabled = enabled && state.autoPlayPause != null)
+            if (has(state.autoAnswer)) SwitchRow(stringResource(R.string.settings_auto_answer), state.autoAnswer ?: false, callbacks.onAutoAnswer, subtitle = stringResource(R.string.settings_auto_answer_subtitle), enabled = enabled && state.autoAnswer != null)
+            if (has(state.multipointEnabled)) SwitchRow(stringResource(R.string.settings_multipoint), state.multipointEnabled ?: false, callbacks.onMultipoint, subtitle = stringResource(R.string.settings_multipoint_subtitle), enabled = enabled && state.multipointEnabled != null)
+            if (has(state.autoOffMinutes)) NavRow(
+                title = stringResource(R.string.settings_auto_off),
+                subtitle = stringResource(R.string.settings_auto_off_subtitle),
+                value = state.autoOffMinutes?.let { autoOffLabel(it) },
+                icon = Icons.Default.Timer,
+                onClick = { showAutoOff = true },
+                enabled = enabled && state.autoOffMinutes != null,
+            )
         }
 
         DeviceInfoCard(state)
@@ -232,38 +154,13 @@ fun MoreContent(
             onDismiss = { showAutoOff = false },
         )
     }
-    if (showRename) {
-        var name by rememberSaveable { mutableStateOf(HeadphoneLabels.displayName(state).orEmpty()) }
-        AlertDialog(
-            onDismissRequest = { showRename = false },
-            title = { Text(stringResource(if (buds) R.string.settings_rename_buds else R.string.settings_rename)) },
-            text = {
-                Column {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Text(stringResource(R.string.settings_rename_warning), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
-                }
-            },
-            confirmButton = { TextButton(onClick = { showRename = false; callbacks.onRename(name.trim()) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.action_save)) } },
-            dismissButton = { TextButton(onClick = { showRename = false }) { Text(stringResource(R.string.action_cancel)) } },
-        )
-    }
-    if (showPowerOff) {
-        ConfirmDialog(
-            title = stringResource(R.string.settings_power_off),
-            text = stringResource(if (buds) R.string.settings_power_off_confirm_buds else R.string.settings_power_off_confirm),
-            confirmLabel = stringResource(R.string.settings_power_off),
-            destructive = true,
-            onConfirm = callbacks.onPowerOff,
-            onDismiss = { showPowerOff = false },
-        )
-    }
 }
 
 @LightDarkPreview
 @Composable
 private fun MorePreview() {
     EarshotPreview {
-        MoreContent(FakeHeadphoneRepository.connectedState(), PaddingValues(0.dp), SettingsCallbacks(), {}, {}, {}, {})
+        MoreContent(FakeHeadphoneRepository.connectedState(), PaddingValues(0.dp), SettingsCallbacks(), {}, {}, {})
     }
 }
 
@@ -272,7 +169,7 @@ private fun MorePreview() {
 @Composable
 private fun MoreEarbudsPreview() {
     EarshotPreview {
-        MoreContent(FakeHeadphoneRepository.connectedEarbudsState(), PaddingValues(0.dp), SettingsCallbacks(), {}, {}, {}, {})
+        MoreContent(FakeHeadphoneRepository.connectedEarbudsState(), PaddingValues(0.dp), SettingsCallbacks(), {}, {}, {})
     }
 }
 
@@ -281,6 +178,6 @@ private fun MoreEarbudsPreview() {
 @Composable
 private fun MoreBasicTierPreview() {
     EarshotPreview {
-        MoreContent(FakeHeadphoneRepository.basicTierState(), PaddingValues(0.dp), SettingsCallbacks(), {}, {}, {}, {})
+        MoreContent(FakeHeadphoneRepository.basicTierState(), PaddingValues(0.dp), SettingsCallbacks(), {}, {}, {})
     }
 }

@@ -1,7 +1,6 @@
 package dev.earshot.ui.more
 
 import dev.earshot.R
-import dev.earshot.core.ButtonAction
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.Sidetone
@@ -10,7 +9,7 @@ import dev.earshot.ui.common.EarshotViewModel
 import dev.earshot.ui.common.UiMessenger
 import kotlinx.coroutines.flow.StateFlow
 
-/** Headphone settings ([1.x]) plus devices and power, shared by the More and Devices screens. */
+/** Headphone settings ([1.x]) plus devices and power, shared by More, Tools (Headphone controls) and Devices. */
 class SettingsViewModel(private val headphones: HeadphoneRepository, messenger: UiMessenger) : EarshotViewModel(messenger) {
     val state: StateFlow<HeadphoneState> = headphones.state
 
@@ -21,7 +20,6 @@ class SettingsViewModel(private val headphones: HeadphoneRepository, messenger: 
     fun setTouchControls(enabled: Boolean) = launchCatching { headphones.setTouchControls(enabled) }
     fun setAutoOff(minutes: Int) = launchCatching { headphones.setAutoOff(minutes) }
     fun setVoicePrompts(prompts: VoicePrompts) = launchCatching { headphones.setVoicePrompts(prompts) }
-    fun setShortcutButton(action: ButtonAction) = launchCatching { headphones.setShortcutButton(action) }
     fun rename(name: String) = launchCatching { headphones.setDeviceName(name); messenger.show(R.string.settings_renamed, name) }
     fun switchToDevice(address: String) = launchCatching { headphones.switchToDevice(address) }
     fun enterPairingMode() = launchCatching { headphones.enterPairingMode() }

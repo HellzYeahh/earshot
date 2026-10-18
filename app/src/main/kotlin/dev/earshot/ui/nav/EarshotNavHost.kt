@@ -32,6 +32,7 @@ import dev.earshot.ui.tools.ConnectionScreen
 import dev.earshot.ui.tools.LabScreen
 import dev.earshot.ui.tools.MicCheckScreen
 import dev.earshot.ui.tools.ShortcutsRemapperScreen
+import dev.earshot.ui.tools.ToolsNavigation
 import dev.earshot.ui.tools.ToolsScreen
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterNotNull
@@ -77,12 +78,15 @@ fun EarshotNavHost(
             composable(Routes.TOOLS) {
                 ToolsScreen(
                     contentPadding = tabPadding,
-                    onOpenConnection = { navController.navigate(Routes.CONNECTION) },
-                    onOpenCodec = { navController.navigate(Routes.CODEC) },
-                    onOpenCallAudio = { navController.navigate(Routes.CALL_AUDIO) },
-                    onOpenMicCheck = { navController.navigate(Routes.MIC_CHECK) },
-                    onOpenLab = { navController.navigate(Routes.LAB) },
-                    onOpenShortcuts = { navController.navigate(Routes.SHORTCUTS_REMAPPER) },
+                    navigation = ToolsNavigation(
+                        onOpenShortcuts = { navController.navigate(Routes.SHORTCUTS_REMAPPER) },
+                        onOpenDevices = { navController.navigate(Routes.DEVICES) },
+                        onOpenConnection = { navController.navigate(Routes.CONNECTION) },
+                        onOpenCodec = { navController.navigate(Routes.CODEC) },
+                        onOpenCallAudio = { navController.navigate(Routes.CALL_AUDIO) },
+                        onOpenMicCheck = { navController.navigate(Routes.MIC_CHECK) },
+                        onOpenLab = { navController.navigate(Routes.LAB) },
+                    ),
                 )
             }
             composable(Routes.CONNECTION) {
@@ -103,7 +107,6 @@ fun EarshotNavHost(
             composable(Routes.MORE) {
                 MoreScreen(
                     contentPadding = tabPadding,
-                    onOpenDevices = { navController.navigate(Routes.DEVICES) },
                     onOpenAutomations = { navController.navigate(Routes.AUTOMATIONS) },
                     onOpenPreferences = { navController.navigate(Routes.PREFERENCES) },
                     onOpenAbout = { navController.navigate(Routes.ABOUT) },

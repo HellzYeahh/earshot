@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### New
-- **Shortcuts remapper** (Tools): give a headset's press-and-hold a new job. One dropdown,
+- **Shortcuts remapper** (top of Tools): give a headset's press-and-hold a new job. One dropdown,
   "Shortcut Button 1:", under the connected headset's name: Phone assistant (the default), Cycle
   EQ preset (announced in the headset), Voice memo (headset mic, saved to Recordings/Earshot) or
   Launch an app; on Bose headphones also their own Immersive Audio or Off. Works with any
@@ -14,6 +14,12 @@
   Voice assistant for an Earshot action, or Immersive Audio / Off when you pick those, and puts it
   back on connect when it was changed. Only modes the headphones report are written, never twice
   in a row, and nothing changes for someone who never picked anything in the remapper.
+
+### Changed
+- **Headphone controls moved to Tools:** Touch controls, Voice prompts and Prompt language,
+  Devices, Rename and Power off now sit under the Shortcuts remapper on the Tools tab. The Shortcut
+  button row is gone from More (the remapper sets it). More keeps sidetone, auto play/pause,
+  auto-answer, multipoint, auto-off, About these headphones and the App section.
 
 ## 0.4.0 — 2026-10-18
 

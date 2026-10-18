@@ -416,7 +416,6 @@
     <string name="settings_devices">Devices</string>
     <string name="settings_voice_prompts">Voice prompts</string>
     <string name="settings_voice_language">Prompt language</string>
-    <string name="settings_shortcut_button">Shortcut button</string>
     <string name="settings_rename">Rename headphones</string>
     <string name="settings_rename_subtitle">May not be supported by the firmware</string>
     <string name="settings_rename_warning">Current firmware may not support changing the name; if that\'s the case you\'ll see a message and nothing changes.</string>
@@ -604,7 +603,9 @@
     <!-- Shortcuts remapper (headset press-and-hold) -->
     <string name="shortcut_trigger_label">Earshot</string>
     <string name="tools_shortcuts">Shortcuts remapper</string>
-    <string name="tools_shortcuts_subtitle">Headset press-and-hold: EQ, voice memo, apps</string>
+    <string name="tools_shortcuts_summary">Shortcut Button 1: %1$s</string>
+    <string name="tools_headphone_controls">Headphone controls</string>
+    <string name="tools_earbud_controls">Earbud controls</string>
     <string name="shortcut_button_1">Shortcut Button 1:</string>
     <string name="shortcut_choice_assistant">Phone assistant</string>
     <string name="shortcut_choice_launch">Launch an app…</string>
