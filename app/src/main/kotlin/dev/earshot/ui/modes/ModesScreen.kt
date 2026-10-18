@@ -109,15 +109,17 @@ fun ModesContent(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            val hasModes = state.capabilities.listeningModes
             item {
                 Text(
-                    stringResource(R.string.modes_intro),
+                    stringResource(if (hasModes) R.string.modes_intro else R.string.home_modes_unavailable),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 )
             }
-            items(state.modes, key = { it.index }) { mode ->
+            // No mode list and no editor on firmware without listening modes.
+            items(if (hasModes) state.modes else emptyList(), key = { it.index }) { mode ->
                 ModeRow(
                     mode = mode,
                     isCurrent = mode.index == state.currentModeIndex,
@@ -130,7 +132,7 @@ fun ModesContent(
     }
 
     val editIndex = editing
-    if (editIndex != null) {
+    if (editIndex != null && state.capabilities.listeningModes) {
         val mode = state.modes.firstOrNull { it.index == editIndex }
         ModeEditorSheet(
             slotIndex = editIndex,

@@ -53,9 +53,27 @@ own module. Never edit another area's files, the Gradle files, the version catal
 
 ## Protocol facts that bite (full notes: `docs/bmap-from-bose-app-13.3.4.md`, `docs/reference/bosectl/NOTES.md`)
 
-- RFCOMM **channel 2**; SPP UUID `00001101-0000-1000-8000-00805F9B34FB`; Bose's own BMAP UUID
+- RFCOMM **channel 2** on the QC Ultra 2; SPP UUID `00001101-0000-1000-8000-00805F9B34FB`; Bose's own BMAP UUID
   `00000000-deca-fade-deca-deafdecacaff` (SDP may resolve it to the wrong channel on some phones —
-  prefer `createInsecureRfcommSocket(2)` via reflection, fall back to the UUID).
+  prefer `createInsecureRfcommSocket(n)` via reflection, SDP last).
+- **The channel is probed, not assumed** (bosectl #22/#26/#44: prince units on 8 *and* 9; 14/25/26
+  accept the socket without BMAP, 14 = `ff55…` beacon, 22 = log stream). `BoseLinkFactory` walks
+  `BmapCandidates.order` (learned → name guess → 2 → 8 → 9 → SDP SPP → SDP BMAP) within one
+  connect via `BmapChannelSearch` (1.5 s probe each, 20 s budget), keeps the first that passes and
+  stores it in `DevicePrefs` (SDP winners as negative codes). Opened-but-mute → `looksBusy`.
+- **Strict `LivenessProbe`**: GET `[0.1]` (the QC45 init packet); alive only on a device-side
+  STATUS/ERROR/RESULT for `[0.1]` or traffic that frames *entirely* as device-side BMAP on known
+  blocks (`BmapConnection.traffic()`). Beacons, logs and echoes fail.
+- **Silent-function tolerance**: after 3 silent requests both `BmapConnection` and the refresh's
+  `TolerantReader` send GET `[0.1]` (1.5 s). It answers → the silent functions are absent for
+  this connection (`silentFunctions`, skipped by the refresh); silent too → the link is deaf
+  (busy channel), closed as before.
+- **Runtime capabilities** (catalogue = first guess): `[31.10]` refused (4/3/5) or silent →
+  `liveNoiseControl` off for the connection, noise edits rewrite the active custom slot; the
+  `[31.6]` write uses the layout of the STATUS frames seen (47 → 39 B, 48 → 40 B); FblockNotSupp
+  anywhere in block 31 → the block is skipped, `capabilities.listeningModes = false` (UI hides
+  carousel/editor), mode/noise commands throw, `[1.5]` CNC is shown read-only (step 0 taken as
+  most cancelling, unverified). FblockNotSupp on any block skips the whole block per connection.
 - No handshake; the device may send a greeting burst on connect — drain it.
 - Operators: GET works everywhere; every write the Bose app makes is SET_GET or START. Plain SET →
   error 5, which means "operator not implemented for this function" — **not** an auth gate (there
@@ -83,13 +101,17 @@ own module. Never edit another area's files, the Gradle files, the version catal
 - `[4.4]` paired list (byte 0 = connected bitmask), `[4.5]`/`[4.6]` device info (GET with 6-byte MAC
   payload), `[4.9]` AppAddress = this phone, `[5.1]` active source, `[4.12]` START `[0x82 + mac]` to
   route (retry: routing table fills only while the target streams; its GET is FuncNotSupp on 10.12).
-- Only one app can hold channel 2: the Bose app must be closed while Earshot is connected.
-- Other models: `protocol/.../qcultra2/BoseModel.kt` is the catalogue (QC Ultra 1/2, QC Headphones
-  1st/2nd Gen + QC SC, QC45 + QC SE, Ultra Open Earbuds), detected from `[0.3]` (`[0.15]` name for
-  unknown ids). QC45/QC Headphones: **channel 8**, 47/39-byte `[31.6]` (`ModeLayout.COMPACT`, no ANC
-  byte), no `[31.10]` (noise edits rewrite the active custom slot), QC45 needs GET `[0.1]` first
-  (the liveness probe sends it). The working channel is remembered per device in `DevicePrefs`.
-  Only the QC Ultra 2 is tested on our hardware; the others follow bosectl or are best guesses.
+- Only one app can hold the BMAP channel: the Bose app must be closed while Earshot is connected.
+- Other models: `protocol/.../qcultra2/BoseModel.kt` is the catalogue (QC Ultra 1/2, QC Ultra
+  Earbuds 1st "scotty" 0x4072 / 2nd "edith" 0x4062, QC Headphones 1st/2nd Gen + QC SC, QC45 + QC SE,
+  Ultra Open Earbuds), detected from `[0.3]` (`[0.15]` name for unknown ids; "QC Ultra Earbuds"
+  never matches the headphones). QC45/QC Headphones: channel 8 first guess (prince seen on 9 too),
+  47/39-byte `[31.6]` (`ModeLayout.COMPACT`, no ANC byte), no `[31.10]` (noise edits rewrite the
+  active custom slot), QC45 needs GET `[0.1]` first (the liveness probe sends it), prince answers
+  `[31.3]` START with PROCESSING and a late STATUS (a timeout is verified with a GET).
+  Only the QC Ultra 2 is tested on our hardware; the others follow bosectl or are best guesses
+  that the runtime checks above correct. `VirtualQcUltra2` can emulate the quirks
+  (`silentFunctions`, `refuseAudioModesBlock`, `withoutAudioSettings`, `productId`).
 - **Never write to block 3 (FirmwareUpdate) or 18 (Authentication).** bosectl's "[3.2] NC state"
   START is really FirmwareUpdate Init: it opens an update session; Run applies an image and
   reboots; Reset erases a staged image. Safe GETs: `[3.0] [3.1] [3.4] [3.6] [3.16]`. `[7.5]`
@@ -113,7 +135,7 @@ headphones: its facts come from interoperability analysis of the Skullcandy app 
   methods), `BragiLinkFactory` (data service `54C5BF4C-…` first, then `A4602B24-…`; raw PPP frames,
   never RACE; the answering profile is remembered in `DevicePrefs`), `BragiSession` (pairing + ECDHE), `CrusherProtocol`, `CrusherHeadphoneRepository`,
   `RoutingHeadphoneRepository` (picks Bose or Crusher by name / "Headphone type" / demo device).
-- `ConnectionManager<C : ManagedLink>` takes a `LinkFactory`; `BoseLinkFactory` holds the old channel logic.
+- `ConnectionManager<C : ManagedLink>` takes a `LinkFactory`; `BoseLinkFactory` holds the BMAP channel probing.
 - Crusher modes: slot 0 Quiet, 1 Aware, 2 Off (so slots 0/1 match Bose for rules, tile, widget).
 - `VirtualCrusher` (+ `VirtualCrusherTransport`) is the device side incl. the secure session; the
   end-to-end tests run the real connection and protocol against it. In `runTest`, `advanceUntilIdle()`

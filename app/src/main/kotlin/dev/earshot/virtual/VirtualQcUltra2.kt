@@ -62,8 +62,39 @@ class VirtualQcUltra2(
     var productName = "Bose QC Ultra 2 HP"
     var customName = "Fargo"
     var macAddress = "68:F2:1F:12:34:56"
-    val productId = QcUltra2.PRODUCT_ID
+    /** `[0.3]`; tests set another model's id (0x4066 for the QC Ultra 1st Gen, 0x4024 for the NC700). */
+    var productId = QcUltra2.PRODUCT_ID
     val variant = QcUltra2.VARIANT
+
+    // ── Older-firmware quirks (all off: the reference unit has none of them) ─────────────
+    /**
+     * Functions this firmware ignores: no frame at all, not even an ERROR. Older firmware is
+     * suspected to do this for functions it lacks, which used to look like a dead link.
+     */
+    var silentFunctions: Set<FunctionAddress> = emptySet()
+
+    /**
+     * Every request in block 31 answers FblockNotSupp, GET included, while `[31.3]` is still
+     * pushed on connect (the greeting): what bosectl #44 saw on one unit (BT Modalias 0x4024,
+     * NC700 "goodyear", fw 2.0.4). `[1.5]` CNC GET keeps answering there.
+     */
+    var refuseAudioModesBlock = false
+
+    /**
+     * No `[31.10]` (FuncNotSupp) while the slots stay 48-byte: the noise settings live only in the
+     * mode slots. The QC Ultra 1st Gen guess that the app must survive if it is wrong.
+     */
+    var withoutAudioSettings = false
+
+    private val requestCounts = HashMap<FunctionAddress, Int>()
+
+    /** How many requests reached [address] (any operator, answered or not). Bounded by the address count. */
+    @Synchronized
+    fun requestsTo(address: FunctionAddress): Int = requestCounts[address] ?: 0
+
+    /** Requests that reached [block]. */
+    @Synchronized
+    fun requestsToBlock(block: Int): Int = requestCounts.filterKeys { it.block == block }.values.sum()
 
     // ── Power / link ─────────────────────────────────────────────────────────────────────
     /** False after `[7.4]` START `[0]` or while restarting after `[1.37]`; the transport drops the link when it sees this. */
@@ -225,7 +256,7 @@ class VirtualQcUltra2(
         push(status(QcUltra2.STATUS_BUTTON, shortcutButton.copyOfRange(0, 3)))
         if (shortcutButton[2].toInt() == 19) {
             applyLive(live.copy(spatialCode = if (live.spatialCode == 0) SpatialMode.ROOM.code else 0))
-            push(status(QcUltra2.AUDIO_SETTINGS, AudioSettings.build(live)))
+            if (!withoutAudioSettings) push(status(QcUltra2.AUDIO_SETTINGS, AudioSettings.build(live)))
         }
     }
 
@@ -318,6 +349,10 @@ class VirtualQcUltra2(
     fun handle(request: BmapPacket): List<BmapPacket> {
         if (!isPoweredOn) return emptyList()
         val a = request.address
+        requestCounts[a] = (requestCounts[a] ?: 0) + 1
+        if (a in silentFunctions) return emptyList()
+        if (refuseAudioModesBlock && a.block == AUDIO_MODES_BLOCK) return listOf(error(a, BmapError.FBLOCK_NOT_SUPPORTED))
+        if (withoutAudioSettings && a == QcUltra2.AUDIO_SETTINGS) return listOf(error(a, BmapError.FUNC_NOT_SUPPORTED))
         if (a.block !in KNOWN_BLOCKS) return listOf(error(a, BmapError.FBLOCK_NOT_SUPPORTED))
         if (a in ERROR_24_FUNCTIONS) return listOf(error(a, BmapError.SECURE_SESSION_REQUIRED))
         if (a !in KNOWN_FUNCTIONS) return listOf(error(a, BmapError.FUNC_NOT_SUPPORTED))
@@ -621,7 +656,7 @@ class VirtualQcUltra2(
                     currentMode = index
                     live = slotSettings(index)
                     // The real unit confirms with RESULT and pushes the new live settings a moment later.
-                    push(status(QcUltra2.AUDIO_SETTINGS, AudioSettings.build(live)))
+                    if (!withoutAudioSettings) push(status(QcUltra2.AUDIO_SETTINGS, AudioSettings.build(live)))
                     listOf(result(a, byteArrayOf(index.toByte())))
                 }
             }
@@ -754,6 +789,7 @@ class VirtualQcUltra2(
     companion object {
         /** The simulated battery never drains below this, so demos don't end in a low-battery alert. */
         const val BATTERY_FLOOR_PERCENT = 35
+        private const val AUDIO_MODES_BLOCK = 31
         /** Bytes 40-41 of every user slot in the raw dump (byte 41 = changeable flags 0x1d). */
         private const val USER_SLOT_WORD40 = 0x001d
 

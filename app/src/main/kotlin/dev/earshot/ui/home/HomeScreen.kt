@@ -94,7 +94,16 @@ fun HomeContent(
                 onVolume = onVolume,
             )
         }
-        Column {
+        // Firmware that refuses the whole AudioModes block (bosectl #44) has no modes to show:
+        // a carousel of placeholders whose every tap fails helped nobody.
+        if (!state.capabilities.listeningModes) {
+            Text(
+                stringResource(R.string.home_modes_unavailable),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        } else Column {
             ModeCarousel(
                 modes = state.modes,
                 currentIndex = state.currentModeIndex,
@@ -128,7 +137,7 @@ fun HomeContent(
             )
             if (!adjustable) {
                 Text(
-                    stringResource(R.string.noise_hint_mode_only),
+                    stringResource(if (caps.listeningModes) R.string.noise_hint_mode_only else R.string.noise_hint_read_only),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -147,6 +156,23 @@ private fun HomePreview() {
     EarshotPreview {
         HomeContent(
             state = FakeHeadphoneRepository.connectedState(),
+            contentPadding = PaddingValues(0.dp),
+            onConnect = {}, onRefresh = {}, onSelectMode = {}, onToggleFavorite = {}, onNoiseChange = {}, onEditModes = {},
+        )
+    }
+}
+
+/** Firmware that refuses block 31: no carousel, the cancelling level read-only. */
+@LightDarkPreview
+@Composable
+private fun HomeNoModesPreview() {
+    EarshotPreview {
+        val connected = FakeHeadphoneRepository.connectedState()
+        HomeContent(
+            state = connected.copy(
+                modes = emptyList(),
+                capabilities = connected.capabilities.copy(listeningModes = false, liveNoiseControl = false, editableModes = false, favoriteModes = false),
+            ),
             contentPadding = PaddingValues(0.dp),
             onConnect = {}, onRefresh = {}, onSelectMode = {}, onToggleFavorite = {}, onNoiseChange = {}, onEditModes = {},
         )

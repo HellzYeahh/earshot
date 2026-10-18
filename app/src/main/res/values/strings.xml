@@ -106,6 +106,7 @@
     <string name="home_modes_title">Modes</string>
     <string name="home_modes_hint">Tap to switch · hold to favourite</string>
     <string name="home_modes_hint_tap">Tap to switch</string>
+    <string name="home_modes_unavailable">This firmware doesn\'t expose listening modes to other apps, so they can only be changed on the headphones.</string>
     <string name="lab_report_title">Connection report</string>
     <string name="lab_report_hint">If your headphones will not connect or a control does not work, copy this report and include it when you ask for help. It lists the headphones\' Bluetooth name and address, the services the phone has seen, the model Earshot detected and the recent connection log. Nothing else.</string>
     <string name="lab_report_copy">Copy connection report</string>
@@ -137,6 +138,7 @@
     <string name="noise_hint_anc_off">The level has no effect while noise cancelling is off.</string>
     <string name="noise_hint_wind_on">The level has no effect while Wind Block is on.</string>
     <string name="noise_hint_mode_only">On these headphones noise settings belong to a mode. Switch to a custom mode to adjust them.</string>
+    <string name="noise_hint_read_only">Shown for reference: this firmware doesn\'t let other apps change noise cancelling.</string>
     <string name="noise_anc">Noise cancelling</string>
     <string name="noise_anc_subtitle">Turn the cancelling microphones on or off</string>
     <string name="noise_wind_block">Wind Block</string>

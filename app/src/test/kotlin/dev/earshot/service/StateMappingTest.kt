@@ -10,7 +10,10 @@ import dev.earshot.core.Sidetone
 import dev.earshot.core.SpatialAudio
 import dev.earshot.protocol.hexToBytes
 import dev.earshot.protocol.qcultra2.AudioSettings
+import dev.earshot.protocol.qcultra2.BoseModel
 import dev.earshot.protocol.qcultra2.Buttons
+import dev.earshot.protocol.qcultra2.CncState
+import dev.earshot.protocol.qcultra2.ModeLayout
 import dev.earshot.protocol.qcultra2.Eq
 import dev.earshot.protocol.qcultra2.ModeConfigWrite
 import dev.earshot.protocol.qcultra2.ModeConfigs
@@ -140,5 +143,33 @@ class StateMappingTest {
         val switched = devices.withActiveSource("94:45:60:85:05:a7")
         assertEquals(listOf(false, true), switched.map { it.isActiveSource })
         assertEquals(listOf(false, false), devices.withActiveSource(null).map { it.isActiveSource })
+    }
+
+    @Test
+    fun `capabilities follow what the connection showed, not only the catalogue`() {
+        val guess = BoseModel.QC_ULTRA_1.toCapabilities()
+        assertTrue(guess.liveNoiseControl && guess.ancToggle && guess.listeningModes)
+
+        val compact = BoseModel.QC_ULTRA_1.toCapabilities(layout = ModeLayout.COMPACT, liveNoise = false)
+        assertFalse(compact.liveNoiseControl)
+        assertFalse(compact.ancToggle)
+        assertTrue(compact.ancAlwaysOn)
+        assertTrue(compact.windExcludesCancelling)
+
+        val noModes = BoseModel.QC_ULTRA_2.toCapabilities(modes = false)
+        assertFalse(noModes.listeningModes)
+        assertFalse(noModes.liveNoiseControl)
+        assertFalse(noModes.editableModes)
+        assertFalse(noModes.favoriteModes)
+    }
+
+    @Test
+    fun `the 1_5 CNC step reads as a level with step 0 most cancelling`() {
+        assertEquals(10, CncState(steps = 11, step = 0, flags = 3).toNoiseSettings()?.cancellingLevel)
+        assertEquals(0, CncState(steps = 11, step = 10, flags = 3).toNoiseSettings()?.cancellingLevel)
+        assertEquals(5, CncState(steps = 3, step = 1, flags = 1).toNoiseSettings()?.cancellingLevel)
+        assertFalse(CncState(steps = 11, step = 4, flags = 2).toNoiseSettings()!!.ancEnabled)
+        assertNull(CncState(steps = 11, step = 12, flags = 1).toNoiseSettings())
+        assertNull(CncState(steps = 1, step = 0, flags = 1).toNoiseSettings())
     }
 }

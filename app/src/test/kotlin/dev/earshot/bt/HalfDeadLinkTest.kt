@@ -1,11 +1,16 @@
 package dev.earshot.bt
 
 import dev.earshot.core.HeadphoneCommandException
+import dev.earshot.core.HeadphoneState
 import dev.earshot.protocol.BmapPacket
 import dev.earshot.protocol.FunctionAddress
 import dev.earshot.protocol.hexToBytes
+import dev.earshot.service.ProtocolLog
+import dev.earshot.service.QcUltra2Protocol
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.runTest
@@ -160,6 +165,23 @@ class HalfDeadLinkTest {
         // Commands that work keep working.
         t.answer = { "02020301 50" }
         c.request(BmapPacket.get(battery))
+    }
+
+    @Test
+    fun `a mode switch acked only with PROCESSING succeeds when the STATUS comes late`() = runTest {
+        // prince (bosectl): [31.3] START answers PROCESSING, applies the switch, the STATUS follows later.
+        val t = SilentFakeTransport()
+        val c = BmapConnection(t, backgroundScope, minWriteGapMs = 0)
+        t.answer = { bytes ->
+            if (bytes[0] == 0x1f.toByte() && bytes[1] == 3.toByte() && bytes[2] == 5.toByte()) {
+                backgroundScope.launch { delay(1_200); t.deliver("1f030301 02") }
+                "1f030700"
+            } else null
+        }
+        ProtocolLog.sink = { _, _, _ -> }
+        val s = QcUltra2Protocol().setMode(c, HeadphoneState(), 2)
+        assertEquals(2, s.currentModeIndex)
+        assertTrue(c.isOpen)
     }
 
     @Test

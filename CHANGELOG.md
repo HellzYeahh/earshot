@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.1 — 2026-10-17
+
+Earshot is only tested on the QC Ultra Headphones (2nd Gen). Everything it assumed about the other
+models is now checked while connecting, so a wrong guess costs a feature instead of the connection.
+
+### Fixed
+- **QC Ultra Headphones (1st Gen)**, reported "not working right" since 0.2.0: Earshot no longer
+  relies on guesses about this model. If the headphones lack live noise control, noise changes are
+  saved into the custom mode you are on; custom modes are written in the format the headphones
+  actually send; settings the firmware quietly ignores are skipped instead of ending the connection.
+- **QC Headphones / QC SC whose control channel is 9 instead of 8** (bosectl reports both): Earshot
+  now tries channels 2, 8 and 9 and the phone's own service lookup on every connect, keeps the one
+  that answers and remembers it. If a remembered channel stops working, it finds the new one.
+- A channel that sends data but isn't the control channel (a status beacon or a log stream on some
+  headphones and phones) is no longer mistaken for it.
+- Headphones that ignore requests for features they don't have no longer drop and reconnect over
+  and over; the connection stays up and those features are simply not shown.
+- Headphones whose firmware doesn't offer listening modes to other apps now connect normally: the
+  modes carousel and editor are hidden, noise cancelling is shown read-only when the headphones
+  report it, and mode buttons explain why they can't work instead of failing.
+- **QC Ultra Earbuds (1st and 2nd Gen)** are shown by their own name instead of as "QC Ultra
+  Headphones (2nd Gen)"; the 2nd Gen follows bosectl's tested layout, the 1st Gen is a best guess.
+- "Close the Bose app" still appears when another app holds the connection.
+
 ## 0.3.0 — 2026-10-17
 
 **Skullcandy Crusher 1080 ANC (experimental).** The Crusher's "Sound by Bose" features run on a
