@@ -167,6 +167,20 @@ data class DeviceInfo(
 )
 
 /**
+ * The Skullcandy Crusher's haptic bass (the "Crusher" dial and its three feels).
+ * [mode] is 0 = high, 1 = medium, 2 = low when [modeCount] is positive; null when the unit has no
+ * modes. [intensityReadOnly] means the headphones ignore intensity writes (the dial is physical).
+ */
+data class CrusherBass(
+    val active: Boolean,
+    val intensity: Int,
+    val maxIntensity: Int,
+    val mode: Int? = null,
+    val modeCount: Int = 0,
+    val intensityReadOnly: Boolean = false,
+)
+
+/**
  * What the connected model can do, beyond "the GET answered". Defaults describe the QC Ultra 2,
  * so state built before the model is known (or by the fakes) behaves as before.
  */
@@ -184,6 +198,14 @@ data class HeadphoneCapabilities(
     val windExcludesCancelling: Boolean = false,
     /** Any noise cancelling at all; false on open-ear earbuds (Ultra Open). */
     val noiseCancelling: Boolean = true,
+    /**
+     * Noise cancelling cannot be switched off from the noise panel because it is always on there
+     * (QC45 family). False where "off" is a listening mode of its own (Skullcandy Crusher: Off /
+     * Quiet / Aware), so the level slider is greyed while that mode is active.
+     */
+    val ancAlwaysOn: Boolean = false,
+    /** A Wind Block switch exists. The Crusher's modes have no separate wind setting. */
+    val windBlock: Boolean = true,
     /** Custom modes can be saved / renamed / reset. False where the write layout is unknown. */
     val editableModes: Boolean = true,
     /** False while the model's layout is a best guess rather than confirmed on hardware. */
@@ -288,6 +310,8 @@ data class HeadphoneState(
     val lastButtonPress: ButtonPress? = null,
     /** What the connected model supports; QC Ultra 2 defaults until `[0.3]` is read. */
     val capabilities: HeadphoneCapabilities = HeadphoneCapabilities(),
+    /** Haptic bass of the Skullcandy Crusher headphones; null on every other model. */
+    val crusher: CrusherBass? = null,
 ) {
     val isConnected: Boolean get() = connection.status == ConnectionStatus.CONNECTED
     val currentMode: ListeningMode? get() = currentModeIndex?.let { i -> modes.firstOrNull { it.index == i } }

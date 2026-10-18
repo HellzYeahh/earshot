@@ -46,8 +46,8 @@ fun NoiseControls(
     capabilities: HeadphoneCapabilities = HeadphoneCapabilities(),
 ) {
     // CNC is audible only while anc=1 and wind=0 (protocol notes); grey the slider otherwise.
-    // Without an ANC toggle (older models) ANC is always on.
-    val ancOn = settings.ancEnabled || !capabilities.ancToggle
+    // Without an ANC toggle ANC is either always on (QC45 family) or part of the mode (Crusher: Off mode).
+    val ancOn = settings.ancEnabled || capabilities.ancAlwaysOn
     val levelHasEffect = ancOn && !settings.windBlock
     var dragLevel by remember(settings.cancellingLevel) { mutableFloatStateOf(settings.cancellingLevel.toFloat()) }
 
@@ -85,7 +85,7 @@ fun NoiseControls(
                     onCheckedChange = { onChange(settings.copy(ancEnabled = it)) },
                     modifier = Modifier.weight(1f),
                 )
-                SwitchRow(
+                if (capabilities.windBlock) SwitchRow(
                     title = stringResource(R.string.noise_wind_block),
                     checked = settings.windBlock,
                     enabled = enabled,
@@ -101,7 +101,7 @@ fun NoiseControls(
                 enabled = enabled,
                 onCheckedChange = { onChange(settings.copy(ancEnabled = it)) },
             )
-            SwitchRow(
+            if (capabilities.windBlock) SwitchRow(
                 title = stringResource(R.string.noise_wind_block),
                 subtitle = stringResource(R.string.noise_wind_block_subtitle),
                 checked = settings.windBlock,

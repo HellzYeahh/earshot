@@ -75,6 +75,7 @@ internal fun BoseModel.toCapabilities(): HeadphoneCapabilities = HeadphoneCapabi
     liveNoiseControl = hasLiveAudioSettings,
     windExcludesCancelling = windExcludesCnc,
     noiseCancelling = hasNoiseCancelling,
+    ancAlwaysOn = hasNoiseCancelling && !modeLayout.hasAncToggle,
     editableModes = canEditModes,
     verified = verified,
 )

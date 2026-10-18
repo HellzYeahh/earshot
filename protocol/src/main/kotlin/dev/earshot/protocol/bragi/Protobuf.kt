@@ -18,7 +18,7 @@ internal const val WIRE_FIXED64 = 1
 internal const val WIRE_LEN = 2
 internal const val WIRE_FIXED32 = 5
 
-internal class ProtoWriter {
+class ProtoWriter {
     private val out = ByteArrayOutputStream()
 
     fun toByteArray(): ByteArray = out.toByteArray()
@@ -74,7 +74,7 @@ internal class ProtoWriter {
 }
 
 /** One decoded field: its number, wire type, and the raw value (Long for varint/fixed, ByteArray for LEN). */
-internal data class ProtoField(val number: Int, val wire: Int, val varint: Long, val bytes: ByteArray?) {
+data class ProtoField(val number: Int, val wire: Int, val varint: Long, val bytes: ByteArray?) {
     val int: Int get() = varint.toInt()
     val bool: Boolean get() = varint != 0L
     val float: Float get() = java.lang.Float.intBitsToFloat(varint.toInt())
@@ -84,7 +84,7 @@ internal data class ProtoField(val number: Int, val wire: Int, val varint: Long,
 }
 
 /** Reads a protobuf message into a field list. Tolerant: unknown fields are kept, not an error. */
-internal class ProtoReader(private val data: ByteArray, private var pos: Int = 0, private val end: Int = data.size) {
+class ProtoReader(private val data: ByteArray, private var pos: Int = 0, private val end: Int = data.size) {
 
     fun fields(): List<ProtoField> {
         val out = ArrayList<ProtoField>()
