@@ -309,7 +309,8 @@ class QcUltra2Protocol(
         if (liveAudio) {
             val outcome = r.get(QcUltra2.AUDIO_SETTINGS) { s = s.copy(noise = AudioSettings.parse(it.payload)?.toNoiseSettings()) }
             when {
-                outcome == Outcome.SILENT -> markAudioSettingsAbsent("no reply")
+                // Silence counts only on unverified models (see setNoise); errors count on all.
+                outcome == Outcome.SILENT && !model.verified -> markAudioSettingsAbsent("no reply")
                 outcome == Outcome.REFUSED && r.lastError.meansAbsent() -> markAudioSettingsAbsent("${r.lastError}")
             }
         }
@@ -619,10 +620,15 @@ class QcUltra2Protocol(
             AudioSettings.parse(c.get(QcUltra2.AUDIO_SETTINGS).payload)
         } catch (e: HeadphoneCommandException) {
             if (!c.isOpen) throw e
-            // Silent [31.10] on a model the catalogue expected it on: older firmware ignores
-            // functions it lacks. Treat it as absent and write the slot instead.
-            markAudioSettingsAbsent("no reply")
-            return setNoiseViaMode(c, current, settings)
+            // Silent [31.10] on an unverified model: older firmware ignores functions it lacks.
+            // Treat it as absent and write the slot instead. On a verified model a timeout is
+            // only a timeout: seed from the last known state as before, so one slow reply does
+            // not push the QC Ultra 2 onto slot writes (which refuse the built-in modes).
+            if (!model.verified) {
+                markAudioSettingsAbsent("no reply")
+                return setNoiseViaMode(c, current, settings)
+            }
+            null
         } catch (e: BmapException) {
             if (e.error.meansAbsent()) {
                 markAudioSettingsAbsent("${e.error}")

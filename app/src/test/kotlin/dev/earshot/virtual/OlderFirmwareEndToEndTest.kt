@@ -155,4 +155,17 @@ class OlderFirmwareEndToEndTest {
             assertEquals(1, device.requestsTo(QcUltra2.AUDIO_SETTINGS), "[31.10] asked once, never written")
         }
     }
+
+    @Test
+    fun `a silent 31_10 drops live noise only on unverified models`() = runTest {
+        // On the verified QC Ultra 2 one slow reply must not switch noise edits to slot writes
+        // (which refuse the built-in modes); on the 1st Gen silence means the function is missing.
+        for ((id, live) in listOf(QcUltra2.PRODUCT_ID to true, PRODUCT_ID_QC_ULTRA_1 to false)) {
+            val device = VirtualQcUltra2().apply { productId = id; silentFunctions = setOf(QcUltra2.AUDIO_SETTINGS) }
+            val r = DirectRequester(device)
+            val p = QcUltra2Protocol()
+            val s = p.refresh(r, p.onConnected(r, HeadphoneState()))
+            assertEquals(live, s.capabilities.liveNoiseControl, "0x%04x".format(id))
+        }
+    }
 }
