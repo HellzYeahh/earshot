@@ -31,6 +31,7 @@ import dev.earshot.core.AppPreferences
 import dev.earshot.core.ListeningMode
 import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.ui.common.EarshotPreview
+import dev.earshot.virtual.DemoDevice
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.SectionCard
 import dev.earshot.ui.common.SubScreenScaffold
@@ -47,10 +48,30 @@ fun PreferencesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val demoMode = remember(context) { context.appContainer.demoMode }
     val demoEnabled by demoMode.isEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val demoDevice by demoMode.device.collectAsStateWithLifecycle(initialValue = DemoDevice.QC_ULTRA)
+    val devicePrefs = remember(context) { context.appContainer.devicePrefs }
+    val familyOverride by devicePrefs.familyOverrideFlow.collectAsStateWithLifecycle(initialValue = null)
     val scope = rememberCoroutineScope()
     val headphonesRepo = remember(context) { context.appContainer.headphones }
     PreferencesContent(
         prefs, headphones.modes, onBack, vm::setPreferences,
+        familyOverride = familyOverride,
+        onFamilyChange = { key ->
+            scope.launch {
+                devicePrefs.setFamilyOverride(key)
+                // The family is chosen at the start of a connect: reconnect so the change applies now.
+                headphonesRepo.disconnect()
+                headphonesRepo.connect()
+            }
+        },
+        demoDevice = demoDevice,
+        onDemoDeviceChange = { device ->
+            scope.launch {
+                demoMode.setDevice(device)
+                headphonesRepo.disconnect()
+                headphonesRepo.connect()
+            }
+        },
         demoEnabled = demoEnabled,
         onDemoChange = { enabled ->
             scope.launch {
@@ -70,6 +91,10 @@ fun PreferencesContent(
     modes: List<ListeningMode>,
     onBack: () -> Unit,
     onChange: (AppPreferences) -> Unit,
+    familyOverride: String? = null,
+    onFamilyChange: (String?) -> Unit = {},
+    demoDevice: DemoDevice = DemoDevice.QC_ULTRA,
+    onDemoDeviceChange: (DemoDevice) -> Unit = {},
     demoEnabled: Boolean = false,
     onDemoChange: (Boolean) -> Unit = {},
 ) {
@@ -130,6 +155,19 @@ fun PreferencesContent(
                     Text(stringResource(R.string.prefs_tile_default), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
                 }
             }
+            SectionCard(title = stringResource(R.string.prefs_headphone_type)) {
+                Text(
+                    stringResource(R.string.prefs_headphone_type_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = familyOverride == null, onClick = { onFamilyChange(null) }, label = { Text(stringResource(R.string.prefs_type_auto)) })
+                    FilterChip(selected = familyOverride == "bose", onClick = { onFamilyChange("bose") }, label = { Text(stringResource(R.string.prefs_type_bose)) })
+                    FilterChip(selected = familyOverride == "bragi", onClick = { onFamilyChange("bragi") }, label = { Text(stringResource(R.string.prefs_type_crusher)) })
+                }
+            }
             SectionCard(title = stringResource(R.string.prefs_demo)) {
                 SwitchRow(
                     title = stringResource(R.string.prefs_demo_mode),
@@ -137,6 +175,12 @@ fun PreferencesContent(
                     checked = demoEnabled,
                     onCheckedChange = onDemoChange,
                 )
+                if (demoEnabled) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                        FilterChip(selected = demoDevice == DemoDevice.QC_ULTRA, onClick = { onDemoDeviceChange(DemoDevice.QC_ULTRA) }, label = { Text(stringResource(R.string.prefs_demo_qc_ultra)) })
+                        FilterChip(selected = demoDevice == DemoDevice.CRUSHER, onClick = { onDemoDeviceChange(DemoDevice.CRUSHER) }, label = { Text(stringResource(R.string.prefs_demo_crusher)) })
+                    }
+                }
             }
         }
     }

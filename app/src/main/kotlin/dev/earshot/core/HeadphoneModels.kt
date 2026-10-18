@@ -166,6 +166,30 @@ data class DeviceInfo(
     val modelName: String? = null,
 )
 
+/** Whether the headphones need an encrypted session for protected controls, and how that went. */
+enum class SecureSessionStatus {
+    /** The headphones do not ask for one (every Bose model, and a Crusher that answers in the clear). */
+    NOT_REQUIRED,
+
+    /** The session is up; controls are encrypted. */
+    SECURE,
+
+    /** The user declined the pairing code. */
+    DECLINED,
+
+    /** The session could not be set up; [SecureSession.message] says why. Protected controls may not work. */
+    FAILED,
+}
+
+data class SecureSession(val status: SecureSessionStatus = SecureSessionStatus.NOT_REQUIRED, val message: String? = null)
+
+/**
+ * A one-time pairing waiting for the user: the same [passcode] should be announced by the headphones,
+ * and the user confirms they match (or cancels). [passcode] is null when the headphones ask only for a
+ * gesture (zero digits).
+ */
+data class PairingRequest(val passcode: Int?, val digits: Int)
+
 /**
  * The Skullcandy Crusher's haptic bass (the "Crusher" dial and its three feels).
  * [mode] is 0 = high, 1 = medium, 2 = low when [modeCount] is positive; null when the unit has no
@@ -208,6 +232,8 @@ data class HeadphoneCapabilities(
     val windBlock: Boolean = true,
     /** Custom modes can be saved / renamed / reset. False where the write layout is unknown. */
     val editableModes: Boolean = true,
+    /** Modes can be starred as favourites (the long-press on a mode chip). False on the Crusher. */
+    val favoriteModes: Boolean = true,
     /** False while the model's layout is a best guess rather than confirmed on hardware. */
     val verified: Boolean = true,
 )
@@ -312,6 +338,10 @@ data class HeadphoneState(
     val capabilities: HeadphoneCapabilities = HeadphoneCapabilities(),
     /** Haptic bass of the Skullcandy Crusher headphones; null on every other model. */
     val crusher: CrusherBass? = null,
+    /** Secure session with headphones that require one (Crusher); [SecureSessionStatus.NOT_REQUIRED] otherwise. */
+    val secureSession: SecureSession = SecureSession(),
+    /** A pairing waiting for the user's answer, or null. See [HeadphoneRepository.answerPairing]. */
+    val pairing: PairingRequest? = null,
 ) {
     val isConnected: Boolean get() = connection.status == ConnectionStatus.CONNECTED
     val currentMode: ListeningMode? get() = currentModeIndex?.let { i -> modes.firstOrNull { it.index == i } }

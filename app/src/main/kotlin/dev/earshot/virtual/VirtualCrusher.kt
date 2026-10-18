@@ -1,12 +1,16 @@
 package dev.earshot.virtual
 
+import dev.earshot.protocol.bragi.AuthMessages
 import dev.earshot.protocol.bragi.BosMessageType
 import dev.earshot.protocol.bragi.BosRpcPacket
+import dev.earshot.protocol.bragi.BragiHandshake
 import dev.earshot.protocol.bragi.BragiServices
+import dev.earshot.protocol.bragi.ChannelCipher
 import dev.earshot.protocol.bragi.Hearing
 import dev.earshot.protocol.bragi.HearingMode
 import dev.earshot.protocol.bragi.ProtoWriter
 import dev.earshot.protocol.bragi.SpatialMode
+import java.security.SecureRandom
 
 /**
  * An in-process stand-in for the Skullcandy Crusher 1080 ANC, speaking BOS-RPC the way the
@@ -18,6 +22,11 @@ import dev.earshot.protocol.bragi.SpatialMode
  * TrueSpatial, Crusher bass and battery. Streaming reads ([BragiServices.MODE_READ] and friends)
  * answer with the current state and then push every change until aborted, like the real firmware.
  *
+ * With [authenticatedAccess] it also plays the secure-session side: a one-time pairing whose
+ * passcode it derives like the real headset (and confirms itself unless [autoConfirmOnDevice] is
+ * off), then a signed ECDHE session, after which hearing, spatial audio and Crusher calls are only
+ * accepted encrypted. Before that they are refused, as the protocol describes for protected channels.
+ *
  * It does not claim to match hardware byte for byte where the app's definitions are silent (the
  * STATUS body encoding, for one): those spots follow the most likely reading and are marked.
  *
@@ -26,7 +35,28 @@ import dev.earshot.protocol.bragi.SpatialMode
 class VirtualCrusher(
     /** Whether the unit announces `authenticated_access` in `dev_info` (the secure-session gate). */
     val authenticatedAccess: Boolean = false,
+    /** Whether the user "presses the button on the headphones" at once during pairing. */
+    var autoConfirmOnDevice: Boolean = true,
 ) {
+    private val random = SecureRandom()
+    private val serverIdentity: BragiHandshake.EcKeyPair by lazy { BragiHandshake.generateIdentity() }
+
+    /** The client identity key the pairing trusted (SEC-1 point), or null before a pairing completed. */
+    @Volatile var trustedClient: ByteArray? = null; private set
+
+    /** The passcode derived in the last pairing, so a test or a demo can show what the headphones "say". */
+    @Volatile var lastPasscode: Int? = null; private set
+
+    /** The device end of the session cipher once a secure session exists. */
+    @Volatile var secureCipher: ChannelCipher? = null; private set
+    private var sendSeq = 0L
+
+    private class Pairing(val clientPoint: ByteArray, val digits: Int) {
+        var commitment: ByteArray? = null
+        var nonceServer: ByteArray? = null
+        var expectedClientConfirmation: ByteArray? = null
+    }
+    private var pairing: Pairing? = null
     // ── Identity ─────────────────────────────────────────────────────────────────────────
     val model = "CHP300"
     val modelNumber = "S6CNW"
@@ -71,11 +101,26 @@ class VirtualCrusher(
 
     // ── Dispatch ─────────────────────────────────────────────────────────────────────────
 
-    /** Handle one request; returns the frames to send back, in order (responses, then any pushes). */
+    /** Services that need the secure session when [authenticatedAccess] is on (everything but device and the handshake itself). */
+    fun isProtected(service: Int): Boolean =
+        authenticatedAccess && service != BragiServices.DEVICE && service != BragiServices.AUTHENTICATED_ACCESS
+
+    /** Encrypt a reply for a protected service; the transport frames it with protocol id 0x95. */
     @Synchronized
-    fun handle(packet: BosRpcPacket): List<BosRpcPacket> {
+    fun seal(plaintext: ByteArray): ByteArray = secureCipher!!.seal(plaintext, sendSeq++)
+
+    @Synchronized
+    fun open(message: ByteArray): ByteArray? = runCatching { secureCipher?.open(message) }.getOrNull()
+
+    /** Handle one request; returns the frames to send back, in order (responses, then any pushes). [secure] = it arrived encrypted. */
+    @Synchronized
+    fun handle(packet: BosRpcPacket, secure: Boolean = false): List<BosRpcPacket> {
         received += packet
         val a = packet.address
+        if (a.service == BragiServices.AUTHENTICATED_ACCESS && packet.type == BosMessageType.REQUEST) return handleAuth(packet)
+        if (isProtected(a.service) && !secure && packet.type == BosMessageType.REQUEST) {
+            return listOf(BosRpcPacket(BosMessageType.STATUS, a.service, a.method, packet.tag, byteArrayOf(NOT_AUTHENTICATED)))
+        }
         if (packet.type == BosMessageType.ABORT) {
             subs.removeAll { it.address == a }
             return emptyList()
@@ -131,7 +176,8 @@ class VirtualCrusher(
 
     private fun subscribe(a: BragiServices.Address, tag: Int, p: BosRpcPacket) {
         subs.removeAll { it.address == a }
-        val wantsPush = p.payload.isEmpty() || (p.payload.size >= 2 && p.payload[0] == 0x08.toByte() && p.payload[1] != 0.toByte())
+        // subscribe = true is field 1 set to a non-zero varint; an empty body means false (proto3 default).
+        val wantsPush = p.payload.size >= 2 && p.payload[0] == 0x08.toByte() && p.payload[1] != 0.toByte()
         if (wantsPush) subs += Sub(a, tag)
     }
 
@@ -211,7 +257,85 @@ class VirtualCrusher(
         if (f[2]?.bool == true) peqEnabled = true
     }
 
+    // ── authenticated_access (the headphones' side) ──────────────────────────────────────
+
+    private fun handleAuth(p: BosRpcPacket): List<BosRpcPacket> {
+        val a = p.address
+        fun err(code: Int) = listOf(BosRpcPacket(BosMessageType.STATUS, a.service, a.method, p.tag, byteArrayOf(code.toByte())))
+        fun final(payload: ByteArray) = listOf(reply(a, p.tag, payload, final = true), status(a, p.tag))
+        val serverPoint = serverIdentity.publicPoint
+        return when (a) {
+            BragiServices.AUTH_HELLO -> {
+                AuthMessages.parseClientHello(p.payload) ?: return err(ERR_BAD_REQUEST)
+                final(AuthMessages.serverHello(listOf(BragiHandshake.identityKeyId(serverPoint))))
+            }
+            BragiServices.AUTH_TRUST_START -> {
+                val start = AuthMessages.parseTrustStart(p.payload) ?: return err(ERR_BAD_REQUEST)
+                if (runCatching { BragiHandshake.decodePublicKey(start.identityPoint) }.isFailure) return err(2) // IDENTITY_KEY_INVALID
+                pairing = Pairing(start.identityPoint, start.passcodeDigits)
+                final(AuthMessages.trustStartResponse(listOf(serverPoint)))
+            }
+            BragiServices.AUTH_TRUST_COMMIT -> {
+                val pr = pairing ?: return err(12) // OPERATIONS_OUT_OF_ORDER
+                pr.commitment = AuthMessages.parseTrustCommit(p.payload) ?: return err(ERR_BAD_REQUEST)
+                pr.nonceServer = ByteArray(16).also(random::nextBytes)
+                final(AuthMessages.nonce(pr.nonceServer!!))
+            }
+            BragiServices.AUTH_TRUST_NONCE -> {
+                val pr = pairing ?: return err(12)
+                val nonceClient = AuthMessages.parseNonce(p.payload) ?: return err(ERR_BAD_REQUEST)
+                val clientX = BragiHandshake.pointX(pr.clientPoint)
+                val serverX = BragiHandshake.pointX(serverPoint)
+                if (!BragiHandshake.commitment(nonceClient, clientX, serverX).contentEquals(pr.commitment)) return err(6) // COMMITMENT_INVALID
+                lastPasscode = BragiHandshake.passcode(clientX, serverX, nonceClient, pr.nonceServer!!, pr.digits)
+                val dh = BragiHandshake.ecdh(serverIdentity.privateKey, pr.clientPoint)
+                pr.expectedClientConfirmation = BragiHandshake.confirmation(dh, nonceClient, pr.nonceServer!!)
+                // Non-final "success", then (once the user confirms on the headphones) the final confirmation.
+                val ack = reply(a, p.tag, ByteArray(0), final = false)
+                if (!autoConfirmOnDevice) listOf(ack)
+                else listOf(ack, reply(a, p.tag, AuthMessages.confirmation(BragiHandshake.confirmation(dh, pr.nonceServer!!, nonceClient)), final = true), status(a, p.tag))
+            }
+            BragiServices.AUTH_TRUST_CONFIRM -> {
+                val pr = pairing ?: return err(12)
+                val theirs = AuthMessages.parseConfirmation(p.payload) ?: return err(ERR_BAD_REQUEST)
+                if (!theirs.contentEquals(pr.expectedClientConfirmation)) { pairing = null; return err(7) } // CONFIRMATION_INVALID
+                trustedClient = pr.clientPoint
+                pairing = null
+                listOf(status(a, p.tag))
+            }
+            BragiServices.AUTH_TRUST_ABORT -> { pairing = null; listOf(status(a, p.tag)) }
+            BragiServices.AUTH_AUTHENTICATE -> authenticate(p)
+            else -> err(UNKNOWN_METHOD.toInt())
+        }
+    }
+
+    private fun authenticate(p: BosRpcPacket): List<BosRpcPacket> {
+        val a = p.address
+        fun err(code: Int) = listOf(BosRpcPacket(BosMessageType.STATUS, a.service, a.method, p.tag, byteArrayOf(code.toByte())))
+        val req = AuthMessages.parseClientAuthenticate(p.payload) ?: return err(ERR_BAD_REQUEST)
+        val trusted = trustedClient ?: return err(4) // IDENTITY_KEY_ID_NOT_TRUSTED
+        if (!BragiHandshake.verifyAuthenticate(BragiHandshake.decodePublicKey(trusted), req.ephemeralPoint, req.random, req.signature)) return err(17) // SIGNATURE_INVALID
+        val eph = BragiHandshake.generateEphemeral()
+        val serverRandom = ByteArray(16).also(random::nextBytes)
+        val channel = BragiHandshake.ChannelSpec(
+            id = ChannelCipher.CHANNEL_BRAGI_CONTROL, transport = ChannelCipher.TRANSPORT_SPP, cipherSuite = 2, // AES_GCM
+            keyLength = 16, nonceLength = 12, authTagLength = 16,
+        )
+        val signed = BragiHandshake.serverSignedMessage(req.ephemeralPoint, req.random, eph.publicPoint, serverRandom, listOf(channel))
+        val signature = java.security.Signature.getInstance("SHA512withECDSA").run { initSign(serverIdentity.privateKey); update(signed); sign() }
+        val secret = BragiHandshake.ecdh(eph.privateKey, req.ephemeralPoint)
+        val (_, cipher) = BragiHandshake.deriveChannelCiphers(secret, req.random, serverRandom, listOf(channel)).first()
+        secureCipher = cipher.asDeviceSide()
+        sendSeq = 0
+        // One channel: the first response is also the final one and carries every field.
+        return listOf(reply(a, p.tag, AuthMessages.serverAuthenticate(eph.publicPoint, serverRandom, channel, signature), final = true), status(a, p.tag))
+    }
+
     companion object {
+        /** STATUS code for a protected call made without a secure session. */
+        const val NOT_AUTHENTICATED: Byte = 0x0B
+        private const val ERR_BAD_REQUEST = 0x60
+
         /** STATUS code for an unknown method. The real value is not confirmed; this only has to be non-zero. */
         const val UNKNOWN_METHOD: Byte = 0x60
     }

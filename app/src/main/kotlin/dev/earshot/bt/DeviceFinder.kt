@@ -161,8 +161,11 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
     companion object {
         private const val PROFILE_PROXY_TIMEOUT_MS = 1_500L
 
-        /** The headphones advertise as "Bose QC Ultra Headphones" unless renamed in the Bose app. */
-        private val NAME_HINTS = listOf("Bose", "QC", "QuietComfort", "Ultra")
+        /**
+         * The headphones advertise as "Bose QC Ultra Headphones" unless renamed in the Bose app; the
+         * Skullcandy Crusher 1080 ANC (Sound by Bose) as "Skullcandy CRUSHER 1080 ANC".
+         */
+        private val NAME_HINTS = listOf("Bose", "QC", "QuietComfort", "Ultra", "Skullcandy", "Crusher")
 
         private val AUDIO_CLASSES = setOf(
             BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES,

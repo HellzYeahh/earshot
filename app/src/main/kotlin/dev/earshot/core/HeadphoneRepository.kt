@@ -104,6 +104,21 @@ interface HeadphoneRepository {
     /** Absolute headphone volume 0..[HeadphoneState.volumeMax] (`[5.5]` SET_GET). Untested on hardware. */
     suspend fun setVolume(level: Int): Unit = unsupported()
 
+    /**
+     * Answer a pending [HeadphoneState.pairing]: true when the code matches what the headphones
+     * announced, false to cancel. Does nothing when no pairing is waiting.
+     */
+    suspend fun answerPairing(accept: Boolean): Unit = unsupported()
+
+    /** Forget the secure-session pairing with the saved headphones; the next connect pairs again. */
+    suspend fun forgetPairing(): Unit = unsupported()
+
+    /**
+     * Skullcandy Crusher only: change the haptic bass. Any argument left null stays as it is on the
+     * headphones; [mode] is 0 = high, 1 = medium, 2 = low. Throws on every other model.
+     */
+    suspend fun setCrusherBass(active: Boolean? = null, intensity: Int? = null, mode: Int? = null): Unit = unsupported()
+
     /** Play / pause / next / previous / stop through the headphones (`[5.3]` START). Untested on hardware. */
     suspend fun transport(control: TransportControl): Unit = unsupported()
 

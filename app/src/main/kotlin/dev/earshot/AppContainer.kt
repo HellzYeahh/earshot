@@ -14,10 +14,17 @@ import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.MicCheckRepository
 import dev.earshot.extras.automation.AutomationRepositoryImpl
 import dev.earshot.mic.MicCheckRepositoryImpl
+import dev.earshot.service.CrusherHeadphoneRepository
+import dev.earshot.service.CrusherProtocol
+import dev.earshot.service.DeviceFamily
 import dev.earshot.service.HeadphoneProtocol
 import dev.earshot.service.QcUltra2Protocol
+import dev.earshot.service.RoutingHeadphoneRepository
 import dev.earshot.service.ServiceHeadphoneRepository
+import dev.earshot.virtual.DemoDevice
 import dev.earshot.virtual.DemoMode
+import dev.earshot.virtual.VirtualCrusher
+import dev.earshot.virtual.VirtualCrusherTransport
 import dev.earshot.virtual.VirtualQcUltra2
 import dev.earshot.virtual.VirtualTransport
 import kotlinx.coroutines.CoroutineScope
@@ -39,15 +46,50 @@ class AppContainer(private val appContext: Context) {
     /** One virtual unit per process so its state survives demo reconnects. */
     private val virtualHeadphones: VirtualQcUltra2 by lazy { VirtualQcUltra2() }
 
-    private val demoTransport: () -> (() -> ByteTransport)? = {
-        if (demoMode.isEnabledBlocking()) VirtualTransport.factory(virtualHeadphones) else null
+    /** One virtual Crusher per process, for the same reason. */
+    private val virtualCrusher: VirtualCrusher by lazy { VirtualCrusher() }
+
+    /** Demo transports are device-specific: only the family the demo device belongs to gets one. */
+    private val boseDemoTransport: () -> (() -> ByteTransport)? = {
+        if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking() == DemoDevice.QC_ULTRA) VirtualTransport.factory(virtualHeadphones) else null
+    }
+
+    private val crusherDemoTransport: () -> (() -> ByteTransport)? = {
+        if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking() == DemoDevice.CRUSHER) ({ VirtualCrusherTransport(virtualCrusher) }) else null
     }
 
     /** The QC Ultra 2 command layer (BMAP addresses, payloads and state mapping). */
     private val headphoneProtocol: HeadphoneProtocol by lazy { QcUltra2Protocol() }
 
+    private val boseHeadphones: ServiceHeadphoneRepository by lazy {
+        ServiceHeadphoneRepository(appContext, headphoneProtocol, applicationScope, boseDemoTransport)
+    }
+
+    /** The Skullcandy Crusher 1080 ANC (Bragi BOS-RPC): a separate stack behind the same contract. */
+    private val crusherHeadphones: CrusherHeadphoneRepository by lazy {
+        CrusherHeadphoneRepository(
+            appContext, CrusherProtocol(), applicationScope, crusherDemoTransport,
+            autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+        )
+    }
+
+    /** The saved headphones and what Earshot has learned about how to reach them. */
+    val devicePrefs: dev.earshot.bt.DevicePrefs get() = boseHeadphones.devicePrefs
+
+    /** What the app talks to: forwards to the Bose or the Crusher repository for the paired headphones. */
     val headphones: HeadphoneRepository by lazy {
-        ServiceHeadphoneRepository(appContext, headphoneProtocol, applicationScope, demoTransport)
+        RoutingHeadphoneRepository(
+            bose = boseHeadphones,
+            crusher = crusherHeadphones,
+            prefs = boseHeadphones.devicePrefs,
+            finder = boseHeadphones.deviceFinder,
+            scope = applicationScope,
+            demoFamily = {
+                if (demoMode.isEnabledBlocking()) {
+                    if (demoMode.deviceBlocking() == DemoDevice.CRUSHER) DeviceFamily.BRAGI else DeviceFamily.BOSE
+                } else null
+            },
+        )
     }
     val tuning: AudioTuningRepository by lazy { AudioTuningRepositoryImpl(appContext, applicationScope) }
     val codec: CodecRepository by lazy { CodecRepositoryImpl(appContext, applicationScope) }

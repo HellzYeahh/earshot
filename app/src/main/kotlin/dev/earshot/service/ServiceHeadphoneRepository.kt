@@ -5,6 +5,7 @@ import android.util.Log
 import dev.earshot.appContainer
 import dev.earshot.bt.BmapConnection
 import dev.earshot.bt.ByteTransport
+import dev.earshot.bt.BoseLinkFactory
 import dev.earshot.bt.ConnectionManager
 import dev.earshot.bt.DeviceCandidate
 import dev.earshot.bt.DeviceFinder
@@ -79,7 +80,7 @@ class ServiceHeadphoneRepository(
     val devicePrefs = DevicePrefs(appContext)
     val deviceFinder = DeviceFinder(appContext, devicePrefs)
     val connectionManager = ConnectionManager(
-        appContext, deviceFinder, devicePrefs, scope,
+        appContext, deviceFinder, devicePrefs, scope, BoseLinkFactory(),
         autoConnect = ::autoConnectEnabled,
         demoTransport = demoTransport,
     )
@@ -135,6 +136,9 @@ class ServiceHeadphoneRepository(
         connectionManager.disconnect()
         HeadphoneService.stop(appContext)
     }
+
+    /** Drop the connection without stopping the foreground service: another repository is taking over. */
+    fun releaseConnection() = connectionManager.disconnect()
 
     /** Bonded devices that might be the headphones, for a picker when auto-detection is ambiguous. */
     override suspend fun deviceCandidates(): List<HeadphoneCandidate> =

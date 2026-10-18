@@ -61,11 +61,15 @@ fun ModeCarousel(
     onEditModes: () -> Unit,
     modifier: Modifier = Modifier,
     customActive: Boolean = false,
+    /** False where modes cannot be edited (the Crusher's three modes are fixed): hides "Edit modes". */
+    canEdit: Boolean = true,
+    /** False where modes cannot be starred: the long-press does nothing. */
+    canFavorite: Boolean = true,
 ) {
     val visible = modes.filter { it.isPreset || it.isConfigured }
     Row(modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(R.string.home_modes_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-        TextButton(onClick = onEditModes, modifier = Modifier.heightIn(min = 48.dp)) {
+        if (canEdit) TextButton(onClick = onEditModes, modifier = Modifier.heightIn(min = 48.dp)) {
             Text(stringResource(R.string.action_edit_modes))
         }
     }
@@ -88,7 +92,7 @@ fun ModeCarousel(
                 selected = mode.index == currentIndex,
                 enabled = enabled,
                 onClick = { onSelect(mode.index) },
-                onLongClick = { onToggleFavorite(mode.index) },
+                onLongClick = { if (canFavorite) onToggleFavorite(mode.index) },
             )
         }
     }

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import dev.earshot.R
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.OperationMode
+import dev.earshot.core.SecureSessionStatus
 import dev.earshot.ui.common.BannerTone
 import dev.earshot.ui.common.InfoBanner
 
@@ -51,11 +52,24 @@ fun StatusChips(state: HeadphoneState, modifier: Modifier = Modifier) {
     val showCharging = state.isCharging == true
     val showLive = state.livePushEnabled && state.isConnected
     val updateMode = state.operationMode == OperationMode.FIRMWARE_UPDATE_ONLY
-    if (!showMic && !showCharging && !showLive && !updateMode) return
+    val secure = state.secureSession
+    val secureProblem = state.isConnected &&
+        (secure.status == SecureSessionStatus.FAILED || secure.status == SecureSessionStatus.DECLINED)
+    if (!showMic && !showCharging && !showLive && !updateMode && !secureProblem) return
 
     androidx.compose.foundation.layout.Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (updateMode) {
             InfoBanner(stringResource(R.string.firmware_update_mode_warning), tone = BannerTone.WARNING, icon = Icons.Default.Warning)
+        }
+        if (secureProblem) {
+            InfoBanner(
+                stringResource(
+                    if (secure.status == SecureSessionStatus.DECLINED) R.string.secure_declined else R.string.secure_failed,
+                    secure.message.orEmpty(),
+                ),
+                tone = BannerTone.WARNING,
+                icon = Icons.Default.Warning,
+            )
         }
         if (showMic || showCharging || showLive) {
             FlowRow(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

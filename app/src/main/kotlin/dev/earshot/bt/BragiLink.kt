@@ -24,13 +24,19 @@ object RawPppWrapper : BragiTxWrapper {
 }
 
 /**
- * Airoha RACE command wrapper: `05 <type> <len LE16> <opcode LE16> <payload>` where len counts the
- * opcode and the payload. Candidate for the vendor header that the Airoha liblinker may add; the
- * opcode and type are parameters because the exact values are confirmed by a capture.
+ * Airoha RACE command wrapper: `05 <type> <len LE16> <opcode LE16> <prefix> <payload>` where len
+ * counts everything after itself. A fallback candidate for a vendor header around the PPP frame:
+ * the Skullcandy app's own RACE helper builds `05 5A len 01 0D 05 FF <request>` for its native
+ * custom commands, which is `AirohaRaceWrapper(opcode = 0x0D01, prefix = 05 FF)`. The opcode bytes
+ * go out low byte first, so 0x0D01 appears as `01 0D`.
  */
-class AirohaRaceWrapper(private val type: Int = 0x5A, private val opcode: Int) : BragiTxWrapper {
+class AirohaRaceWrapper(
+    private val type: Int = 0x5A,
+    private val opcode: Int,
+    private val prefix: ByteArray = ByteArray(0),
+) : BragiTxWrapper {
     override fun wrap(frame: ByteArray): ByteArray {
-        val len = 2 + frame.size
+        val len = 2 + prefix.size + frame.size
         val out = ByteArray(4 + len)
         out[0] = 0x05
         out[1] = type.toByte()
@@ -38,10 +44,11 @@ class AirohaRaceWrapper(private val type: Int = 0x5A, private val opcode: Int) :
         out[3] = ((len ushr 8) and 0xFF).toByte()
         out[4] = (opcode and 0xFF).toByte()
         out[5] = ((opcode ushr 8) and 0xFF).toByte()
-        frame.copyInto(out, 6)
+        prefix.copyInto(out, 6)
+        frame.copyInto(out, 6 + prefix.size)
         return out
     }
-    override fun toString() = "RACE type=0x%02x opcode=0x%04x".format(type, opcode)
+    override fun toString() = "RACE type=0x%02x opcode=0x%04x%s".format(type, opcode, if (prefix.isEmpty()) "" else " +prefix")
 }
 
 /**

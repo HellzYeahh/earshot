@@ -42,9 +42,9 @@ class BluetoothConnectionReceiver : BroadcastReceiver() {
             else -> null
         } ?: return
 
-        val repository = context.appContainer.headphones as? ServiceHeadphoneRepository
+        val repository = context.appContainer.headphones as? RoutingHeadphoneRepository
         if (repository == null) {
-            Log.d(TAG, "link up for $address, but the repository is not the service one; ignoring")
+            Log.d(TAG, "link up for $address, but the repository is not the routing one; ignoring")
             return
         }
         if (!autoConnectEnabled(context)) {

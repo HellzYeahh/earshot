@@ -43,6 +43,9 @@ class ChannelCipher(
         }
     }
 
+    /** The headphones' end of the same session keys: same key and salt, opposite direction bit. */
+    fun asDeviceSide(): ChannelCipher = ChannelCipher(key, salt, suite, authTagBytes, asDevice = true)
+
     private fun nonce(seq: Long, outbound: Boolean): ByteArray {
         val n = ByteArray(salt.size + 4)
         salt.copyInto(n)

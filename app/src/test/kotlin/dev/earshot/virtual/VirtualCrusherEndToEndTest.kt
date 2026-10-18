@@ -66,10 +66,10 @@ class VirtualCrusherEndToEndTest {
         assertEquals("CHP300", s.info?.productName)
         assertEquals(68, s.batteryPercent)
         assertEquals(false, s.isCharging)
-        // Off / Quiet / Aware, ANC active
-        assertEquals(listOf("Off", "Quiet", "Aware"), s.modes.map { it.name })
+        // Quiet / Aware / Off (slots 0 and 1 line up with the Bose models), ANC active
+        assertEquals(listOf("Quiet", "Aware", "Off"), s.modes.map { it.name })
         assertTrue(s.modes.all { it.isPreset && !it.isEditable && it.isConfigured })
-        assertEquals(1, s.currentModeIndex)
+        assertEquals(0, s.currentModeIndex)
         assertEquals(7, s.noise?.cancellingLevel) // gain 7 of 10
         assertEquals(true, s.noise?.ancEnabled)
         assertEquals(SpatialAudio.OFF, s.noise?.spatialAudio)
@@ -103,9 +103,9 @@ class VirtualCrusherEndToEndTest {
     fun `switching to Aware sends mode_configure and updates the state`() = runTest {
         val r = rig()
         val s0 = protocol.onConnected(r.conn, HeadphoneState())
-        val s1 = protocol.setMode(r.conn, s0, 2)
+        val s1 = protocol.setMode(r.conn, s0, 1)
         assertEquals(HearingMode.AT, r.device.hearingMode)
-        assertEquals(2, s1.currentModeIndex)
+        assertEquals(1, s1.currentModeIndex)
         val sent = r.device.received.last { it.address == BragiServices.MODE_CONFIGURE }
         assertEquals("08031001", sent.payload.joinToString("") { "%02x".format(it) }) // mode=AT(3), activate
         // The new mode's own gain is the slider value (aware gain 5 of 10 -> 5).
@@ -127,7 +127,8 @@ class VirtualCrusherEndToEndTest {
     fun `the slider is refused while the mode is Off`() = runTest {
         val r = rig()
         val s0 = protocol.onConnected(r.conn, HeadphoneState())
-        val off = protocol.setMode(r.conn, s0, 0)
+        val off = protocol.setMode(r.conn, s0, 2)
+        assertEquals(HearingMode.OFF, r.device.hearingMode)
         assertFailsWith<HeadphoneCommandException> { protocol.setNoise(r.conn, off, off.noise!!.copy(cancellingLevel = 3)) }
     }
 
@@ -188,7 +189,7 @@ class VirtualCrusherEndToEndTest {
 
         val push = pushes.single { it.address == BragiServices.MODE_READ }
         val s1 = assertNotNull(protocol.onUnsolicited(push, s0))
-        assertEquals(2, s1.currentModeIndex)
+        assertEquals(1, s1.currentModeIndex)
         assertEquals(5, s1.noise?.cancellingLevel)
     }
 

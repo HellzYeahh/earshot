@@ -75,7 +75,7 @@ class BmapConnection(
      * the count. Same threshold as the protocol's refresh tolerance.
      */
     val maxSilentReplies: Int = DEFAULT_MAX_SILENT_REPLIES,
-) : BmapRequester {
+) : BmapRequester, ManagedLink {
     // Child of the parent's Job (dies with it) but with its own supervisor so a reader failure
     // never cancels the caller. Keeps the parent's dispatcher when it has one (tests inject a
     // virtual-time dispatcher), otherwise Default.
@@ -138,7 +138,7 @@ class BmapConnection(
     }
 
     /** Suspends until the connection is closed, by us or by the link. Returns the cause (null when local). */
-    suspend fun awaitClosed(): Throwable? = closedSignal.await()
+    override suspend fun awaitClosed(): Throwable? = closedSignal.await()
 
     /**
      * Send [packet] and collect its reply according to [mode]. Throws [HeadphoneCommandException]
@@ -258,7 +258,7 @@ class BmapConnection(
         }
     }
 
-    fun close() = close(null)
+    override fun close() = close(null)
 
     private fun close(cause: Throwable?) {
         if (!isOpen) return

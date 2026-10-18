@@ -202,12 +202,30 @@ class RfcommTransport private constructor(
         }
 
         /**
-         * Open the control channel, trying each strategy in turn. Throws [RfcommConnectException]
+         * Open the Bose control channel, trying each strategy in turn. Throws [RfcommConnectException]
          * when all fail, or [SecurityException] when every strategy was refused for permission
          * reasons (the caller already checked BLUETOOTH_CONNECT, so that means an OEM quirk).
          */
+        suspend fun connect(device: BluetoothDevice, channel: Int = CHANNEL): RfcommTransport =
+            open(device, strategies(channel))
+
+        /**
+         * Open an RFCOMM socket to a service by UUID (channel resolved by SDP), as the Skullcandy
+         * app does for the Crusher: the secure variant first (the headphones are bonded), then the
+         * insecure one. Unlike [connect] there is no BMAP greeting check: a different protocol
+         * answers here, and the caller probes it.
+         */
         @SuppressLint("MissingPermission")
-        suspend fun connect(device: BluetoothDevice, channel: Int = CHANNEL): RfcommTransport {
+        suspend fun connectService(device: BluetoothDevice, uuid: UUID): RfcommTransport = open(
+            device,
+            listOf(
+                Strategy("SDP secure $uuid", checkGreeting = false) { it.createRfcommSocketToServiceRecord(uuid) },
+                Strategy("SDP insecure $uuid", checkGreeting = false) { it.createInsecureRfcommSocketToServiceRecord(uuid) },
+            ),
+        )
+
+        @SuppressLint("MissingPermission")
+        private suspend fun open(device: BluetoothDevice, strategies: List<Strategy>): RfcommTransport {
             // No cancelDiscovery() here: on API 31+ it (and isDiscovering) needs BLUETOOTH_SCAN,
             // which Earshot does not request; we never start discovery ourselves anyway.
             val failures = ArrayList<String>()
@@ -215,7 +233,7 @@ class RfcommTransport private constructor(
             var firstSecurity: SecurityException? = null
             var allSecurity = true
 
-            for (strategy in strategies(channel)) {
+            for (strategy in strategies) {
                 val socket = try {
                     strategy.open(device)
                 } catch (e: Exception) {

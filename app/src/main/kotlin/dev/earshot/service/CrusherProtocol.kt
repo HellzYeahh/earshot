@@ -1,6 +1,7 @@
 package dev.earshot.service
 
 import dev.earshot.bt.BragiRequester
+import dev.earshot.bt.BragiSession
 import dev.earshot.core.CrusherBass
 import dev.earshot.core.DeviceInfo
 import dev.earshot.core.HeadphoneCapabilities
@@ -8,6 +9,8 @@ import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.ListeningMode
 import dev.earshot.core.NoiseSettings
+import dev.earshot.core.SecureSession
+import dev.earshot.core.SecureSessionStatus
 import dev.earshot.core.Sidetone
 import dev.earshot.core.SpatialAudio
 import dev.earshot.protocol.bragi.BosMessageType
@@ -28,8 +31,10 @@ import kotlin.math.roundToInt
  * share a wire format, so this is a sibling rather than a [HeadphoneProtocol].
  *
  * How the Crusher's features fit Earshot's model:
- *  - **Listening modes**: three built-in, non-editable modes, `0 Off`, `1 Quiet` (ANC), `2 Aware`
- *    (audio transparency). Switching is `hearing.mode_configure {mode, activate}`.
+ *  - **Listening modes**: three built-in, non-editable modes, `0 Quiet` (ANC), `1 Aware` (audio
+ *    transparency), `2 Off`. The order lines up with the Bose models (slot 0 Quiet, slot 1 Aware), so
+ *    automation rules, the tile and the widget mean the same thing on either stack. Switching is
+ *    `hearing.mode_configure {mode, activate}`.
  *  - **Noise slider**: the gain of the active mode, scaled to Earshot's 0..10. There is no separate
  *    ANC switch (Off is a mode) and no Wind Block.
  *  - **Immersive Audio**: Bose TrueSpatial Off / Still / Motion. Mapped by label: the Crusher's
@@ -55,10 +60,21 @@ class CrusherProtocol {
 
     // ── Connect ──────────────────────────────────────────────────────────────────────────
 
-    /** Identity, the secure-session flag and the static ranges; subscribes to live changes. */
-    suspend fun onConnected(c: BragiRequester, current: HeadphoneState): HeadphoneState {
-        var s = current.copy(capabilities = CAPABILITIES, livePushEnabled = false)
-        optional { s = withDevInfo(s, WireDeviceInfo.parseDevInfo(c.call(BragiServices.DEV_INFO).payload)) }
+    /**
+     * Identity, the secure-session flag and the static ranges; subscribes to live changes. When the
+     * headphones ask for a secure session ([authenticatedAccess]) it is set up first through [secure]
+     * (the official app also carries on in the clear if that fails, so a failure is recorded in
+     * [HeadphoneState.secureSession] and the reads that follow simply go as far as they can).
+     */
+    suspend fun onConnected(
+        c: BragiRequester, current: HeadphoneState, secure: (suspend () -> BragiSession.Outcome)? = null,
+    ): HeadphoneState {
+        var s = current.copy(capabilities = CAPABILITIES, livePushEnabled = false, secureSession = SecureSession(), pairing = null)
+        optional { s = withDevInfo(s, WireDeviceInfo.parseDevInfo(c.call(BragiServices.DEV_INFO, WireDeviceInfo.devInfo()).payload)) }
+        if (authenticatedAccess) {
+            val outcome = secure?.invoke() ?: BragiSession.Outcome.Failed("This build cannot set up the secure session")
+            s = s.copy(secureSession = outcome.toSession(), pairing = null)
+        }
         optional {
             Hearing.parseModeInfo(c.call(BragiServices.HEARING_MODE_INFO).payload).let { ancGainMax = it.ancGainMax.coerceAtLeast(1); atGainMax = it.atGainMax.coerceAtLeast(1) }
         }
@@ -99,7 +115,7 @@ class CrusherProtocol {
 
     // ── Commands ─────────────────────────────────────────────────────────────────────────
 
-    /** [index]: 0 Off, 1 Quiet, 2 Aware. */
+    /** [index]: 0 Quiet, 1 Aware, 2 Off (the Bose order for the first two). */
     suspend fun setMode(c: BragiRequester, current: HeadphoneState, index: Int): HeadphoneState {
         val mode = modeForIndex(index) ?: throw HeadphoneCommandException("There is no listening mode in slot $index")
         c.call(BragiServices.MODE_CONFIGURE, Hearing.modeConfigure(mode, activate = true))
@@ -178,6 +194,12 @@ class CrusherProtocol {
         }
     }
 
+    private fun BragiSession.Outcome.toSession() = when (this) {
+        is BragiSession.Outcome.Secure -> SecureSession(SecureSessionStatus.SECURE)
+        BragiSession.Outcome.Declined -> SecureSession(SecureSessionStatus.DECLINED, "Pairing was cancelled")
+        is BragiSession.Outcome.Failed -> SecureSession(SecureSessionStatus.FAILED, reason)
+    }
+
     // ── State mapping ────────────────────────────────────────────────────────────────────
 
     private fun withDevInfo(s: HeadphoneState, d: WireDeviceInfo.DevInfoResponse): HeadphoneState {
@@ -203,9 +225,9 @@ class CrusherProtocol {
         val atLevel = gainToLevel(m.atGain, atGainMax)
         fun mode(index: Int, name: String, level: Int, enabled: Boolean) = ListeningMode(
             index = index, name = name, isPreset = true, isEditable = false, isConfigured = true,
-            isFavorite = true, settings = NoiseSettings(level, enabled, false, spatial),
+            isFavorite = false, settings = NoiseSettings(level, enabled, false, spatial),
         )
-        val modes = listOf(mode(0, "Off", ancLevel, false), mode(1, "Quiet", ancLevel, true), mode(2, "Aware", atLevel, true))
+        val modes = listOf(mode(0, "Quiet", ancLevel, true), mode(1, "Aware", atLevel, true), mode(2, "Off", ancLevel, false))
         val activeIndex = indexForMode(m.active)
         val level = when (m.active) { HearingMode.AT -> atLevel; else -> ancLevel }
         return s.copy(modes = modes, currentModeIndex = activeIndex, noise = NoiseSettings(level, m.active != HearingMode.OFF, false, spatial))
@@ -233,9 +255,9 @@ class CrusherProtocol {
 
     // ── Conversions ──────────────────────────────────────────────────────────────────────
 
-    private fun modeForIndex(i: Int) = when (i) { 0 -> HearingMode.OFF; 1 -> HearingMode.ANC; 2 -> HearingMode.AT; else -> null }
-    private fun indexForMode(m: HearingMode) = when (m) { HearingMode.OFF -> 0; HearingMode.ANC -> 1; HearingMode.AT -> 2; else -> 0 }
-    private fun activeMode(s: HeadphoneState): HearingMode = modeForIndex(s.currentModeIndex ?: 0) ?: HearingMode.OFF
+    private fun modeForIndex(i: Int) = when (i) { 0 -> HearingMode.ANC; 1 -> HearingMode.AT; 2 -> HearingMode.OFF; else -> null }
+    private fun indexForMode(m: HearingMode) = when (m) { HearingMode.ANC -> 0; HearingMode.AT -> 1; HearingMode.OFF -> 2; else -> 2 }
+    private fun activeMode(s: HeadphoneState): HearingMode = modeForIndex(s.currentModeIndex ?: 2) ?: HearingMode.OFF
 
     private fun gainToLevel(gain: Int, max: Int): Int = if (max <= 0) 0 else (gain * 10.0 / max).roundToInt().coerceIn(0, 10)
     private fun levelToGain(level: Int, max: Int): Int = (level * max / 10.0).roundToInt().coerceIn(0, max)
@@ -256,11 +278,34 @@ class CrusherProtocol {
     private fun SpatialAudio.toWire() = when (this) { SpatialAudio.OFF -> SpatialMode.OFF; SpatialAudio.ROOM -> SpatialMode.STILL; SpatialAudio.HEAD -> SpatialMode.MOTION }
     private fun SpatialMode.toCore() = when (this) { SpatialMode.STILL -> SpatialAudio.ROOM; SpatialMode.MOTION -> SpatialAudio.HEAD; else -> SpatialAudio.OFF }
 
+    /** One read the Lab may issue: a call with no side effects. [streaming] reads answer with the current state. */
+    class LabRead(val address: BragiServices.Address, val name: String, val streaming: Boolean = false, val body: ByteArray = ByteArray(0))
+
     companion object {
+        /**
+         * Every read-only call the Lab offers, with its name. Nothing here changes a setting: the
+         * streaming reads are issued without the subscribe flag, so they return the current state once.
+         */
+        val LAB_READS: List<LabRead> = listOf(
+            LabRead(BragiServices.DEV_INFO, "device.dev_info", body = WireDeviceInfo.devInfo()),
+            LabRead(BragiServices.SYS_INFO, "device.sys_info"),
+            LabRead(BragiServices.BATT_INFO, "device.batt_info"),
+            LabRead(BragiServices.TIME_GET, "device.time_get"),
+            LabRead(BragiServices.MODE_READ, "hearing.mode_read", streaming = true),
+            LabRead(BragiServices.HEARING_MODE_INFO, "hearing.mode_info"),
+            LabRead(BragiServices.SIDETONE_READ, "hearing.sidetone_read", streaming = true),
+            LabRead(BragiServices.SIDETONE_INFO, "hearing.sidetone_info"),
+            LabRead(BragiServices.PEQ_READ_STATE, "hearing.peq_read_state", streaming = true),
+            LabRead(BragiServices.PEQ_INFO, "hearing.peq_info"),
+            LabRead(BragiServices.SPATIAL_INFO_GET, "spatial_audio.info_get", streaming = true),
+            LabRead(BragiServices.CRUSHER_CONFIG_GET, "crusher.config_get"),
+            LabRead(BragiServices.CRUSHER_STATE_GET, "crusher.state_get", streaming = true),
+        )
+
         /** No ANC switch (Off is a mode), no Wind Block, no editable modes; the level slider is the active mode's gain. */
         val CAPABILITIES = HeadphoneCapabilities(
             spatialAudio = true, ancToggle = false, liveNoiseControl = true, windExcludesCancelling = false,
-            noiseCancelling = true, ancAlwaysOn = false, windBlock = false, editableModes = false, verified = false,
+            noiseCancelling = true, ancAlwaysOn = false, windBlock = false, editableModes = false, favoriteModes = false, verified = false,
         )
     }
 }

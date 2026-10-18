@@ -43,6 +43,8 @@ fun HomeScreen(contentPadding: PaddingValues, onEditModes: () -> Unit) {
         onEditModes = onEditModes,
         onTransport = vm::transport,
         onVolume = vm::setVolume,
+        onCrusher = vm::setCrusherBass,
+        onPairingAnswer = vm::answerPairing,
     )
 }
 
@@ -59,8 +61,11 @@ fun HomeContent(
     onEditModes: () -> Unit,
     onTransport: (TransportControl) -> Unit = {},
     onVolume: (Int) -> Unit = {},
+    onCrusher: (active: Boolean?, intensity: Int?, mode: Int?) -> Unit = { _, _, _ -> },
+    onPairingAnswer: (Boolean) -> Unit = {},
 ) {
     val controlsEnabled = state.isConnected && !state.isBusy
+    state.pairing?.let { PairingDialog(it, onAnswer = onPairingAnswer) }
     Column(
         Modifier
             .fillMaxSize()
@@ -100,11 +105,13 @@ fun HomeContent(
                 onSelect = onSelectMode,
                 onToggleFavorite = onToggleFavorite,
                 onEditModes = onEditModes,
+                canEdit = state.capabilities.editableModes,
+                canFavorite = state.capabilities.favoriteModes,
                 // [31.3] = 0xFF: the live noise settings match no slot (ServiceNotification calls this "Custom" too).
                 customActive = state.isConnected && state.noise != null && state.currentMode == null,
             )
             Text(
-                stringResource(R.string.home_modes_hint),
+                stringResource(if (state.capabilities.favoriteModes) R.string.home_modes_hint else R.string.home_modes_hint_tap),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 4.dp, top = 2.dp),
@@ -129,6 +136,9 @@ fun HomeContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+        state.crusher?.let { bass ->
+            CrusherCard(bass = bass, enabled = controlsEnabled, onChange = onCrusher)
         }
         Spacer(Modifier.height(8.dp))
     }

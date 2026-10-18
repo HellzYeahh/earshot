@@ -41,11 +41,21 @@ object BragiHandshake {
     }
 
     /** An EC key pair with its SEC-1 point. [publicPointSec1] is the same bytes as [publicPoint]. */
-    class EcKeyPair internal constructor(private val pair: KeyPair) {
+    class EcKeyPair(private val pair: KeyPair) {
         val privateKey: PrivateKey get() = pair.private
         val publicKey: PublicKey get() = pair.public
         val publicPoint: ByteArray = encodePoint((pair.public as ECPublicKey).w)
         val publicPointSec1: ByteArray get() = publicPoint
+
+        /** The private key as PKCS#8, for storing the identity (the caller must protect it at rest). */
+        fun privateKeyPkcs8(): ByteArray = pair.private.encoded
+
+        companion object {
+            /** Rebuild a key pair stored with [privateKeyPkcs8] and [publicPoint]. */
+            fun restore(pkcs8: ByteArray, publicPoint: ByteArray): EcKeyPair = EcKeyPair(
+                KeyPair(decodePublicKey(publicPoint), KeyFactory.getInstance("EC").generatePrivate(java.security.spec.PKCS8EncodedKeySpec(pkcs8))),
+            )
+        }
     }
 
     fun generateEphemeral(): EcKeyPair = generate()

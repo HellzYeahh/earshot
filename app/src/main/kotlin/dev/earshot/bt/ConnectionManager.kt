@@ -10,7 +10,6 @@ import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import dev.earshot.core.ConnectionState
 import dev.earshot.core.ConnectionStatus
-import dev.earshot.protocol.qcultra2.BoseModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -23,7 +22,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Owns the lifecycle of the one [BmapConnection] to the headphones.
+ * Owns the lifecycle of the one session ([C]: a [BmapConnection] for Bose, a [BragiConnection] for
+ * the Skullcandy Crusher) to the headphones. How a session is opened is the [factory]'s business;
+ * the policy below is the same for every family.
  *
  * States map 1:1 onto [ConnectionStatus]. The loop in [runLoop] is the whole policy:
  *  - [connect] starts it (idempotent); [disconnect] stops it and marks the stop as the user's,
@@ -34,7 +35,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  *    fast schedule is spent it keeps a slow pulse going as long as the audio link is up (the
  *    Bose app holding the channel is the usual reason), and an A2DP play/pause event re-arms
  *    a parked loop.
- *  - A socket that opens but stays silent ([LivenessProbe] at connect, the [BmapConnection]
+ *  - A socket that opens but stays silent (the factory's probe at connect, the connection's
  *    watchdog mid-session) is treated as dead: closed, reported as [MESSAGE_CHANNEL_BUSY] (the
  *    signature of the Bose app holding channel 2) and counted as a failed attempt.
  *  - Bluetooth turning off ends everything; turning on restarts it when auto-connect is on.
@@ -48,11 +49,12 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * Nothing here knows about services or notifications: `service/` layers those on top.
  */
-class ConnectionManager(
+class ConnectionManager<C : ManagedLink>(
     private val context: Context,
     private val finder: DeviceFinder,
     private val prefs: DevicePrefs,
     private val scope: CoroutineScope,
+    private val factory: LinkFactory<C>,
     /** Read lazily on every Bluetooth event; mirrors `AppPreferences.autoConnectOnBluetooth`. */
     private val autoConnect: () -> Boolean = { true },
     /**
@@ -61,13 +63,15 @@ class ConnectionManager(
      * the next connect.
      */
     private val demoTransport: () -> (() -> ByteTransport)? = { null },
+    /** Shown while the virtual headphones are connected (demo mode). */
+    private val demoName: String = DEMO_NAME,
 ) {
     private val _state = MutableStateFlow(ConnectionState())
     val state: StateFlow<ConnectionState> = _state.asStateFlow()
 
-    private val _connection = MutableStateFlow<BmapConnection?>(null)
+    private val _connection = MutableStateFlow<C?>(null)
     /** The open session, or null. Consumers must not close it themselves. */
-    val connection: StateFlow<BmapConnection?> = _connection.asStateFlow()
+    val connection: StateFlow<C?> = _connection.asStateFlow()
 
     @Volatile
     private var loop: Job? = null
@@ -144,19 +148,16 @@ class ConnectionManager(
     }
 
     private suspend fun runLoop() {
-        demoTransport()?.let { factory ->
+        demoTransport()?.let { makeTransport ->
             isDemoSession = true
             try {
-                runDemoLoop(factory)
+                runDemoLoop(makeTransport)
             } finally {
                 isDemoSession = false
             }
             return
         }
         var attempt = 0
-        // Flipped after a silent channel while none has been learned yet: the name-based model
-        // guess may be wrong (or the user renamed the headphones).
-        var tryOtherChannel = false
         while (true) {
             val found = finder.find()
             val device = when (found) {
@@ -177,26 +178,21 @@ class ConnectionManager(
             }
             val address = device.address
             val name = found.candidate.name
+            if (!factory.handles(name)) {
+                // Another stack drives this device (the routing layer picks the right manager); do not touch it.
+                BtLog.d("${factory::class.simpleName} does not handle \"$name\"; standing down")
+                return
+            }
             currentAddress = address
             // Remember an auto-pick so later runs and the manifest receiver recognise the device.
             if (!found.candidate.isSaved) prefs.save(address, name)
             setState(ConnectionStatus.CONNECTING, name, address, message = null)
 
-            var connection: BmapConnection? = null
-            val learnedChannel = prefs.channelFor(address)
+            var connection: C? = null
             try {
-                // Channel 2 for the QC Ultra 2 family, 8 for the QC45 / QC Headphones; the
-                // transport falls back to the other one, and the one that answers is remembered.
-                val guessed = learnedChannel ?: (BoseModel.fromName(name)?.rfcommChannel ?: RfcommTransport.CHANNEL)
-                val channel = if (tryOtherChannel) BoseModel.otherChannel(guessed) else guessed
-                val transport = RfcommTransport.connect(device, channel)
-                connection = BmapConnection(transport, scope)
-                // A socket that opens but never answers is another app holding the channel (or the
-                // wrong channel); find out now (one 2 s GET) rather than after publishing CONNECTED
-                // with empty state. Throws RfcommConnectException(looksBusy) → the busy message below.
-                LivenessProbe.check(connection)
-                transport.channel?.let { if (it != learnedChannel) prefs.saveChannel(address, it) }
-                tryOtherChannel = false
+                // The factory opens the socket and proves the far end answers; on a silent or busy
+                // channel it throws RfcommConnectException(looksBusy) → the busy message below.
+                connection = factory.open(device, name, prefs, scope)
                 _connection.value = connection
                 setState(ConnectionStatus.CONNECTED, name, address, message = null)
                 val attemptsBefore = attempt
@@ -205,7 +201,7 @@ class ConnectionManager(
                 _connection.value = null
                 BtLog.i("session ended: ${cause?.message ?: "closed locally"}")
                 val end = SessionEnd.classify(cause, userStopped, linked = if (userStopped) null else finder.isAudioConnected(address))
-                setState(ConnectionStatus.DISCONNECTED, name, address, message = end.message)
+                setState(ConnectionStatus.DISCONNECTED, name, address, message = localized(end.message))
                 if (userStopped) return
                 // The watchdog closed a half-dead session: it never really worked, so it costs a
                 // backoff step like a failed connect instead of resetting the schedule.
@@ -219,9 +215,8 @@ class ConnectionManager(
                 setState(ConnectionStatus.NO_PERMISSION, name, address, message = "Bluetooth permission refused")
                 return
             } catch (e: Exception) {
-                if (learnedChannel == null && e is RfcommConnectException && e.looksBusy) tryOtherChannel = !tryOtherChannel
                 val linked = finder.isAudioConnected(address)
-                val message = SessionEnd.connectFailureMessage(e, linked)
+                val message = localized(SessionEnd.connectFailureMessage(e, linked))
                 BtLog.w("connect to $address failed (linked=$linked): ${e.message}")
                 setState(ConnectionStatus.DISCONNECTED, name, address, message = message)
                 if (linked == false) return // ACL_CONNECTED will wake us
@@ -256,36 +251,39 @@ class ConnectionManager(
      * "power off" closes the transport like a dropped socket, and the factory powers the virtual
      * unit back on for the next attempt, so the reconnect path is exercised too.
      */
-    private suspend fun runDemoLoop(factory: () -> ByteTransport) {
+    private suspend fun runDemoLoop(transportFactory: () -> ByteTransport) {
         currentAddress = DEMO_ADDRESS
         while (true) {
-            setState(ConnectionStatus.CONNECTING, DEMO_NAME, DEMO_ADDRESS, message = null)
-            var connection: BmapConnection? = null
+            setState(ConnectionStatus.CONNECTING, demoName, DEMO_ADDRESS, message = null)
+            var connection: C? = null
             try {
-                connection = BmapConnection(factory(), scope)
+                connection = factory.adopt(transportFactory(), scope)
                 _connection.value = connection
-                setState(ConnectionStatus.CONNECTED, DEMO_NAME, DEMO_ADDRESS, message = null)
+                setState(ConnectionStatus.CONNECTED, demoName, DEMO_ADDRESS, message = null)
                 val cause = connection.awaitClosed()
                 _connection.value = null
                 BtLog.i("demo session ended: ${cause?.message ?: "closed locally"}")
                 if (userStopped) {
-                    setState(ConnectionStatus.DISCONNECTED, DEMO_NAME, DEMO_ADDRESS, message = null)
+                    setState(ConnectionStatus.DISCONNECTED, demoName, DEMO_ADDRESS, message = null)
                     return
                 }
-                setState(ConnectionStatus.DISCONNECTED, DEMO_NAME, DEMO_ADDRESS, message = "Connection lost")
+                setState(ConnectionStatus.DISCONNECTED, demoName, DEMO_ADDRESS, message = "Connection lost")
             } catch (e: CancellationException) {
                 connection?.close()
                 _connection.value = null
                 throw e
             } catch (e: Exception) {
                 BtLog.w("demo transport failed: ${e.message}")
-                setState(ConnectionStatus.DISCONNECTED, DEMO_NAME, DEMO_ADDRESS, message = "Demo headphones failed: ${e.message}")
+                setState(ConnectionStatus.DISCONNECTED, demoName, DEMO_ADDRESS, message = "Demo headphones failed: ${e.message}")
             }
             if (userStopped) return
             retryNow.tryReceive()
             withTimeoutOrNull(DEMO_RECONNECT_MS) { retryNow.receive() }
         }
     }
+
+    /** The busy message names the app that is probably holding the connection, which depends on the family. */
+    private fun localized(message: String?): String? = if (message == MESSAGE_CHANNEL_BUSY) factory.busyMessage else message
 
     private fun setState(status: ConnectionStatus, name: String? = null, address: String? = null, message: String?) {
         _state.update {

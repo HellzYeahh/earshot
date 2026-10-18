@@ -10,6 +10,13 @@
     <string name="lab_deep_scan_hint">Reads every block 0–63 and function 0–63 once. Takes a few minutes; results are also saved under Android/data/dev.earshot/files/lab.</string>
 
     <!-- Demo mode -->
+    <string name="prefs_headphone_type">Headphone type</string>
+    <string name="prefs_headphone_type_subtitle">Earshot recognises your headphones by their Bluetooth name. If you renamed them, choose the type here.</string>
+    <string name="prefs_type_auto">Automatic</string>
+    <string name="prefs_type_bose">Bose</string>
+    <string name="prefs_type_crusher">Skullcandy Crusher</string>
+    <string name="prefs_demo_qc_ultra">QC Ultra</string>
+    <string name="prefs_demo_crusher">Crusher 1080</string>
     <string name="prefs_demo">Demo</string>
     <string name="prefs_demo_mode">Demo mode</string>
     <string name="onboarding_try_demo">Try demo mode — no headphones needed</string>
@@ -95,6 +102,23 @@
     <!-- Home -->
     <string name="home_modes_title">Modes</string>
     <string name="home_modes_hint">Tap to switch · hold to favourite</string>
+    <string name="home_modes_hint_tap">Tap to switch</string>
+    <string name="pairing_title">Pair with your headphones</string>
+    <string name="pairing_body_code">Your headphones need a one-time pairing. They will announce a number, or ask you to press a button. Check that it is the same as this one:</string>
+    <string name="pairing_body_match">Only confirm if the numbers match. This keeps anyone else from controlling your headphones.</string>
+    <string name="pairing_body_gesture">Your headphones need a one-time pairing. Press the button when they ask, then confirm here.</string>
+    <string name="pairing_match">They match</string>
+    <string name="secure_failed">Secure connection not set up (%1$s). Some controls may not respond. Reconnect to try again.</string>
+    <string name="secure_declined">Pairing was cancelled, so some controls are unavailable. Reconnect to pair again.</string>
+    <string name="crusher_title">Crusher bass</string>
+    <string name="crusher_active">Crusher</string>
+    <string name="crusher_active_subtitle">Feel the bass through the ear cups.</string>
+    <string name="crusher_intensity">Intensity</string>
+    <string name="crusher_dial_hint">The dial on the ear cup sets the intensity on these headphones.</string>
+    <string name="crusher_feel">Feel</string>
+    <string name="crusher_feel_high">High</string>
+    <string name="crusher_feel_medium">Medium</string>
+    <string name="crusher_feel_low">Low</string>
     <string name="home_noise_title">Noise</string>
     <string name="mode_favourite">Favourite</string>
     <string name="mode_current">Current mode</string>
@@ -211,6 +235,7 @@
     <string name="tools_mic_check_subtitle">Record a few seconds and play it back</string>
     <string name="tools_lab">Lab</string>
     <string name="tools_lab_subtitle">Protocol explorer (scanner reads only)</string>
+    <string name="disconnected_body_skullcandy">Close the Skullcandy app, then tap Connect. Only one app at a time can use the headphones\' control connection.</string>
     <string name="disconnected_body_generic">Make sure the headphones are on and connected to this phone\'s Bluetooth, then tap Connect.</string>
     <string name="tools_call_audio">Call audio</string>
     <string name="tools_call_audio_subtitle">Louder calls, call codec</string>

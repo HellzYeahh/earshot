@@ -171,8 +171,12 @@ object Crusher {
 // ── device (service 2): info and battery ─────────────────────────────────────────────────
 
 object DeviceInfo {
-    /** `DevInfoRequest {1:gender?}`. Empty = primary. */
-    fun devInfo(): ByteArray = ByteArray(0)
+    /**
+     * `DevInfoRequest {1:gender?}`. The Skullcandy app always sends gender UNSPECIFIED explicitly
+     * (a proto3 optional field with presence), so the body is `08 00`, not empty; Earshot does the
+     * same in case a firmware is strict about it. Unspecified means "the primary unit".
+     */
+    fun devInfo(): ByteArray = ProtoWriter.build { enum(1, 0, writeDefault = true) }
 
     /**
      * `DevInfoResponse` — the fields Earshot reads: 4:model, 5:fwver, 7:bosver, 9:sn, 11:model_number,

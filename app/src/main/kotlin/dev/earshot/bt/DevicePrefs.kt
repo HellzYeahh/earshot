@@ -32,8 +32,8 @@ class DevicePrefs(context: Context) {
 
     suspend fun save(address: String, name: String?) {
         store.edit { prefs ->
-            // A different device may use the other channel: forget the learned one.
-            if (!prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs.remove(KEY_CHANNEL)
+            // A different device may use the other channel or family: forget what was learned about the old one.
+            if (!prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) { prefs.remove(KEY_CHANNEL); prefs.remove(KEY_BRAGI_PROFILE); prefs.remove(KEY_FAMILY) }
             prefs[KEY_ADDRESS] = address.uppercase()
             if (name != null) prefs[KEY_NAME] = name else prefs.remove(KEY_NAME)
         }
@@ -54,6 +54,27 @@ class DevicePrefs(context: Context) {
         }
     }
 
+    /** The Bragi link profile ([BragiLinkProfile.id]) that last answered for [address], or null. */
+    suspend fun bragiProfileFor(address: String): String? {
+        val prefs = store.data.first()
+        return if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_BRAGI_PROFILE] else null
+    }
+
+    suspend fun saveBragiProfile(address: String, profileId: String) {
+        store.edit { prefs ->
+            if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_BRAGI_PROFILE] = profileId
+        }
+    }
+
+    /** The user's "Headphone type" choice ("bose" / "bragi"), or null for automatic detection by name. */
+    val familyOverrideFlow: Flow<String?> = store.data.map { it[KEY_FAMILY] }
+
+    suspend fun familyOverride(): String? = familyOverrideFlow.first()
+
+    suspend fun setFamilyOverride(key: String?) {
+        store.edit { prefs -> if (key == null) prefs.remove(KEY_FAMILY) else prefs[KEY_FAMILY] = key.lowercase() }
+    }
+
     suspend fun clear() {
         store.edit { it.clear() }
     }
@@ -62,5 +83,7 @@ class DevicePrefs(context: Context) {
         val KEY_ADDRESS = stringPreferencesKey("address")
         val KEY_NAME = stringPreferencesKey("name")
         val KEY_CHANNEL = intPreferencesKey("rfcomm_channel")
+        val KEY_BRAGI_PROFILE = stringPreferencesKey("bragi_profile")
+        val KEY_FAMILY = stringPreferencesKey("family_override")
     }
 }

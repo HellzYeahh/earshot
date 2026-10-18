@@ -34,9 +34,12 @@ class BragiWireTest {
 
     // ── Layer A: BOS-RPC packet (header + protobuf body) ─────────────────────────────────
 
-    @Test fun `dev_info request packet`() {
+    @Test fun `dev_info request packet carries the explicit unspecified gender`() {
         val p = BosRpcPacket.request(BragiServices.DEV_INFO, tag = 0, payload = DeviceInfo.devInfo())
-        assertEquals("10020100", p.encode().h())
+        assertEquals("0800", DeviceInfo.devInfo().h())
+        assertEquals("100201000800", p.encode().h())
+        // With no body at all (a call that takes Empty) the packet is just the header.
+        assertEquals("10020100", BosRpcPacket.request(BragiServices.DEV_INFO, tag = 0).encode().h())
     }
 
     @Test fun `mode_configure ANC activate packet`() {
@@ -57,9 +60,17 @@ class BragiWireTest {
 
     // ── Layer B: full bos_ppp_framing SDU ────────────────────────────────────────────────
 
-    @Test fun `dev_info frames to the golden bytes`() {
-        val frame = PppFraming.frame(BosRpcPacket.request(BragiServices.DEV_INFO, 0, DeviceInfo.devInfo()).encode())
-        assertEquals("7eff809400 04ce 10020100 ab00".replace(" ", ""), frame.h())
+    @Test fun `dev_info frames to the bytes the Skullcandy app sends`() {
+        // Body 08 00: tag 0 and tag 1 as recovered from the app's builder.
+        val f0 = PppFraming.frame(BosRpcPacket.request(BragiServices.DEV_INFO, 0, DeviceInfo.devInfo()).encode())
+        assertEquals("7eff8094000 62d 100201000800 5480".replace(" ", ""), f0.h())
+        val f1 = PppFraming.frame(BosRpcPacket.request(BragiServices.DEV_INFO, 1, DeviceInfo.devInfo()).encode())
+        assertEquals("7eff8094000 62d 100201010800 0e5c".replace(" ", ""), f1.h())
+    }
+
+    @Test fun `a bodiless call frames to the empty-body golden bytes`() {
+        val frame = PppFraming.frame(BosRpcPacket.request(BragiServices.DEV_INFO, 0).encode())
+        assertEquals("7eff8094000 4ce 10020100 ab00".replace(" ", ""), frame.h())
     }
 
     @Test fun `mode_configure frames to the golden bytes for tag 0 and 1`() {

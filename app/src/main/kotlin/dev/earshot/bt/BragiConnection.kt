@@ -26,6 +26,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.ContinuationInterceptor
 
@@ -50,6 +51,8 @@ interface BragiRequester {
         body: ByteArray = ByteArray(0),
         timeoutMs: Long = BragiConnection.DEFAULT_TIMEOUT_MS,
         streaming: Boolean = false,
+        /** Invoked once the request has been written. Pairing uses it to order a later call after this one. */
+        onSent: (() -> Unit)? = null,
     ): BragiReply
 
     /** Responses nobody is waiting for: subscription pushes, late frames. */
@@ -59,10 +62,12 @@ interface BragiRequester {
 /**
  * One live BOS-RPC session on a [ByteTransport] (the Skullcandy Crusher 1080 ANC family).
  *
- * Same shape as [BmapConnection]: a reader coroutine, one exchange at a time under a mutex, spaced
- * writes, and a half-dead-link watchdog. Differences: calls carry a tag and a subscription model,
- * frames are PPP-framed and CRC-checked, and once a secure session is installed
- * ([installCipher]) everything except the handshake is sealed with the negotiated AEAD.
+ * Same shape as [BmapConnection]: a reader coroutine, spaced writes, and a half-dead-link watchdog.
+ * Differences: calls carry a tag and a subscription model, frames are PPP-framed and CRC-checked,
+ * and once a secure session is installed ([installCipher]) everything except the handshake is
+ * sealed with the negotiated AEAD. Calls to different methods may overlap (pairing needs this: the
+ * phone confirms while the `nonce` call still waits for the user to act on the headphones); two
+ * calls to the same method queue, because replies are matched by service and method.
  *
  * Which services may be called is limited to [BragiServices.ALLOWED_SERVICES]: the firmware-update
  * surface is not reachable from here.
@@ -75,19 +80,21 @@ class BragiConnection(
     val minWriteGapMs: Long = DEFAULT_MIN_WRITE_GAP_MS,
     private val clock: () -> Long = System::currentTimeMillis,
     val maxSilentReplies: Int = DEFAULT_MAX_SILENT_REPLIES,
-) : BragiRequester {
+) : BragiRequester, ManagedLink {
     private val scope = CoroutineScope(
         parentScope.coroutineContext +
             SupervisorJob(parentScope.coroutineContext[Job]) +
             (parentScope.coroutineContext[ContinuationInterceptor] ?: Dispatchers.Default),
     )
-    private val mutex = Mutex()
+    /** Serialises the bytes on the wire (and their spacing); never held while waiting for a reply. */
+    private val writeMutex = Mutex()
+    private val addressLocks = ConcurrentHashMap<BragiServices.Address, Mutex>()
     private val reader = BragiFrameReader(onSkipped = { BtLog.d("bragi: skipped $it bytes that are not a frame") })
     private val closedSignal = CompletableDeferred<Throwable?>()
     private val _unsolicited = MutableSharedFlow<BosRpcPacket>(extraBufferCapacity = 64)
     override val unsolicited: SharedFlow<BosRpcPacket> = _unsolicited.asSharedFlow()
 
-    @Volatile private var pending: Pending? = null
+    private val pendings = ConcurrentHashMap<BragiServices.Address, Pending>()
     @Volatile private var lastWriteAt = clock() - minWriteGapMs
     @Volatile private var tagCounter = 0
     @Volatile private var silentInARow = 0
@@ -124,7 +131,7 @@ class BragiConnection(
         }
     }
 
-    suspend fun awaitClosed(): Throwable? = closedSignal.await()
+    override suspend fun awaitClosed(): Throwable? = closedSignal.await()
 
     /** Switch to the encrypted-data-message path for everything but the handshake. */
     fun installCipher(c: ChannelCipher) { cipher = c; sendSeq.set(0) }
@@ -134,7 +141,8 @@ class BragiConnection(
         body: ByteArray,
         timeoutMs: Long,
         streaming: Boolean,
-    ): BragiReply = exchange(address, body, timeoutMs, streaming, watched = true)
+        onSent: (() -> Unit)?,
+    ): BragiReply = exchange(address, body, timeoutMs, streaming, watched = true, onSent = onSent)
 
     /** [call] without the watchdog: for the connect probe, which decides on its own. */
     suspend fun callUnwatched(
@@ -142,27 +150,37 @@ class BragiConnection(
         body: ByteArray = ByteArray(0),
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         streaming: Boolean = false,
-    ): BragiReply = exchange(address, body, timeoutMs, streaming, watched = false)
+    ): BragiReply = exchange(address, body, timeoutMs, streaming, watched = false, onSent = null)
 
-    fun close() = close(null)
+    override fun close() = close(null)
 
     fun closeUnresponsive(reason: String = MESSAGE_STOPPED_ANSWERING) = close(UnresponsiveLinkException(reason))
 
     private suspend fun exchange(
         address: BragiServices.Address, body: ByteArray, timeoutMs: Long, streaming: Boolean, watched: Boolean,
-    ): BragiReply = mutex.withLock {
+        onSent: (() -> Unit)?,
+    ): BragiReply {
         requireOpen()
         if (!BragiServices.isAllowed(address)) {
             throw HeadphoneCommandException("Refusing to send ${address.service}.${address.method}: not a supported control call")
         }
+        return addressLocks.getOrPut(address) { Mutex() }.withLock { exchangeLocked(address, body, timeoutMs, streaming, watched, onSent) }
+    }
+
+    private suspend fun exchangeLocked(
+        address: BragiServices.Address, body: ByteArray, timeoutMs: Long, streaming: Boolean, watched: Boolean,
+        onSent: (() -> Unit)?,
+    ): BragiReply {
+        requireOpen()
         val tag = nextTag()
         val req = Pending(address, tag)
-        pending = req
+        pendings[address] = req
         try {
             var written = false
             val result = withTimeoutOrNull(timeoutMs) {
                 writeSpaced(BosRpcPacket.request(address, tag, body))
                 written = true
+                onSent?.invoke()
                 awaitReply(req, streaming)
             }
             if (result == null) {
@@ -180,14 +198,14 @@ class BragiConnection(
                 throw HeadphoneCommandException("No reply from the headphones (${address.service}.${address.method})")
             }
             checkStatus(address, result.statusRaw)
-            result
+            return result
         } catch (e: ClosedReceiveChannelException) {
             throw HeadphoneCommandException("Connection to the headphones was lost", e)
         } catch (e: IOException) {
             close(e)
             throw HeadphoneCommandException("Connection to the headphones was lost", e)
         } finally {
-            pending = null
+            pendings.remove(address, req)
             while (true) { val left = req.frames.tryReceive().getOrNull() ?: break; _unsolicited.tryEmit(left) }
             req.frames.close()
         }
@@ -224,7 +242,7 @@ class BragiConnection(
 
     private fun requireOpen() { if (!isOpen) throw HeadphoneCommandException("Headphones not connected") }
 
-    private suspend fun writeSpaced(packet: BosRpcPacket) {
+    private suspend fun writeSpaced(packet: BosRpcPacket) = writeMutex.withLock {
         val wait = minWriteGapMs - (clock() - lastWriteAt)
         if (wait > 0) delay(wait)
         val inner = packet.encode()
@@ -256,7 +274,7 @@ class BragiConnection(
             BtLog.w("bragi: undecodable packet ${inner.take(12).toByteArray().toHex()} (${e.message})"); return
         }
         BtLog.d("bragi <- ${packet.type} ${packet.serviceId}.${packet.methodId} tag=${packet.tag} final=${packet.isFinal} (${packet.payload.size} B)")
-        val req = pending
+        val req = pendings[packet.address]
         if (req != null && req.accepts(packet)) req.frames.trySend(packet) else _unsolicited.tryEmit(packet)
     }
 
@@ -271,7 +289,7 @@ class BragiConnection(
         if (isOpen) closeCause = cause
         isOpen = false
         transport.close()
-        pending?.frames?.close(cause ?: ClosedReceiveChannelException("connection closed"))
+        pendings.values.forEach { it.frames.close(cause ?: ClosedReceiveChannelException("connection closed")) }
         closedSignal.complete(cause)
         scope.cancel()
     }

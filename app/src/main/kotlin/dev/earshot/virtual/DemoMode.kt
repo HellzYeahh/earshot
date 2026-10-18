@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -13,6 +14,9 @@ import kotlinx.coroutines.runBlocking
 
 // File-private delegate: exactly one DataStore for this file per process.
 private val Context.demoModeDataStore: DataStore<Preferences> by preferencesDataStore(name = "demo_mode")
+
+/** Which virtual headphones demo mode talks to. */
+enum class DemoDevice { QC_ULTRA, CRUSHER }
 
 /**
  * The "Demo mode" switch: when on, the connection manager talks to a [VirtualQcUltra2] through
@@ -28,6 +32,15 @@ class DemoMode(context: Context) {
         store.edit { it[KEY_ENABLED] = enabled }
     }
 
+    /** The virtual device demo mode uses; the QC Ultra 2 unless the user picked the Crusher. */
+    val device: Flow<DemoDevice> = store.data.map { prefs -> prefs[KEY_DEVICE]?.let { k -> DemoDevice.entries.firstOrNull { it.name == k } } ?: DemoDevice.QC_ULTRA }
+
+    suspend fun setDevice(device: DemoDevice) {
+        store.edit { it[KEY_DEVICE] = device.name }
+    }
+
+    fun deviceBlocking(): DemoDevice = runBlocking { device.first() }
+
     /**
      * For the one place that cannot suspend (choosing the transport factory when the manager
      * is built). DataStore's first read is a small file read; later reads come from memory.
@@ -36,5 +49,6 @@ class DemoMode(context: Context) {
 
     private companion object {
         val KEY_ENABLED = booleanPreferencesKey("enabled")
+        val KEY_DEVICE = stringPreferencesKey("device")
     }
 }

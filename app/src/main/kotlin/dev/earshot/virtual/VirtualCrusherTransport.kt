@@ -50,9 +50,11 @@ class VirtualCrusherTransport(
         for (bytes in requests) {
             if (!acceptsRequest(bytes)) continue
             val replies = reader.feed(bytes).flatMap { frame ->
-                // Only cleartext requests are understood; the secure path is not modelled here.
-                if (frame.protocolId != PppFraming.PROTOCOL_CLEARTEXT) emptyList()
-                else device.handle(BosRpcPacket.decode(frame.body))
+                when (frame.protocolId) {
+                    PppFraming.PROTOCOL_CLEARTEXT -> device.handle(BosRpcPacket.decode(frame.body))
+                    PppFraming.PROTOCOL_SECURE -> device.open(frame.body)?.let { device.handle(BosRpcPacket.decode(it), secure = true) } ?: emptyList()
+                    else -> emptyList()
+                }
             }
             delay(replyDelayMs)
             if (replies.isNotEmpty()) send(encode(replies))
@@ -62,8 +64,16 @@ class VirtualCrusherTransport(
     /** Replies plus the frames the device pushes by itself, merged into the one byte stream the app reads. */
     override val incoming: Flow<ByteArray> = merge(replies, unsolicited.receiveAsFlow().map { encode(it) })
 
+    /** Protected services go out encrypted (protocol id 0x95) once a secure session exists; everything else in the clear. */
     private fun encode(packets: List<BosRpcPacket>): ByteArray =
-        packets.fold(ByteArray(0)) { acc, p -> acc + replyWrapper(PppFraming.frame(p.encode())) }
+        packets.fold(ByteArray(0)) { acc, p ->
+            val frame = if (device.secureCipher != null && device.isProtected(p.serviceId)) {
+                PppFraming.frame(device.seal(p.encode()), PppFraming.PROTOCOL_SECURE)
+            } else {
+                PppFraming.frame(p.encode())
+            }
+            acc + replyWrapper(frame)
+        }
 
     /** Push frames at the app as if the headphones sent them by themselves. */
     fun push(packets: List<BosRpcPacket>) { unsolicited.trySend(packets) }
