@@ -149,6 +149,13 @@ class BragiWireTest {
         assertEquals("0801", SpatialAudio.setMode(SpatialMode.OFF).h())
     }
 
+    @Test fun `the allow-list is method-level`() {
+        // A real service with a method Earshot never calls is refused too.
+        assertFalse(BragiServices.isAllowed(BragiServices.Address(BragiServices.HEARING, 99)))
+        assertFalse(BragiServices.isAllowed(BragiServices.Address(BragiServices.AUTHENTICATED_ACCESS, 8)))
+        assertTrue(BragiServices.ALLOWED.all { it.service in BragiServices.ALLOWED_SERVICES })
+    }
+
     @Test fun `services allow-list rejects everything outside the feature set`() {
         assertTrue(BragiServices.isAllowed(BragiServices.CRUSHER_STATE_SET))
         assertTrue(BragiServices.isAllowed(BragiServices.AUTH_HELLO))

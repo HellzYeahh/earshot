@@ -37,6 +37,7 @@ import dev.earshot.R
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.ui.common.LocalSnackbarHostState
+import dev.earshot.ui.home.PairingDialog
 import dev.earshot.ui.nav.EarshotNavHost
 import dev.earshot.ui.nav.Tab
 import dev.earshot.ui.nav.navigateToTab
@@ -84,6 +85,11 @@ fun EarshotRoot(tabRequests: StateFlow<Tab?>, onTabRequestHandled: () -> Unit) {
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // A one-time pairing can start whichever tab is open (it runs while connecting), so the dialog lives here.
+    headphoneState.pairing?.let { request ->
+        PairingDialog(request) { accept -> scope.launch { runCatching { deps.headphones.answerPairing(accept) } } }
+    }
     val openAppSettingsLabel = stringResource(R.string.action_open_app_settings)
     val notificationsDeniedText = stringResource(R.string.notifications_denied)
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->

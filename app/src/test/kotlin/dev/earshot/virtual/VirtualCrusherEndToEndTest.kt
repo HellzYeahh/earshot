@@ -158,6 +158,29 @@ class VirtualCrusherEndToEndTest {
     }
 
     @Test
+    fun `every sidetone level reads back as itself whatever the volume range`() = runTest {
+        for (max in listOf(5, 7, 10, 31)) {
+            val r = rig(VirtualCrusher(sidetoneVolumeMax = max))
+            val s0 = protocol.onConnected(r.conn, HeadphoneState())
+            for (level in listOf(Sidetone.LOW, Sidetone.MEDIUM, Sidetone.HIGH)) {
+                protocol.setSidetone(r.conn, s0, level)
+                // What the headphones now report, read back through the same mapping.
+                val back = protocol.refresh(r.conn, s0)
+                assertEquals(level, back.sidetone, "max $max, wrote $level, volume ${r.device.sidetoneVolume}")
+            }
+        }
+    }
+
+    @Test
+    fun `a lost link during a refresh is reported, not swallowed`() = runTest {
+        val r = rig()
+        val s0 = protocol.onConnected(r.conn, HeadphoneState())
+        r.conn.close()
+        assertFailsWith<HeadphoneCommandException> { protocol.refresh(r.conn, s0) }
+        assertFailsWith<HeadphoneCommandException> { protocol.pollBattery(r.conn, s0) }
+    }
+
+    @Test
     fun `crusher bass writes only what changed and reports the applied state`() = runTest {
         val r = rig()
         val s0 = protocol.onConnected(r.conn, HeadphoneState())

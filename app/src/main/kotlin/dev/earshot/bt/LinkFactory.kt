@@ -1,7 +1,6 @@
 package dev.earshot.bt
 
 import android.bluetooth.BluetoothDevice
-import dev.earshot.protocol.bragi.BragiModel
 import dev.earshot.protocol.qcultra2.BoseModel
 import kotlinx.coroutines.CoroutineScope
 
@@ -24,8 +23,8 @@ interface LinkFactory<C : ManagedLink> {
     /** What to tell the user when the control connection is silent: usually another app holds it. */
     val busyMessage: String get() = ConnectionManager.MESSAGE_CHANNEL_BUSY
 
-    /** Whether this stack drives a device with this Bluetooth name; the manager stands down for any other device. */
-    fun handles(name: String?): Boolean
+    /** The family this stack drives; the manager stands down for a device [DeviceFamily.resolve] puts in another one. */
+    val family: DeviceFamily
 
     /**
      * Open a session to [device] and prove it answers (so a socket that opens but stays silent is
@@ -49,16 +48,25 @@ class BoseLinkFactory : LinkFactory<BmapConnection> {
     @Volatile
     private var tryOtherChannel = false
 
-    override fun handles(name: String?): Boolean = !BragiModel.isBragiName(name)
+    /** The device [tryOtherChannel] was decided for: a different device starts from its own guess. */
+    @Volatile
+    private var lastAddress: String? = null
+
+    override val family: DeviceFamily get() = DeviceFamily.BOSE
 
     override suspend fun open(device: BluetoothDevice, name: String?, prefs: DevicePrefs, scope: CoroutineScope): BmapConnection {
         val address = device.address
+        if (!address.equals(lastAddress, ignoreCase = true)) {
+            tryOtherChannel = false
+            lastAddress = address
+        }
         val learned = prefs.channelFor(address)
+        var connection: BmapConnection? = null
         try {
             val guessed = learned ?: (BoseModel.fromName(name)?.rfcommChannel ?: RfcommTransport.CHANNEL)
             val channel = if (tryOtherChannel) BoseModel.otherChannel(guessed) else guessed
             val transport = RfcommTransport.connect(device, channel)
-            val connection = BmapConnection(transport, scope)
+            connection = BmapConnection(transport, scope)
             // A socket that opens but never answers is another app holding the channel (or the wrong
             // channel); find out now (one 2 s GET) rather than after publishing CONNECTED with empty
             // state. Throws RfcommConnectException(looksBusy), which the manager turns into the busy message.
@@ -68,7 +76,13 @@ class BoseLinkFactory : LinkFactory<BmapConnection> {
             return connection
         } catch (e: RfcommConnectException) {
             if (learned == null && e.looksBusy) tryOtherChannel = !tryOtherChannel
+            connection?.close()
             throw e
+        } catch (t: Throwable) {
+            // Cancelled mid-probe (Disconnect, a new device, Bluetooth off) or any other failure: do not
+            // leave the socket held, or the next connect looks "busy" because of ourselves.
+            connection?.close()
+            throw t
         }
     }
 

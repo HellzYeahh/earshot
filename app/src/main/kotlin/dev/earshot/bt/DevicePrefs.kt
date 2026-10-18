@@ -32,8 +32,9 @@ class DevicePrefs(context: Context) {
 
     suspend fun save(address: String, name: String?) {
         store.edit { prefs ->
-            // A different device may use the other channel or family: forget what was learned about the old one.
-            if (!prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) { prefs.remove(KEY_CHANNEL); prefs.remove(KEY_BRAGI_PROFILE); prefs.remove(KEY_FAMILY) }
+            // A different device may use the other channel or link variant: forget what was learned about the old one.
+            // The "Headphone type" setting is the user's own and stays until they change it.
+            if (!prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) { prefs.remove(KEY_CHANNEL); prefs.remove(KEY_BRAGI_PROFILE) }
             prefs[KEY_ADDRESS] = address.uppercase()
             if (name != null) prefs[KEY_NAME] = name else prefs.remove(KEY_NAME)
         }

@@ -34,10 +34,14 @@ class BragiFrameReader(private val maxBuffer: Int = 70_000, private val onSkippe
     /** One inbound frame: the protocol id (0x94 / 0x95) and the body. */
     data class Frame(val protocolId: Int, val body: ByteArray)
 
+    @get:Synchronized
     val pendingSize: Int get() = buf.size
 
+    /** Called from a caller coroutine after a timeout while [feed] runs on the reader: hence synchronised. */
+    @Synchronized
     fun reset() { buf = ByteArray(0) }
 
+    @Synchronized
     fun feed(chunk: ByteArray): List<Frame> {
         buf += chunk
         val out = ArrayList<Frame>()

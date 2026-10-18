@@ -163,9 +163,10 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
 
         /**
          * The headphones advertise as "Bose QC Ultra Headphones" unless renamed in the Bose app; the
-         * Skullcandy Crusher 1080 ANC (Sound by Bose) as "Skullcandy CRUSHER 1080 ANC".
+         * Skullcandy Crusher 1080 ANC (Sound by Bose) as "Skullcandy CRUSHER 1080 ANC" (other Skullcandy
+         * products are deliberately not matched).
          */
-        private val NAME_HINTS = listOf("Bose", "QC", "QuietComfort", "Ultra", "Skullcandy", "Crusher")
+        private val NAME_HINTS = listOf("Bose", "QC", "QuietComfort", "Ultra", "Crusher 1080")
 
         private val AUDIO_CLASSES = setOf(
             BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES,

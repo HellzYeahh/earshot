@@ -4,7 +4,6 @@ import dev.earshot.protocol.bragi.BosRpcPacket
 import dev.earshot.protocol.bragi.BragiServices
 import dev.earshot.protocol.bragi.PppFraming
 import dev.earshot.protocol.toHex
-import dev.earshot.service.DeviceFamily
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -117,10 +116,18 @@ class BragiLinkTest {
         assertEquals(null, DeviceFamily.fromKey("nonsense"))
     }
 
-    @Test fun `each link factory handles only its own family`() {
-        assertTrue(BoseLinkFactory().handles("Bose QC Ultra Headphones"))
-        assertTrue(!BoseLinkFactory().handles("Skullcandy CRUSHER 1080 ANC"))
-        assertTrue(BragiLinkFactory().handles("Skullcandy CRUSHER 1080 ANC"))
-        assertTrue(!BragiLinkFactory().handles("Bose QC45"))
+    @Test fun `each link factory drives only its own family`() {
+        assertEquals(DeviceFamily.BOSE, BoseLinkFactory().family)
+        assertEquals(DeviceFamily.BRAGI, BragiLinkFactory().family)
+    }
+
+    @Test fun `the headphone type setting beats the bluetooth name`() {
+        // A renamed Crusher: the name says nothing, the setting decides.
+        assertEquals(DeviceFamily.BRAGI, DeviceFamily.resolve("bragi", "Alex's headphones"))
+        assertEquals(DeviceFamily.BOSE, DeviceFamily.resolve("bose", "Skullcandy CRUSHER 1080 ANC"))
+        // No setting: the name decides, as before.
+        assertEquals(DeviceFamily.BRAGI, DeviceFamily.resolve(null, "Skullcandy CRUSHER 1080 ANC"))
+        assertEquals(DeviceFamily.BOSE, DeviceFamily.resolve(null, "Alex's headphones"))
+        assertEquals(DeviceFamily.BOSE, DeviceFamily.resolve("garbage", null))
     }
 }

@@ -1,5 +1,6 @@
 package dev.earshot.service
 
+import dev.earshot.bt.DeviceFamily
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
 import dev.earshot.core.ButtonAction
@@ -14,8 +15,8 @@ import dev.earshot.core.RawFrame
 import dev.earshot.core.Sidetone
 import dev.earshot.core.TransportControl
 import dev.earshot.core.VoicePrompts
-import dev.earshot.protocol.bragi.BragiModel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -28,23 +29,8 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-/** Which stack drives a pair of headphones. */
-enum class DeviceFamily {
-    /** Bose BMAP: QC Ultra, QC Headphones, QC45 and the other Bose models. */
-    BOSE,
-
-    /** Bragi BOS-RPC: the Skullcandy Crusher 1080 ANC ("Sound by Bose"). */
-    BRAGI,
-    ;
-
-    companion object {
-        /** By Bluetooth name; a name Earshot does not recognise is treated as Bose, as before. */
-        fun forName(name: String?): DeviceFamily = if (BragiModel.isBragiName(name)) BRAGI else BOSE
-
-        fun fromKey(key: String?): DeviceFamily? = entries.firstOrNull { it.name.equals(key, ignoreCase = true) }
-    }
-}
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * The [HeadphoneRepository] the rest of the app sees. It owns one repository per [DeviceFamily] and
@@ -82,16 +68,18 @@ class RoutingHeadphoneRepository(
 
     // ---- Selection -------------------------------------------------------------------------
 
-    /** The family for the paired headphones, see the class comment. */
+    /** The family for the paired headphones, see the class comment. [DeviceFamily.resolve] is the rule the managers use too. */
     suspend fun resolveFamily(): DeviceFamily {
         demoFamily()?.let { return it }
-        DeviceFamily.fromKey(prefs.familyOverride())?.let { return it }
-        prefs.savedDevice()?.let { return DeviceFamily.forName(it.name) }
-        return DeviceFamily.forName(finder.candidates().firstOrNull { it.looksLikeBose }?.name)
+        val override = prefs.familyOverride()
+        prefs.savedDevice()?.let { return DeviceFamily.resolve(override, it.name) }
+        return DeviceFamily.resolve(override, finder.candidates().firstOrNull { it.looksLikeBose }?.name)
     }
 
-    private suspend fun select(family: DeviceFamily) {
-        if (active.value == family) return
+    private val selectLock = Mutex()
+
+    private suspend fun select(family: DeviceFamily) = selectLock.withLock {
+        if (active.value == family) return@withLock
         // Free the other family's connection (not the foreground service) before the new one starts.
         when (active.value) {
             DeviceFamily.BOSE -> bose.releaseConnection()
@@ -102,20 +90,34 @@ class RoutingHeadphoneRepository(
 
     // ---- Connection ------------------------------------------------------------------------
 
+    @Volatile
+    private var connectJob: Job? = null
+
     override fun connect() {
-        scope.launch {
-            select(resolveFamily())
-            current.connect()
-        }
+        connectJob?.cancel()
+        connectJob = scope.launch { connectNow() }
     }
 
-    override fun disconnect() = current.disconnect()
+    /**
+     * Pick the family and start connecting, completing only once that has started. The link-up
+     * receiver awaits this so the foreground service starts and the manager launches before the
+     * receiver's short lifetime ends.
+     */
+    suspend fun connectNow() {
+        select(resolveFamily())
+        current.connect()
+    }
+
+    override fun disconnect() {
+        connectJob?.cancel() // a connect that has not resolved its family yet must not undo this
+        current.disconnect()
+    }
 
     override suspend fun deviceCandidates(): List<HeadphoneCandidate> = current.deviceCandidates()
 
     override suspend fun chooseDevice(address: String, name: String?) {
         // An explicit "Headphone type" setting still wins over the name of the device just picked.
-        select(demoFamily() ?: DeviceFamily.fromKey(prefs.familyOverride()) ?: DeviceFamily.forName(name))
+        select(demoFamily() ?: DeviceFamily.resolve(prefs.familyOverride(), name))
         current.chooseDevice(address, name)
     }
 

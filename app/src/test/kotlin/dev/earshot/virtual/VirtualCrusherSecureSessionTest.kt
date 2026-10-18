@@ -177,6 +177,24 @@ class VirtualCrusherSecureSessionTest {
     @Test fun `the session works with ChaCha20-Poly1305`() = secureRoundTrip(suite = 3, key = 32, nonce = 12, tag = 16)
 
     @Test
+    fun `a keystore failure becomes a failed session, not a failed connect`() = runTest {
+        val device = VirtualCrusher(authenticatedAccess = true)
+        val broken = object : BragiTrustStore {
+            override fun identity(): BragiHandshake.EcKeyPair = throw java.security.ProviderException("keystore unavailable")
+            override fun trustedServer(address: String): ByteArray? = null
+            override fun trust(address: String, serverPoint: ByteArray) {}
+            override fun forget(address: String) {}
+        }
+        val conn = connect(device)
+        val session = BragiSession(broken, prompt = { _, _ -> true })
+        val s = CrusherProtocol().onConnected(conn, HeadphoneState(), secure = { session.establish(conn, address) { conn.installCipher(it) } })
+        assertEquals(SecureSessionStatus.FAILED, s.secureSession.status)
+        assertTrue("keystore" in s.secureSession.message.orEmpty(), s.secureSession.message)
+        // The rest of the connect still ran: the open device service answered.
+        assertEquals(68, s.batteryPercent)
+    }
+
+    @Test
     fun `headphones that need no session skip the handshake entirely`() = runTest {
         val device = VirtualCrusher(authenticatedAccess = false)
         val conn = connect(device)

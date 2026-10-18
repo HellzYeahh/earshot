@@ -3,6 +3,7 @@ package dev.earshot
 import android.content.Context
 import dev.earshot.audio.AudioTuningRepositoryImpl
 import dev.earshot.bt.ByteTransport
+import dev.earshot.bt.DeviceFamily
 import dev.earshot.call.CallAudioRepositoryImpl
 import dev.earshot.call.HeadsetVolumeControl
 import dev.earshot.codec.CodecRepositoryImpl
@@ -16,7 +17,6 @@ import dev.earshot.extras.automation.AutomationRepositoryImpl
 import dev.earshot.mic.MicCheckRepositoryImpl
 import dev.earshot.service.CrusherHeadphoneRepository
 import dev.earshot.service.CrusherProtocol
-import dev.earshot.service.DeviceFamily
 import dev.earshot.service.HeadphoneProtocol
 import dev.earshot.service.QcUltra2Protocol
 import dev.earshot.service.RoutingHeadphoneRepository

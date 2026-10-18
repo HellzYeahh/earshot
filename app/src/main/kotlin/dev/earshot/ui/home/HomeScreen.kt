@@ -44,7 +44,6 @@ fun HomeScreen(contentPadding: PaddingValues, onEditModes: () -> Unit) {
         onTransport = vm::transport,
         onVolume = vm::setVolume,
         onCrusher = vm::setCrusherBass,
-        onPairingAnswer = vm::answerPairing,
     )
 }
 
@@ -62,10 +61,8 @@ fun HomeContent(
     onTransport: (TransportControl) -> Unit = {},
     onVolume: (Int) -> Unit = {},
     onCrusher: (active: Boolean?, intensity: Int?, mode: Int?) -> Unit = { _, _, _ -> },
-    onPairingAnswer: (Boolean) -> Unit = {},
 ) {
     val controlsEnabled = state.isConnected && !state.isBusy
-    state.pairing?.let { PairingDialog(it, onAnswer = onPairingAnswer) }
     Column(
         Modifier
             .fillMaxSize()

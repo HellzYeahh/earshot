@@ -1,5 +1,6 @@
 package dev.earshot.service
 
+import dev.earshot.bt.BragiConnection
 import dev.earshot.bt.BragiRequester
 import dev.earshot.bt.BragiSession
 import dev.earshot.core.CrusherBass
@@ -23,6 +24,7 @@ import dev.earshot.protocol.bragi.Hearing
 import dev.earshot.protocol.bragi.HearingMode
 import dev.earshot.protocol.bragi.SpatialAudio as WireSpatialAudio
 import dev.earshot.protocol.bragi.SpatialMode
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -70,16 +72,16 @@ class CrusherProtocol {
         c: BragiRequester, current: HeadphoneState, secure: (suspend () -> BragiSession.Outcome)? = null,
     ): HeadphoneState {
         var s = current.copy(capabilities = CAPABILITIES, livePushEnabled = false, secureSession = SecureSession(), pairing = null)
-        optional { s = withDevInfo(s, WireDeviceInfo.parseDevInfo(c.call(BragiServices.DEV_INFO, WireDeviceInfo.devInfo()).payload)) }
+        optional(c) { s = withDevInfo(s, WireDeviceInfo.parseDevInfo(c.call(BragiServices.DEV_INFO, WireDeviceInfo.devInfo()).payload)) }
         if (authenticatedAccess) {
             val outcome = secure?.invoke() ?: BragiSession.Outcome.Failed("This build cannot set up the secure session")
             s = s.copy(secureSession = outcome.toSession(), pairing = null)
         }
-        optional {
+        optional(c) {
             Hearing.parseModeInfo(c.call(BragiServices.HEARING_MODE_INFO).payload).let { ancGainMax = it.ancGainMax.coerceAtLeast(1); atGainMax = it.atGainMax.coerceAtLeast(1) }
         }
-        optional { sidetoneMax = Hearing.parseSidetoneInfo(c.call(BragiServices.SIDETONE_INFO).payload).coerceAtLeast(1) }
-        optional { crusherConfig = Crusher.parseConfig(c.call(BragiServices.CRUSHER_CONFIG_GET).payload) }
+        optional(c) { sidetoneMax = Hearing.parseSidetoneInfo(c.call(BragiServices.SIDETONE_INFO).payload).coerceAtLeast(1) }
+        optional(c) { crusherConfig = Crusher.parseConfig(c.call(BragiServices.CRUSHER_CONFIG_GET).payload) }
         return read(c, s, subscribe = true)
     }
 
@@ -88,25 +90,29 @@ class CrusherProtocol {
     /** Battery has no push in the definitions, so it is polled (the repository calls this every minute). */
     suspend fun pollBattery(c: BragiRequester, current: HeadphoneState): HeadphoneState {
         var s = current
-        optional { s = withBattery(s, c.call(BragiServices.BATT_INFO).payload) }
+        optional(c) { s = withBattery(s, c.call(BragiServices.BATT_INFO).payload) }
         return s
     }
 
     private suspend fun read(c: BragiRequester, current: HeadphoneState, subscribe: Boolean): HeadphoneState {
         var s = current
-        optional { s = withBattery(s, c.call(BragiServices.BATT_INFO).payload) }
-        optional { s = withMode(s, c.call(BragiServices.MODE_READ, Hearing.modeRead(subscribe), streaming = true).payload) }
-        optional { s = withSidetone(s, c.call(BragiServices.SIDETONE_READ, Hearing.sidetoneRead(subscribe), streaming = true).payload) }
-        optional { s = withSpatial(s, c.call(BragiServices.SPATIAL_INFO_GET, WireSpatialAudio.infoGet(subscribe), streaming = true).payload) }
-        optional { s = withCrusher(s, c.call(BragiServices.CRUSHER_STATE_GET, Crusher.stateGet(subscribe), streaming = true).payload) }
+        optional(c) { s = withBattery(s, c.call(BragiServices.BATT_INFO).payload) }
+        optional(c) { s = withMode(s, c.call(BragiServices.MODE_READ, Hearing.modeRead(subscribe), streaming = true).payload) }
+        optional(c) { s = withSidetone(s, c.call(BragiServices.SIDETONE_READ, Hearing.sidetoneRead(subscribe), streaming = true).payload) }
+        optional(c) { s = withSpatial(s, c.call(BragiServices.SPATIAL_INFO_GET, WireSpatialAudio.infoGet(subscribe), streaming = true).payload) }
+        optional(c) { s = withCrusher(s, c.call(BragiServices.CRUSHER_STATE_GET, Crusher.stateGet(subscribe), streaming = true).payload) }
         return s
     }
 
-    /** A read that the firmware may refuse or that times out: log and carry on, but never swallow a lost link. */
-    private inline fun <T> optional(block: () -> T) {
+    /**
+     * A read that the firmware may refuse or that times out: log and carry on. A lost link is not
+     * skippable: it is rethrown so the repository can close the session instead of reporting Connected.
+     */
+    private inline fun <T> optional(c: BragiRequester, block: () -> T) {
         try {
             block()
         } catch (e: HeadphoneCommandException) {
+            if (!c.isOpen || e.message == BragiConnection.MESSAGE_STOPPED_ANSWERING) throw e
             ProtocolLog.d("Crusher read skipped: ${e.message}")
         } catch (e: IllegalArgumentException) {
             ProtocolLog.w("Crusher reply did not parse: ${e.message}")
@@ -262,10 +268,10 @@ class CrusherProtocol {
     private fun gainToLevel(gain: Int, max: Int): Int = if (max <= 0) 0 else (gain * 10.0 / max).roundToInt().coerceIn(0, 10)
     private fun levelToGain(level: Int, max: Int): Int = (level * max / 10.0).roundToInt().coerceIn(0, max)
 
+    /** The level whose volume is nearest, so what [volumeForSidetone] writes always reads back as the same level. */
     private fun sidetoneLevel(enabled: Boolean, volume: Int): Sidetone {
         if (!enabled) return Sidetone.OFF
-        val f = volume.toDouble() / sidetoneMax
-        return when { f <= 1.0 / 3 -> Sidetone.LOW; f <= 2.0 / 3 -> Sidetone.MEDIUM; else -> Sidetone.HIGH }
+        return listOf(Sidetone.LOW, Sidetone.MEDIUM, Sidetone.HIGH).minByOrNull { abs(volumeForSidetone(it) - volume) } ?: Sidetone.MEDIUM
     }
 
     private fun volumeForSidetone(level: Sidetone): Int = when (level) {

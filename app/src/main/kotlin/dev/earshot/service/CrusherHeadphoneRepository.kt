@@ -183,7 +183,7 @@ class CrusherHeadphoneRepository(
                 delay(BATTERY_POLL_MS)
                 if (!conn.isOpen) break
                 try {
-                    command("pollBattery") { c, s -> protocol.pollBattery(c, s) }
+                    command("pollBattery", showBusy = false) { c, s -> protocol.pollBattery(c, s) }
                 } catch (e: HeadphoneCommandException) {
                     Log.d(TAG, "battery poll failed: ${e.message}")
                 }
@@ -287,10 +287,11 @@ class CrusherHeadphoneRepository(
         connectionManager.connection.value?.takeIf { it.isOpen }
             ?: throw HeadphoneCommandException("Headphones not connected")
 
-    private suspend fun command(name: String, block: suspend (BragiConnection, HeadphoneState) -> HeadphoneState) {
+    /** [showBusy] false for background reads (the battery poll) so they do not grey out the controls every minute. */
+    private suspend fun command(name: String, showBusy: Boolean = true, block: suspend (BragiConnection, HeadphoneState) -> HeadphoneState) {
         commands.withLock {
             val conn = requireConnection()
-            _state.update { it.copy(isBusy = true) }
+            if (showBusy) _state.update { it.copy(isBusy = true) }
             try {
                 apply(block(conn, _state.value))
             } catch (e: HeadphoneCommandException) {
@@ -302,7 +303,7 @@ class CrusherHeadphoneRepository(
                 throw HeadphoneCommandException(e.message ?: "Command failed", e)
             } finally {
                 drainPushes()
-                _state.update { it.copy(isBusy = false) }
+                if (showBusy) _state.update { it.copy(isBusy = false) }
             }
         }
     }
@@ -329,7 +330,8 @@ class CrusherHeadphoneRepository(
         private const val TAG = "Earshot/Crusher"
         const val DEMO_NAME = "Virtual Crusher 1080 (demo)"
         private const val DEMO_ADDRESS = ConnectionManager.DEMO_ADDRESS
-        private const val PAIRING_TIMEOUT_MS = 120_000L
+        /** A little under [BragiSession.USER_TIMEOUT_MS] so the dialog closes before the headphones give up. */
+        private const val PAIRING_TIMEOUT_MS = 115_000L
         private const val BATTERY_POLL_MS = 60_000L
         private const val LAB_TIMEOUT_MS = 2_000L
     }

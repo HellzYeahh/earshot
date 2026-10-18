@@ -178,14 +178,16 @@ class ConnectionManager<C : ManagedLink>(
             }
             val address = device.address
             val name = found.candidate.name
-            if (!factory.handles(name)) {
-                // Another stack drives this device (the routing layer picks the right manager); do not touch it.
-                BtLog.d("${factory::class.simpleName} does not handle \"$name\"; standing down")
+            // The same rule the router uses (the user's "Headphone type" beats the name), so exactly one
+            // manager drives a device and a renamed one is not left with nobody.
+            if (DeviceFamily.resolve(prefs.familyOverride(), name) != factory.family) {
+                BtLog.d("${factory::class.simpleName} does not drive \"$name\"; standing down")
                 return
             }
             currentAddress = address
-            // Remember an auto-pick so later runs and the manifest receiver recognise the device.
-            if (!found.candidate.isSaved) prefs.save(address, name)
+            // Remember an auto-pick so later runs and the manifest receiver recognise the device, and
+            // keep the saved name current (the router resolves the family from it before connecting).
+            if (!found.candidate.isSaved || prefs.savedDevice()?.name != name) prefs.save(address, name)
             setState(ConnectionStatus.CONNECTING, name, address, message = null)
 
             var connection: C? = null

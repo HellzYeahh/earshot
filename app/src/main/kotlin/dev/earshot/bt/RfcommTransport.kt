@@ -180,6 +180,8 @@ class RfcommTransport private constructor(
             val name: String,
             val checkGreeting: Boolean,
             val channel: Int? = null,
+            /** Wait for and hand on a BMAP greeting burst. Off for other protocols, whose bytes must reach their own decoder untouched. */
+            val drainGreeting: Boolean = true,
             val open: (BluetoothDevice) -> BluetoothSocket,
         )
 
@@ -219,8 +221,8 @@ class RfcommTransport private constructor(
         suspend fun connectService(device: BluetoothDevice, uuid: UUID): RfcommTransport = open(
             device,
             listOf(
-                Strategy("SDP secure $uuid", checkGreeting = false) { it.createRfcommSocketToServiceRecord(uuid) },
-                Strategy("SDP insecure $uuid", checkGreeting = false) { it.createInsecureRfcommSocketToServiceRecord(uuid) },
+                Strategy("SDP secure $uuid", checkGreeting = false, drainGreeting = false) { it.createRfcommSocketToServiceRecord(uuid) },
+                Strategy("SDP insecure $uuid", checkGreeting = false, drainGreeting = false) { it.createInsecureRfcommSocketToServiceRecord(uuid) },
             ),
         )
 
@@ -252,7 +254,7 @@ class RfcommTransport private constructor(
                         BtLog.w("${strategy.name}: SecurityException after connect, socket is up; continuing")
                     }
                     val transport = RfcommTransport(socket, strategy.name, strategy.channel)
-                    val greeting = transport.drainGreeting()
+                    val greeting = if (strategy.drainGreeting) transport.drainGreeting() else null
                     if (strategy.checkGreeting && greeting != null && !looksLikeBmap(greeting)) {
                         // SDP sent us to another channel: channel 14 beacons `ff55...`, channel 22
                         // streams logs. Neither frames as BMAP, so try the next strategy.

@@ -31,8 +31,11 @@ class AndroidBragiTrustStore(context: Context) : BragiTrustStore {
                 .onFailure { BtLog.w("bragi identity could not be restored (${it.message}); creating a new one") }
         }
         val fresh = BragiHandshake.generateIdentity()
-        prefs.edit()
-            .putString(KEY_PRIVATE, encode(wrap(fresh.privateKeyPkcs8())))
+        val edit = prefs.edit()
+        // A new identity cannot authenticate against servers that trusted the old one: forget them so
+        // the next connect pairs again instead of failing until the user finds the reset button.
+        prefs.all.keys.filter { it.startsWith("server_") }.forEach { edit.remove(it) }
+        edit.putString(KEY_PRIVATE, encode(wrap(fresh.privateKeyPkcs8())))
             .putString(KEY_PUBLIC, encode(fresh.publicPoint))
             .apply()
         return fresh

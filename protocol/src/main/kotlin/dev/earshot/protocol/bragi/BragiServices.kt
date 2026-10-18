@@ -61,5 +61,15 @@ object BragiServices {
     /** Services whose RPCs Earshot is allowed to send. Everything else (FOTA, vendor) is refused. */
     val ALLOWED_SERVICES = setOf(DEVICE, HEARING, SPATIAL_AUDIO, CRUSHER, AUTHENTICATED_ACCESS)
 
-    fun isAllowed(address: Address): Boolean = address.service in ALLOWED_SERVICES
+    /** The exact calls Earshot makes (the constants above); anything else is refused, like the Bose write guard. */
+    val ALLOWED: Set<Address> = setOf(
+        DEV_INFO, SYS_INFO, BATT_INFO, MODE_INFO, TIME_GET, TIME_SET,
+        MODE_READ, MODE_CONFIGURE, HEARING_MODE_INFO, PEQ_READ_STATE, PEQ_READ_CONF, PEQ_INFO, PEQ_CONFIGURE, PEQ_ENABLE, PEQ_DISABLE,
+        SIDETONE_READ, SIDETONE_CONFIGURE, SIDETONE_INFO,
+        SPATIAL_INFO_GET, SPATIAL_MODE_SET,
+        CRUSHER_CONFIG_GET, CRUSHER_STATE_GET, CRUSHER_STATE_SET,
+        AUTH_HELLO, AUTH_AUTHENTICATE, AUTH_TRUST_START, AUTH_TRUST_COMMIT, AUTH_TRUST_NONCE, AUTH_TRUST_CONFIRM, AUTH_TRUST_ABORT,
+    )
+
+    fun isAllowed(address: Address): Boolean = address in ALLOWED
 }

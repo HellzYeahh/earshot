@@ -2,7 +2,6 @@ package dev.earshot.bt
 
 import android.bluetooth.BluetoothDevice
 import dev.earshot.core.HeadphoneCommandException
-import dev.earshot.protocol.bragi.BragiModel
 import dev.earshot.protocol.bragi.BragiServices
 import dev.earshot.protocol.bragi.DeviceInfo
 import kotlinx.coroutines.CancellationException
@@ -65,7 +64,7 @@ class BragiLinkFactory(
     /** The text for "somebody else holds the control connection". */
     override val busyMessage: String get() = MESSAGE_CHANNEL_BUSY
 
-    override fun handles(name: String?): Boolean = BragiModel.isBragiName(name)
+    override val family: DeviceFamily get() = DeviceFamily.BRAGI
 
     override suspend fun open(device: BluetoothDevice, name: String?, prefs: DevicePrefs, scope: CoroutineScope): BragiConnection {
         val address = device.address
@@ -104,16 +103,22 @@ class BragiLinkFactory(
                 attempts += "${profile.id}: silent"
                 BtLog.w("bragi ${profile.id}: socket open but no BOS-RPC answer")
                 connection.close()
-            } catch (e: CancellationException) {
+            } catch (t: Throwable) {
+                // Cancelled, or saving the profile failed: never leave the sockets held.
                 connection.close()
-                throw e
+                throw t
             }
         }
         val summary = attempts.joinToString("; ")
         if (anySocketOpened) {
             throw RfcommConnectException("The control service opened but the headphones did not answer BOS-RPC ($summary)", looksBusy = true)
         }
-        throw RfcommConnectException("Could not open the headphones' control service ($summary)", looksBusy = false, cause = lastIo)
+        // Keep the "somebody else holds it" signature the transport computed (a refused socket usually means that).
+        throw RfcommConnectException(
+            "Could not open the headphones' control service ($summary)",
+            looksBusy = (lastIo as? RfcommConnectException)?.looksBusy == true,
+            cause = lastIo,
+        )
     }
 
     override fun adopt(transport: ByteTransport, scope: CoroutineScope): BragiConnection =

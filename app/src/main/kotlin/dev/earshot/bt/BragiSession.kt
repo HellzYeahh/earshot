@@ -71,8 +71,8 @@ class BragiSession(
     }
 
     suspend fun establish(c: BragiRequester, address: String, install: (ChannelCipher) -> Unit): Outcome {
-        val identity = trust.identity()
         return try {
+            val identity = trust.identity()
             val hello = AuthMessages.parseServerHello(c.call(BragiServices.AUTH_HELLO, AuthMessages.clientHello(BragiHandshake.identityKeyId(identity.publicPoint))).payload)
             if (hello.isEmpty()) return Outcome.Failed("The headphones did not announce an identity key")
             var server = trust.trustedServer(address)
@@ -95,6 +95,9 @@ class BragiSession(
             Outcome.Failed("The secure session failed (${e.message})")
         } catch (e: IllegalArgumentException) {
             Outcome.Failed("The headphones sent something unexpected (${e.message})")
+        } catch (e: Exception) {
+            // A Keystore or provider failure must not abort the whole connect: carry on without the session.
+            Outcome.Failed("The secure session could not be set up (${e.message})")
         }
     }
 
@@ -185,6 +188,6 @@ class BragiSession(
 
     companion object {
         /** Pairing waits for a person: confirming on the headphones can take a while. */
-        const val USER_TIMEOUT_MS = 90_000L
+        const val USER_TIMEOUT_MS = 120_000L
     }
 }

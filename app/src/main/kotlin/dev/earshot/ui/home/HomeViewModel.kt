@@ -43,9 +43,6 @@ class HomeViewModel(
     fun refresh() = launchCatching { headphones.refresh() }
     fun setMode(index: Int) = launchCatching { headphones.setMode(index) }
 
-    /** The user's answer to a pairing code: true = it matches what the headphones announced. */
-    fun answerPairing(accept: Boolean) = launchCatching { headphones.answerPairing(accept) }
-
     /** Skullcandy Crusher haptic bass; whatever is null stays as it is on the headphones. */
     fun setCrusherBass(active: Boolean?, intensity: Int?, mode: Int?) = launchCatching { headphones.setCrusherBass(active, intensity, mode) }
 

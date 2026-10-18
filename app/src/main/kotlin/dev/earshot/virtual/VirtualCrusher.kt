@@ -42,6 +42,8 @@ class VirtualCrusher(
     private val channelKeyLength: Int = 16,
     private val channelNonceLength: Int = 12,
     private val channelTagLength: Int = 16,
+    /** The largest sidetone volume the unit reports (the real range is read from the headphones). */
+    val sidetoneVolumeMax: Int = 5,
 ) {
     private val random = SecureRandom()
     private val serverIdentity: BragiHandshake.EcKeyPair by lazy { BragiHandshake.generateIdentity() }
@@ -83,7 +85,6 @@ class VirtualCrusher(
 
     var sidetoneEnabled = true; private set
     var sidetoneVolume = 3; private set
-    val sidetoneVolumeMax = 5
 
     var crusherActive = true; private set
     var crusherIntensity = 5; private set
