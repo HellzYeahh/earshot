@@ -17,137 +17,83 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.earshot.R
+import dev.earshot.core.ButtonAction
 import dev.earshot.shortcut.AssistantCandidate
 import dev.earshot.shortcut.ShortcutAction
-import dev.earshot.ui.common.AppPickerDialog
-import dev.earshot.ui.common.rememberInstalledApps
 
-/** The action kinds offered in the picker, in display order. Adding an action = one more entry. */
-internal enum class ActionKind { CYCLE_EQ, VOICE_MEMO, LAUNCH_APP, OPEN_ASSISTANT }
+/** The entries of the remapper's "Shortcut Button 1:" dropdown. */
+internal enum class ShortcutChoice(val isNative: Boolean = false) {
+    PHONE_ASSISTANT, CYCLE_EQ, VOICE_MEMO, LAUNCH_APP,
+    /** `[1.9]` mode 19 on the headphones themselves. */
+    IMMERSIVE_AUDIO(isNative = true),
+    /** `[1.9]` mode 14 (Disabled). */
+    OFF(isNative = true),
+    ;
 
-internal fun ShortcutAction.kind(): ActionKind = when (this) {
-    ShortcutAction.CycleEq -> ActionKind.CYCLE_EQ
-    ShortcutAction.VoiceMemo -> ActionKind.VOICE_MEMO
-    is ShortcutAction.LaunchApp -> ActionKind.LAUNCH_APP
-    is ShortcutAction.OpenAssistant -> ActionKind.OPEN_ASSISTANT
-}
+    companion object {
+        /** Earshot's own actions, always offered, in display order. */
+        val EARSHOT = listOf(PHONE_ASSISTANT, CYCLE_EQ, VOICE_MEMO, LAUNCH_APP)
 
-/** Where an edit flow starts: picking the kind, or straight at the app / assistant of the current action. */
-internal enum class EditStep { KIND, APP, ASSISTANT }
-
-/** Short label for an action, e.g. "Open Spotify" or "My assistant (Google)". */
-@Composable
-internal fun actionLabel(action: ShortcutAction, autoAssistant: AssistantCandidate?): String = when (action) {
-    ShortcutAction.CycleEq -> stringResource(R.string.shortcut_action_cycle_eq)
-    ShortcutAction.VoiceMemo -> stringResource(R.string.shortcut_action_voice_memo)
-    is ShortcutAction.LaunchApp -> action.label?.let { stringResource(R.string.shortcut_action_launch_named, it) }
-        ?: stringResource(R.string.shortcut_action_launch_none)
-    is ShortcutAction.OpenAssistant -> stringResource(
-        R.string.shortcut_action_assistant_named,
-        action.label ?: autoAssistant?.label ?: stringResource(R.string.shortcut_assistant_auto_short),
-    )
-}
-
-@Composable
-private fun kindTitle(kind: ActionKind): String = stringResource(
-    when (kind) {
-        ActionKind.CYCLE_EQ -> R.string.shortcut_action_cycle_eq
-        ActionKind.VOICE_MEMO -> R.string.shortcut_action_voice_memo
-        ActionKind.LAUNCH_APP -> R.string.shortcut_kind_launch
-        ActionKind.OPEN_ASSISTANT -> R.string.shortcut_kind_assistant
-    },
-)
-
-@Composable
-private fun kindSubtitle(kind: ActionKind): String = stringResource(
-    when (kind) {
-        ActionKind.CYCLE_EQ -> R.string.shortcut_kind_cycle_eq_sub
-        ActionKind.VOICE_MEMO -> R.string.shortcut_kind_voice_memo_sub
-        ActionKind.LAUNCH_APP -> R.string.shortcut_kind_launch_sub
-        ActionKind.OPEN_ASSISTANT -> R.string.shortcut_kind_assistant_sub
-    },
-)
-
-/**
- * The whole "choose an action" flow: kind first, then the app or assistant when the kind needs
- * one. [allowDefault] adds "Use default" (per-headset rows); choosing it saves null.
- */
-@Composable
-internal fun ActionEditFlow(
-    current: ShortcutAction?,
-    allowDefault: Boolean,
-    startAt: EditStep,
-    assistants: List<AssistantCandidate>,
-    autoAssistant: AssistantCandidate?,
-    onSave: (ShortcutAction?) -> Unit,
-    onClose: () -> Unit,
-) {
-    var step by remember { mutableStateOf(startAt) }
-    when (step) {
-        EditStep.KIND -> KindDialog(
-            current = current?.kind(),
-            allowDefault = allowDefault,
-            onPick = { kind ->
-                when (kind) {
-                    null -> { onSave(null); onClose() }
-                    ActionKind.CYCLE_EQ -> { onSave(ShortcutAction.CycleEq); onClose() }
-                    ActionKind.VOICE_MEMO -> { onSave(ShortcutAction.VoiceMemo); onClose() }
-                    ActionKind.LAUNCH_APP -> step = EditStep.APP
-                    ActionKind.OPEN_ASSISTANT -> step = EditStep.ASSISTANT
-                }
-            },
-            onDismiss = onClose,
-        )
-        EditStep.APP -> {
-            val apps by rememberInstalledApps()
-            AppPickerDialog(
-                apps = apps,
-                onPick = { label, pkg -> onSave(ShortcutAction.LaunchApp(pkg, label)); onClose() },
-                onDismiss = onClose,
-            )
+        fun forNative(mode: ButtonAction): ShortcutChoice? = when (mode) {
+            ButtonAction.SPATIAL_AUDIO -> IMMERSIVE_AUDIO
+            ButtonAction.DISABLED -> OFF
+            else -> null
         }
-        EditStep.ASSISTANT -> AssistantDialog(
-            current = (current as? ShortcutAction.OpenAssistant)?.component,
-            assistants = assistants,
-            autoAssistant = autoAssistant,
-            onPick = { candidate -> onSave(ShortcutAction.OpenAssistant(candidate?.component, candidate?.label)); onClose() },
-            onDismiss = onClose,
-        )
+
+        /**
+         * The dropdown's options: Earshot's actions, then the native modes the headphones report
+         * ([nativeModes], already filtered by `ShortcutButtonPolicy.nativeOptions`). The current
+         * choice is always listed, so a saved native choice shows even while that headset isn't
+         * connected through Earshot.
+         */
+        fun options(nativeModes: List<ButtonAction>, current: ShortcutChoice): List<ShortcutChoice> {
+            val list = EARSHOT + nativeModes.mapNotNull(::forNative)
+            return if (current in list) list else list + current
+        }
     }
 }
 
-@Composable
-private fun KindDialog(current: ActionKind?, allowDefault: Boolean, onPick: (ActionKind?) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.shortcut_pick_action)) },
-        text = {
-            Column {
-                if (allowDefault) {
-                    ChoiceRow(stringResource(R.string.shortcut_use_default), null, selected = current == null) { onPick(null) }
-                }
-                ActionKind.entries.forEach { kind ->
-                    ChoiceRow(kindTitle(kind), kindSubtitle(kind), selected = current == kind) { onPick(kind) }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
-    )
+internal fun ShortcutAction.choice(): ShortcutChoice = when (this) {
+    is ShortcutAction.OpenAssistant -> ShortcutChoice.PHONE_ASSISTANT
+    ShortcutAction.CycleEq -> ShortcutChoice.CYCLE_EQ
+    ShortcutAction.VoiceMemo -> ShortcutChoice.VOICE_MEMO
+    is ShortcutAction.LaunchApp -> ShortcutChoice.LAUNCH_APP
+    // An unknown stored mode behaves like the assistant (see ShortcutEngine), so it reads as one.
+    is ShortcutAction.HeadphoneButton -> ShortcutChoice.forNative(ButtonAction.fromWire(mode)) ?: ShortcutChoice.PHONE_ASSISTANT
 }
 
 @Composable
-private fun AssistantDialog(
+internal fun choiceLabel(choice: ShortcutChoice, earbuds: Boolean): String = stringResource(
+    when (choice) {
+        ShortcutChoice.PHONE_ASSISTANT -> R.string.shortcut_choice_assistant
+        ShortcutChoice.CYCLE_EQ -> R.string.shortcut_action_cycle_eq
+        ShortcutChoice.VOICE_MEMO -> R.string.shortcut_action_voice_memo
+        ShortcutChoice.LAUNCH_APP -> R.string.shortcut_choice_launch
+        ShortcutChoice.IMMERSIVE_AUDIO -> if (earbuds) R.string.shortcut_choice_immersive_buds else R.string.shortcut_choice_immersive
+        ShortcutChoice.OFF -> R.string.shortcut_choice_off
+    },
+)
+
+/** One line for the current choice, e.g. "Cycle EQ preset" or "Open Spotify" (the Tools row). */
+@Composable
+internal fun shortcutSummary(action: ShortcutAction, earbuds: Boolean): String =
+    (action as? ShortcutAction.LaunchApp)?.label?.let { stringResource(R.string.shortcut_action_launch_named, it) }
+        ?: choiceLabel(action.choice(), earbuds)
+
+/** "Automatic (Google)" or the picked assistant's name. */
+@Composable
+internal fun assistantLabel(action: ShortcutAction.OpenAssistant, autoAssistant: AssistantCandidate?): String =
+    action.label ?: autoAssistant?.let { stringResource(R.string.shortcut_assistant_auto_named, it.label) }
+        ?: stringResource(R.string.shortcut_assistant_auto)
+
+@Composable
+internal fun AssistantDialog(
     current: String?,
     assistants: List<AssistantCandidate>,
     autoAssistant: AssistantCandidate?,

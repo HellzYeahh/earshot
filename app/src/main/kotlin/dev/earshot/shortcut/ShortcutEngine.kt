@@ -13,30 +13,45 @@ import dev.earshot.R
 import dev.earshot.bt.DevicePrefs
 import dev.earshot.core.AudioTuningRepository
 import dev.earshot.core.HeadphoneCommandException
+import dev.earshot.core.HeadphoneRepository
 import dev.earshot.dsp.EqPreset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Runs a [ShortcutAction]. Called by [ShortcutTriggerActivity] (the headset gesture) and by the
- * Shortcuts remapper screen ("Try it now"); both pass a foreground [Activity], which is what lets
- * the actions start other activities and the microphone service without background limits.
+ * Runs a [ShortcutAction]. Called by [ShortcutTriggerActivity] (the headset gesture) with a
+ * foreground [Activity], which is what lets the actions start other activities and the microphone
+ * service without background limits.
+ *
+ * Also owns [buttonSync], which keeps a connected Bose headset's Shortcut button on the mode the
+ * saved choice needs; it starts with the engine (created at process start by `EarshotApp`).
  */
 class ShortcutEngine(
     private val context: Context,
     val prefs: ShortcutPrefs,
     private val tuning: AudioTuningRepository,
+    headphones: HeadphoneRepository,
     private val devicePrefs: DevicePrefs,
     private val scope: CoroutineScope,
 ) {
     val assistants = AssistantDirectory(context)
     val headsets = HeadsetLookup(context)
     val feedback = SpokenFeedback(context)
+    val buttonSync = ShortcutButtonSync(headphones, prefs::current, scope)
 
-    /** The experimental wired / USB-C trigger (the disabled-by-default activity-alias). */
+    init {
+        buttonSync.start()
+    }
+
+    /** The experimental wired / USB-C trigger (the disabled-by-default activity-alias; no switch on the screen for now). */
     var wiredTriggerEnabled: Boolean
         get() = WiredTrigger.isEnabled(context)
         set(value) = WiredTrigger.setEnabled(context, value)
+
+    /** A real headset press reached the trigger. In the app scope: the trigger activity finishes at once. */
+    fun markHeadsetPressSeen() {
+        scope.launch { runCatching { prefs.markHeadsetPressSeen() }.onFailure { Log.w(TAG, "could not store the first press: $it") } }
+    }
 
     /** The saved headphones' address, the last resort of [HeadsetResolution]. */
     suspend fun savedAddress(): String? = runCatching { devicePrefs.savedDevice()?.address }.getOrNull()
@@ -44,7 +59,7 @@ class ShortcutEngine(
     /**
      * Runs [action] from [activity]. [onDone] is called once the activity may finish: right away
      * for most actions, after the unlock prompt for "Launch an app" on a locked phone.
-     * [headsetAddress] is the Bluetooth headset that pressed (null: unknown, wired, or "Try it now").
+     * [headsetAddress] is the Bluetooth headset that pressed (null: unknown or wired).
      */
     fun run(
         activity: Activity,
@@ -88,6 +103,12 @@ class ShortcutEngine(
             is ShortcutAction.OpenAssistant -> {
                 // At once: the assistant must claim the headset's request within Android's 5 s.
                 forwardToAssistant(activity, action, trigger)
+                onDone()
+            }
+            is ShortcutAction.HeadphoneButton -> {
+                // The button is meant to do its own thing and send nothing; a press that still
+                // asks for the assistant gets the assistant, the least surprising outcome.
+                forwardToAssistant(activity, ShortcutAction.OpenAssistant(), trigger)
                 onDone()
             }
         }

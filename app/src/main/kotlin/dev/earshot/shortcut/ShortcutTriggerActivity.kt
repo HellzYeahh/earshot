@@ -33,8 +33,15 @@ class ShortcutTriggerActivity : ComponentActivity() {
         val engine = appContainer.shortcuts
         val trigger = intent
         val wired = trigger?.action == WiredTrigger.ACTION_VOICE_SEARCH_HANDS_FREE
+        val headsetPress = TriggerCaller.isHeadsetPress(
+            referrerPackage = runCatching { referrer?.takeIf { it.scheme == "android-app" }?.host }.getOrNull(),
+            ownPackage = packageName,
+            internalExtra = trigger?.getBooleanExtra(TriggerCaller.EXTRA_INTERNAL, false) == true,
+        )
         lifecycleScope.launch {
             val settings = runCatching { engine.prefs.current() }.getOrDefault(ShortcutSettings())
+            // Ends the remapper's "pick Earshot, then Always" hint; off the critical path (after the read).
+            if (headsetPress && !settings.seenHeadsetPress) engine.markHeadsetPressSeen()
             // Resolving costs a profile-proxy round trip; "Open my assistant" must reach the
             // assistant inside Android's 5 s, so only look when the answer can matter.
             val needsHeadset = !wired && (settings.overrides.isNotEmpty() || settings.defaultAction == ShortcutAction.VoiceMemo ||

@@ -36,7 +36,20 @@ sealed interface ShortcutAction {
     @Serializable
     @SerialName("open_assistant")
     data class OpenAssistant(val component: String? = null, val label: String? = null) : ShortcutAction
+
+    /**
+     * Not an Earshot action: the Bose headphones' own Shortcut button mode (`[1.9]` action code,
+     * e.g. 19 Immersive Audio, 14 Disabled). Earshot writes it to the headphones and steps aside;
+     * the button then sends no voice request. Only stored as a per-headset choice. If a press does
+     * reach Earshot anyway (another firmware, the write failed), it is passed to the assistant.
+     */
+    @Serializable
+    @SerialName("headphone_button")
+    data class HeadphoneButton(val mode: Int) : ShortcutAction
 }
+
+/** True for the actions Earshot runs itself (they need the headset's button on "Voice assistant"). */
+val ShortcutAction.isEarshotAction: Boolean get() = this !is ShortcutAction.HeadphoneButton
 
 /** A per-headset choice, keyed by Bluetooth address; [name] is only for display. */
 @Serializable
@@ -47,10 +60,26 @@ data class ShortcutSettings(
      * "Open my assistant" by default: picking Earshot as the gesture's handler must not take the
      * assistant away until the user chooses something else.
      */
-    val defaultAction: ShortcutAction = ShortcutAction.OpenAssistant(),
+    val defaultAction: ShortcutAction = FACTORY_DEFAULT,
     val overrides: List<HeadsetOverride> = emptyList(),
     val spokenFeedback: Boolean = true,
+    /**
+     * Earshot's trigger has run for a real headset press at least once (started by the Bluetooth
+     * stack or Android's chooser, not by Earshot). Until then the remapper shows its one-line
+     * "pick Earshot, then Always" hint.
+     */
+    val seenHeadsetPress: Boolean = false,
 ) {
+    /** The user picked something for the headset at [address] (or changed the default) rather than leaving the factory default. */
+    fun hasExplicitChoice(address: String?): Boolean = overrideFor(address) != null || defaultAction != FACTORY_DEFAULT
+
+    /**
+     * Saves the remapper's choice: for the headset shown at the top ([address]), or the default
+     * when nothing is connected ([address] null).
+     */
+    fun withChoice(address: String?, name: String?, action: ShortcutAction): ShortcutSettings =
+        if (address == null) copy(defaultAction = action) else withOverride(address, name, action)
+
     fun overrideFor(address: String?): HeadsetOverride? =
         address?.let { a -> overrides.firstOrNull { it.address.equals(a, ignoreCase = true) } }
 
@@ -62,6 +91,10 @@ data class ShortcutSettings(
         val rest = overrides.filterNot { it.address.equals(address, ignoreCase = true) }
         return copy(overrides = if (action == null) rest else rest + HeadsetOverride(address.uppercase(), name, action))
     }
+
+    companion object {
+        val FACTORY_DEFAULT: ShortcutAction = ShortcutAction.OpenAssistant()
+    }
 }
 
 /** JSON for the DataStore strings. Pure, so the stored format is unit-tested. */
@@ -69,6 +102,22 @@ object ShortcutCodec {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false; classDiscriminator = "type" }
 
     fun encodeAction(action: ShortcutAction): String = json.encodeToString(ShortcutAction.serializer(), action)
+
+    /**
+     * The DataStore's raw values to settings. Missing keys take the defaults, so settings stored
+     * by an older build (the first remapper build had no [ShortcutSettings.seenHeadsetPress]) keep working.
+     */
+    fun decodeSettings(defaultAction: String?, overrides: String?, spokenFeedback: Boolean?, seenHeadsetPress: Boolean?): ShortcutSettings {
+        val defaults = ShortcutSettings()
+        return ShortcutSettings(
+            defaultAction = decodeAction(defaultAction)
+                // A headphone mode belongs to one headset; as the default it would be meaningless.
+                ?.takeIf { it.isEarshotAction } ?: defaults.defaultAction,
+            overrides = decodeOverrides(overrides),
+            spokenFeedback = spokenFeedback ?: defaults.spokenFeedback,
+            seenHeadsetPress = seenHeadsetPress ?: defaults.seenHeadsetPress,
+        )
+    }
 
     /** Null for missing, corrupt or unknown (newer) actions. */
     fun decodeAction(text: String?): ShortcutAction? =

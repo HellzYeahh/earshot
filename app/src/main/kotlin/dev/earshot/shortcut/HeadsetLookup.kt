@@ -42,6 +42,17 @@ class HeadsetLookup(private val context: Context) {
     suspend fun anyHfpConnected(): Boolean? =
         if (!hasConnectPermission()) null else connectedHfpAddresses().isNotEmpty()
 
+    /**
+     * The headset a press would come from right now, for the remapper's header: the active HFP
+     * device (the one with the SCO route), else the first connected one. Null with none or
+     * without the Nearby devices permission.
+     */
+    suspend fun currentHeadset(): HfpHeadset? {
+        val connected = connectedHfpDevices()
+        val active = activeHfpAddress()
+        return connected.firstOrNull { it.address.equals(active, ignoreCase = true) } ?: connected.firstOrNull()
+    }
+
     private fun hasConnectPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
@@ -71,8 +82,10 @@ class HeadsetLookup(private val context: Context) {
         return null
     }
 
+    private suspend fun connectedHfpAddresses(): List<String> = connectedHfpDevices().map { it.address }
+
     @SuppressLint("MissingPermission") // checked in hasConnectPermission()
-    private suspend fun connectedHfpAddresses(): List<String> {
+    private suspend fun connectedHfpDevices(): List<HfpHeadset> {
         if (!hasConnectPermission()) return emptyList()
         val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter ?: return emptyList()
         if (!adapter.isEnabled) return emptyList()
@@ -81,7 +94,7 @@ class HeadsetLookup(private val context: Context) {
                 val listener = object : BluetoothProfile.ServiceListener {
                     override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                         val list = try {
-                            proxy.connectedDevices.map { it.address }
+                            proxy.connectedDevices.map { HfpHeadset(it.address, runCatching { it.name }.getOrNull()) }
                         } catch (e: SecurityException) {
                             emptyList()
                         }
@@ -96,7 +109,7 @@ class HeadsetLookup(private val context: Context) {
                 val started = runCatching { adapter.getProfileProxy(context, listener, BluetoothProfile.HEADSET) }.getOrDefault(false)
                 if (!started && cont.isActive) cont.resume(emptyList())
             }
-        } ?: emptyList<String>().also { Log.w(TAG, "HFP proxy did not answer in time") }
+        } ?: emptyList<HfpHeadset>().also { Log.w(TAG, "HFP proxy did not answer in time") }
     }
 
     /**
@@ -116,3 +129,6 @@ class HeadsetLookup(private val context: Context) {
         val WIRED_TYPES = setOf(AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_USB_HEADSET)
     }
 }
+
+/** A connected HFP headset; [name] is its Bluetooth name (null when Android won't say). */
+data class HfpHeadset(val address: String, val name: String?)

@@ -43,7 +43,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * A `microphone` foreground service. Android 14+ only lets one start while the app is visible and
  * holds RECORD_AUDIO; the shortcut starts it from [ShortcutTriggerActivity] (in the foreground at
- * that moment), and "Try it now" from the Shortcuts remapper screen.
+ * that moment).
  *
  * The headset mic needs an SCO link (see [acquireMic]), which pauses music while recording, exactly
  * like a call. Recording stops on the second press, the
@@ -157,7 +157,7 @@ class VoiceMemoService : Service() {
      * The headset mic, best way first:
      *  1. HFP voice recognition on the headset that pressed: it answers the headset's pending
      *     `AT+BVRA` (no error tone) and opens SCO, wideband where supported;
-     *  2. the mic check's SCO routing ([HeadsetMicRouter]), e.g. for "Try it now" without a press;
+     *  2. the mic check's SCO routing ([HeadsetMicRouter]), e.g. when the presser is unknown;
      *  3. the phone's own mic.
      */
     private suspend fun acquireMic(address: String?): MicPath {

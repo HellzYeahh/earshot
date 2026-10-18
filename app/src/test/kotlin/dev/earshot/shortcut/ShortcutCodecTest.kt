@@ -62,6 +62,56 @@ class ShortcutCodecTest {
     }
 
     @Test
+    fun `the headphone-native choice has a stable stored form`() {
+        val immersive = ShortcutAction.HeadphoneButton(19)
+        assertEquals("""{"type":"headphone_button","mode":19}""", ShortcutCodec.encodeAction(immersive))
+        assertEquals(immersive, ShortcutCodec.decodeAction(ShortcutCodec.encodeAction(immersive)))
+    }
+
+    @Test
+    fun `settings saved by the first remapper build (7fc520b) keep working`() {
+        // Exactly what that build's ShortcutPrefs wrote: three keys, no seen_headset_press.
+        val s = ShortcutCodec.decodeSettings(
+            defaultAction = """{"type":"cycle_eq"}""",
+            overrides = """[{"address":"AA:BB:CC:DD:EE:01","name":"Pixel Buds Pro","action":{"type":"voice_memo"}},""" +
+                """{"address":"68:F2:1F:12:34:56","name":"Bose QC Ultra Headphones","action":{"type":"launch_app","packageName":"com.spotify.music","label":"Spotify"}}]""",
+            spokenFeedback = false,
+            seenHeadsetPress = null,
+        )
+        assertEquals(ShortcutAction.CycleEq, s.defaultAction)
+        assertEquals(ShortcutAction.VoiceMemo, s.actionFor("aa:bb:cc:dd:ee:01"))
+        assertEquals(ShortcutAction.LaunchApp("com.spotify.music", "Spotify"), s.actionFor("68:F2:1F:12:34:56"))
+        assertEquals(ShortcutAction.CycleEq, s.actionFor("11:22:33:44:55:66"))
+        assertEquals(false, s.spokenFeedback)
+        assertEquals(false, s.seenHeadsetPress)
+        // Their per-headset rows are explicit choices, so the Bose button is put on Vpa for them.
+        assertTrue(s.hasExplicitChoice("68:F2:1F:12:34:56"))
+
+        val assistant = ShortcutCodec.decodeSettings("""{"type":"open_assistant","component":"a.b/a.b.C","label":"Bixby"}""", "[]", true, null)
+        assertEquals(ShortcutAction.OpenAssistant("a.b/a.b.C", "Bixby"), assistant.defaultAction)
+    }
+
+    @Test
+    fun `nothing stored decodes to the defaults, and a native default is ignored`() {
+        assertEquals(ShortcutSettings(), ShortcutCodec.decodeSettings(null, null, null, null))
+        assertEquals(ShortcutSettings.FACTORY_DEFAULT, ShortcutCodec.decodeSettings("""{"type":"headphone_button","mode":19}""", null, null, null).defaultAction)
+        assertEquals(true, ShortcutCodec.decodeSettings(null, null, null, true).seenHeadsetPress)
+    }
+
+    @Test
+    fun `the remapper saves for the headset at the top, or the default with none`() {
+        val s = ShortcutSettings().withChoice("aa:bb:cc:dd:ee:01", "Buds", ShortcutAction.CycleEq)
+        assertEquals(ShortcutAction.CycleEq, s.actionFor("AA:BB:CC:DD:EE:01"))
+        assertEquals(ShortcutSettings.FACTORY_DEFAULT, s.defaultAction)
+        assertTrue(s.hasExplicitChoice("AA:BB:CC:DD:EE:01"))
+        kotlin.test.assertFalse(s.hasExplicitChoice("AA:BB:CC:DD:EE:02"))
+
+        val d = ShortcutSettings().withChoice(null, null, ShortcutAction.VoiceMemo)
+        assertEquals(ShortcutAction.VoiceMemo, d.defaultAction)
+        assertTrue(d.overrides.isEmpty())
+    }
+
+    @Test
     fun `the default is open my assistant, so choosing Earshot keeps the assistant`() {
         assertEquals(ShortcutAction.OpenAssistant(), ShortcutSettings().defaultAction)
     }

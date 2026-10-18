@@ -122,7 +122,7 @@ class AppContainer(private val appContext: Context) {
 
     /** Shortcuts remapper: what a headset's press-and-hold does, and the code that does it. */
     val shortcuts: ShortcutEngine by lazy {
-        ShortcutEngine(appContext, ShortcutPrefs(appContext), tuning, devicePrefs, applicationScope)
+        ShortcutEngine(appContext, ShortcutPrefs(appContext), tuning, headphones, devicePrefs, applicationScope)
     }
 
     /**

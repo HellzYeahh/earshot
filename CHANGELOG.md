@@ -3,11 +3,17 @@
 ## Unreleased
 
 ### New
-- **Shortcuts remapper** (Tools): give a headset's press-and-hold a new job: cycle the Pro EQ
-  presets (spoken in the headset), start and stop a voice memo (headset mic, saved to
-  Recordings/Earshot), open an app, or open your assistant. Works with any Bluetooth headset whose
-  press-and-hold calls the phone's voice assistant; pick Earshot once in Android's chooser. Per-
-  headset actions, and an experimental switch for wired and USB-C headsets.
+- **Shortcuts remapper** (Tools): give a headset's press-and-hold a new job. One dropdown,
+  "Shortcut Button 1:", under the connected headset's name: Phone assistant (the default), Cycle
+  EQ preset (announced in the headset), Voice memo (headset mic, saved to Recordings/Earshot) or
+  Launch an app; on Bose headphones also their own Immersive Audio or Off. Works with any
+  Bluetooth headset whose press-and-hold calls the phone's voice assistant. The choice is kept per
+  headset without any list to manage. No setup screen: the first time you hold the button,
+  Android asks which app to open; pick Earshot, then Always.
+- **Automatic Bose Shortcut button:** Earshot sets the headphones' Shortcut button itself:
+  Voice assistant for an Earshot action, or Immersive Audio / Off when you pick those, and puts it
+  back on connect when it was changed. Only modes the headphones report are written, never twice
+  in a row, and nothing changes for someone who never picked anything in the remapper.
 
 ## 0.4.0 — 2026-10-18
 
