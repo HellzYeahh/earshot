@@ -58,6 +58,52 @@ class BragiCryptoTest {
         assertEquals(pt.toHex(), device.open(c.seal(pt, seq = 2)).toHex())
     }
 
+    // ── AES-CCM: Android has none, so ours must match an independent implementation ──────
+
+    @Test fun `ccm matches RFC 3610 packet vector 1`() {
+        val key = "C0C1C2C3C4C5C6C7C8C9CACBCCCDCECF".hexToBytes()
+        val nonce = "00000003020100A0A1A2A3A4A5".hexToBytes()
+        val packet = ByteArray(0x1f) { it.toByte() }
+        val aad = packet.copyOfRange(0, 8)
+        val out = AesCcm.seal(key, nonce, aad, packet.copyOfRange(8, packet.size), tagLength = 8)
+        assertEquals("588c979a61c663d2f066d0c2c0f989806d5f6b61dac38417e8d12cfdf926e0", out.toHex())
+        assertEquals(packet.copyOfRange(8, packet.size).toHex(), AesCcm.open(key, nonce, aad, out, tagLength = 8).toHex())
+    }
+
+    @Test fun `ccm matches independent vectors for the nonce and tag sizes the session uses`() {
+        val key = ByteArray(16) { it.toByte() }
+        val aad = "0605001500000000".hexToBytes().let { it[3] = 0x15; it }
+        val msg = "1004020008021001".hexToBytes()
+        assertEquals("33b1bba04af63db37ad7902e12ac87a60b853677dcfd740e", AesCcm.seal(key, ByteArray(12) { (0x10 + it).toByte() }, "0605001500000000".hexToBytes(), msg, 16).toHex())
+        assertEquals("0060646bbd1684884c121f17f5fe008e", AesCcm.seal(key, ByteArray(8) { (0x10 + it).toByte() }, "0605001500000000".hexToBytes(), msg, 8).toHex().let { it })
+        assertEquals(aad.size, 8)
+    }
+
+    @Test fun `ccm rejects a tampered message and bad parameters`() {
+        val key = ByteArray(16)
+        val sealed = AesCcm.seal(key, ByteArray(12), ByteArray(8), byteArrayOf(1, 2, 3), 8)
+        assertFailsWith<Exception> { AesCcm.open(key, ByteArray(12), ByteArray(8), sealed.also { it[0] = (it[0] + 1).toByte() }, 8) }
+        assertFailsWith<Exception> { AesCcm.seal(key, ByteArray(5), ByteArray(0), ByteArray(1), 8) } // nonce too short
+        assertFailsWith<Exception> { AesCcm.seal(key, ByteArray(12), ByteArray(0), ByteArray(1), 7) } // odd tag
+    }
+
+    @Test fun `a ccm channel produces the independent sealed message and the peer opens it`() {
+        val key = ByteArray(16) { it.toByte() }
+        val phone = ChannelCipher(key, ByteArray(8) { (0x10 + it).toByte() }, ChannelCipher.Suite.AES_CCM, authTagBytes = 16)
+        val device = phone.asDeviceSide()
+        val msg = "1004020008021001".hexToBytes()
+        val sealed = phone.seal(msg, seq = 0)
+        assertEquals("0605001800000000ce2e2eab8b486edd25792021d94508bccf16c55a8820fb9b", sealed.toHex())
+        assertEquals(msg.toHex(), device.open(sealed).toHex())
+        assertEquals(msg.toHex(), phone.open(device.seal(msg, seq = 7)).toHex())
+    }
+
+    @Test fun `a ccm channel with the short nonce and tag matches too`() {
+        val key = ByteArray(16) { it.toByte() }
+        val phone = ChannelCipher(key, ByteArray(4) { (0x20 + it).toByte() }, ChannelCipher.Suite.AES_CCM, authTagBytes = 8)
+        assertEquals("06050010000000013e7da46bbaf7468b6373b869980f904e", phone.seal("1004020008021001".hexToBytes(), seq = 1).toHex())
+    }
+
     @Test fun `cipher suite maps from the proto enum`() {
         assertEquals(ChannelCipher.Suite.AES_CCM, ChannelCipher.Suite.fromProto(1))
         assertEquals(ChannelCipher.Suite.AES_GCM, ChannelCipher.Suite.fromProto(2))

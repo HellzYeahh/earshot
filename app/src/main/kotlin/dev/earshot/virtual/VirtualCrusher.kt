@@ -37,6 +37,11 @@ class VirtualCrusher(
     val authenticatedAccess: Boolean = false,
     /** Whether the user "presses the button on the headphones" at once during pairing. */
     var autoConfirmOnDevice: Boolean = true,
+    /** The secure channel the headphones announce: proto cipher suite (1 CCM, 2 GCM, 3 ChaCha20-Poly1305), key, nonce and tag lengths. */
+    private val channelSuite: Int = 2,
+    private val channelKeyLength: Int = 16,
+    private val channelNonceLength: Int = 12,
+    private val channelTagLength: Int = 16,
 ) {
     private val random = SecureRandom()
     private val serverIdentity: BragiHandshake.EcKeyPair by lazy { BragiHandshake.generateIdentity() }
@@ -318,8 +323,8 @@ class VirtualCrusher(
         val eph = BragiHandshake.generateEphemeral()
         val serverRandom = ByteArray(16).also(random::nextBytes)
         val channel = BragiHandshake.ChannelSpec(
-            id = ChannelCipher.CHANNEL_BRAGI_CONTROL, transport = ChannelCipher.TRANSPORT_SPP, cipherSuite = 2, // AES_GCM
-            keyLength = 16, nonceLength = 12, authTagLength = 16,
+            id = ChannelCipher.CHANNEL_BRAGI_CONTROL, transport = ChannelCipher.TRANSPORT_SPP, cipherSuite = channelSuite,
+            keyLength = channelKeyLength, nonceLength = channelNonceLength, authTagLength = channelTagLength,
         )
         val signed = BragiHandshake.serverSignedMessage(req.ephemeralPoint, req.random, eph.publicPoint, serverRandom, listOf(channel))
         val signature = java.security.Signature.getInstance("SHA512withECDSA").run { initSign(serverIdentity.privateKey); update(signed); sign() }

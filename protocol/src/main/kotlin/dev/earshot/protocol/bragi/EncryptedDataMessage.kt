@@ -80,6 +80,8 @@ class ChannelCipher(
     /** Wrap [plaintext] (a BOS-RPC packet) into an encrypted-data message with sequence [seq]. */
     fun seal(plaintext: ByteArray, seq: Long): ByteArray {
         val header = header(plaintext.size + authTagBytes, seq)
+        // Android's provider has no CCM: use our own (see AesCcm). GCM and ChaCha20-Poly1305 are platform ciphers.
+        if (suite == Suite.AES_CCM) return header + AesCcm.seal(key, nonce(seq, outbound = !asDevice), header, plaintext, authTagBytes)
         val c = cipher(Cipher.ENCRYPT_MODE, nonce(seq, outbound = !asDevice))
         c.updateAAD(header)
         val body = c.doFinal(plaintext)
@@ -92,6 +94,7 @@ class ChannelCipher(
         val header = message.copyOfRange(0, 8)
         val seq = ((message[4].toLong() and 0xFF) shl 24) or ((message[5].toLong() and 0xFF) shl 16) or
             ((message[6].toLong() and 0xFF) shl 8) or (message[7].toLong() and 0xFF)
+        if (suite == Suite.AES_CCM) return AesCcm.open(key, nonce(seq, outbound = asDevice), header, message.copyOfRange(8, message.size), authTagBytes)
         val c = cipher(Cipher.DECRYPT_MODE, nonce(seq, outbound = asDevice))
         c.updateAAD(header)
         return c.doFinal(message, 8, message.size - 8)

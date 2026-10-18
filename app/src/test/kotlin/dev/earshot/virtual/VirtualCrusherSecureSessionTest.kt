@@ -157,6 +157,25 @@ class VirtualCrusherSecureSessionTest {
         assertNull(trust.trustedServer(address))
     }
 
+    private fun secureRoundTrip(suite: Int, key: Int, nonce: Int, tag: Int) = runTest {
+        val device = VirtualCrusher(authenticatedAccess = true, channelSuite = suite, channelKeyLength = key, channelNonceLength = nonce, channelTagLength = tag)
+        val conn = connect(device)
+        val (s, outcome) = onConnected(conn, MemoryTrust())
+        assertEquals(BragiSession.Outcome.Secure(justPaired = true), outcome, "suite $suite key $key nonce $nonce tag $tag")
+        assertEquals(listOf("Quiet", "Aware", "Off"), s.modes.map { it.name })
+        val after = CrusherProtocol().setMode(conn, s, 1)
+        assertEquals(HearingMode.AT, device.hearingMode)
+        assertEquals(1, after.currentModeIndex)
+    }
+
+    @Test fun `the session works with AES-CCM`() = secureRoundTrip(suite = 1, key = 16, nonce = 12, tag = 16)
+
+    @Test fun `the session works with AES-CCM and the short nonce and tag`() = secureRoundTrip(suite = 1, key = 16, nonce = 8, tag = 8)
+
+    @Test fun `the session works with AES-GCM and a 256-bit key`() = secureRoundTrip(suite = 2, key = 32, nonce = 12, tag = 16)
+
+    @Test fun `the session works with ChaCha20-Poly1305`() = secureRoundTrip(suite = 3, key = 32, nonce = 12, tag = 16)
+
     @Test
     fun `headphones that need no session skip the handshake entirely`() = runTest {
         val device = VirtualCrusher(authenticatedAccess = false)
