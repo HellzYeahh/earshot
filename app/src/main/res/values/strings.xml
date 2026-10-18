@@ -17,6 +17,7 @@
     <string name="prefs_type_crusher">Skullcandy Crusher</string>
     <string name="prefs_demo_qc_ultra">QC Ultra</string>
     <string name="prefs_demo_crusher">Crusher 1080</string>
+    <string name="prefs_demo_crusher_secure">Crusher (pairing)</string>
     <string name="prefs_demo">Demo</string>
     <string name="prefs_demo_mode">Demo mode</string>
     <string name="onboarding_try_demo">Try demo mode — no headphones needed</string>
@@ -103,6 +104,9 @@
     <string name="home_modes_title">Modes</string>
     <string name="home_modes_hint">Tap to switch · hold to favourite</string>
     <string name="home_modes_hint_tap">Tap to switch</string>
+    <string name="lab_report_title">Connection report</string>
+    <string name="lab_report_hint">If your headphones will not connect or a control does not work, copy this report and include it when you ask for help. It lists the headphones\' Bluetooth name and address, the services the phone has seen, the model Earshot detected and the recent connection log. Nothing else.</string>
+    <string name="lab_report_copy">Copy connection report</string>
     <string name="pairing_title">Pair with your headphones</string>
     <string name="pairing_body_code">Your headphones need a one-time pairing. They will announce a number, or ask you to press a button. Check that it is the same as this one:</string>
     <string name="pairing_body_match">Only confirm if the numbers match. This keeps anyone else from controlling your headphones.</string>

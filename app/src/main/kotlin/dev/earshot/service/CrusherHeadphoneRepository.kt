@@ -261,8 +261,8 @@ class CrusherHeadphoneRepository(
 
     override fun scanFunctions(blocks: List<Int>, maxFunction: Int): Flow<LabReading> = flow {
         val conn = requireConnection()
+        // The Lab's block chips are Bose function blocks; the Crusher's whole read-only list is small, so it is always all of it.
         for (read in CrusherProtocol.LAB_READS) {
-            if (read.address.service !in blocks && blocks.isNotEmpty()) continue
             emit(LabReading(read.address.service, read.address.method, read.name, listOf(readOne(conn, read))))
         }
     }

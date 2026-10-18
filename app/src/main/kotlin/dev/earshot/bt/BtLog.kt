@@ -15,8 +15,9 @@ internal object BtLog {
     @Volatile
     var sink: (priority: Int, msg: String, t: Throwable?) -> Unit = { p, m, t -> Log.println(p, TAG, if (t != null) "$m\n${Log.getStackTraceString(t)}" else m) }
 
-    fun d(msg: String) = sink(Log.DEBUG, msg, null)
-    fun i(msg: String) = sink(Log.INFO, msg, null)
-    fun w(msg: String, t: Throwable? = null) = sink(Log.WARN, msg, t)
-    fun e(msg: String, t: Throwable? = null) = sink(Log.ERROR, msg, t)
+    // Every line also goes into LogRing so the Lab's connection report can show what just happened.
+    fun d(msg: String) { LogRing.add('D', "Bt", msg); sink(Log.DEBUG, msg, null) }
+    fun i(msg: String) { LogRing.add('I', "Bt", msg); sink(Log.INFO, msg, null) }
+    fun w(msg: String, t: Throwable? = null) { LogRing.add('W', "Bt", msg); sink(Log.WARN, msg, t) }
+    fun e(msg: String, t: Throwable? = null) { LogRing.add('E', "Bt", msg); sink(Log.ERROR, msg, t) }
 }

@@ -179,6 +179,7 @@ fun PreferencesContent(
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
                         FilterChip(selected = demoDevice == DemoDevice.QC_ULTRA, onClick = { onDemoDeviceChange(DemoDevice.QC_ULTRA) }, label = { Text(stringResource(R.string.prefs_demo_qc_ultra)) })
                         FilterChip(selected = demoDevice == DemoDevice.CRUSHER, onClick = { onDemoDeviceChange(DemoDevice.CRUSHER) }, label = { Text(stringResource(R.string.prefs_demo_crusher)) })
+                        FilterChip(selected = demoDevice == DemoDevice.CRUSHER_SECURE, onClick = { onDemoDeviceChange(DemoDevice.CRUSHER_SECURE) }, label = { Text(stringResource(R.string.prefs_demo_crusher_secure)) })
                     }
                 }
             }

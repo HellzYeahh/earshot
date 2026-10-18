@@ -16,7 +16,16 @@ import kotlinx.coroutines.runBlocking
 private val Context.demoModeDataStore: DataStore<Preferences> by preferencesDataStore(name = "demo_mode")
 
 /** Which virtual headphones demo mode talks to. */
-enum class DemoDevice { QC_ULTRA, CRUSHER }
+enum class DemoDevice {
+    QC_ULTRA,
+    CRUSHER,
+
+    /** A Crusher that asks for the one-time pairing, to try the pairing flow without the headphones. */
+    CRUSHER_SECURE,
+    ;
+
+    val isCrusher: Boolean get() = this != QC_ULTRA
+}
 
 /**
  * The "Demo mode" switch: when on, the connection manager talks to a [VirtualQcUltra2] through

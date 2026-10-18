@@ -46,8 +46,9 @@ class AppContainer(private val appContext: Context) {
     /** One virtual unit per process so its state survives demo reconnects. */
     private val virtualHeadphones: VirtualQcUltra2 by lazy { VirtualQcUltra2() }
 
-    /** One virtual Crusher per process, for the same reason. */
+    /** One virtual Crusher per process, for the same reason (and one that asks for the pairing). */
     private val virtualCrusher: VirtualCrusher by lazy { VirtualCrusher() }
+    private val virtualCrusherSecure: VirtualCrusher by lazy { VirtualCrusher(authenticatedAccess = true) }
 
     /** Demo transports are device-specific: only the family the demo device belongs to gets one. */
     private val boseDemoTransport: () -> (() -> ByteTransport)? = {
@@ -55,7 +56,12 @@ class AppContainer(private val appContext: Context) {
     }
 
     private val crusherDemoTransport: () -> (() -> ByteTransport)? = {
-        if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking() == DemoDevice.CRUSHER) ({ VirtualCrusherTransport(virtualCrusher) }) else null
+        if (!demoMode.isEnabledBlocking()) null
+        else when (demoMode.deviceBlocking()) {
+            DemoDevice.CRUSHER -> ({ VirtualCrusherTransport(virtualCrusher) })
+            DemoDevice.CRUSHER_SECURE -> ({ VirtualCrusherTransport(virtualCrusherSecure) })
+            DemoDevice.QC_ULTRA -> null
+        }
     }
 
     /** The QC Ultra 2 command layer (BMAP addresses, payloads and state mapping). */
@@ -86,7 +92,7 @@ class AppContainer(private val appContext: Context) {
             scope = applicationScope,
             demoFamily = {
                 if (demoMode.isEnabledBlocking()) {
-                    if (demoMode.deviceBlocking() == DemoDevice.CRUSHER) DeviceFamily.BRAGI else DeviceFamily.BOSE
+                    if (demoMode.deviceBlocking().isCrusher) DeviceFamily.BRAGI else DeviceFamily.BOSE
                 } else null
             },
         )

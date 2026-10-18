@@ -207,6 +207,7 @@ fun LabScreen(onBack: () -> Unit) {
         onDeepScan = vm::startDeepScan,
         onStop = vm::stopScan,
         onCopy = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Earshot Lab", vm.exportText()))) } },
+        onCopyReport = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Earshot connection report", DiagnosticsReport.build(context)))) } },
         connected = connected,
         onConsoleSend = vm::sendConsole,
         onConsoleClear = vm::clearConsole,
@@ -222,6 +223,7 @@ fun LabContent(
     onStop: () -> Unit,
     onCopy: () -> Unit,
     onDeepScan: () -> Unit = {},
+    onCopyReport: () -> Unit = {},
     connected: Boolean = true,
     onConsoleSend: (String) -> Unit = {},
     onConsoleClear: () -> Unit = {},
@@ -241,6 +243,15 @@ fun LabContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { InfoBanner(stringResource(R.string.lab_read_only)) }
+            item {
+                SectionCard(title = stringResource(R.string.lab_report_title)) {
+                    Text(stringResource(R.string.lab_report_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onCopyReport, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.lab_report_copy))
+                    }
+                }
+            }
             item {
                 SectionCard(title = stringResource(R.string.lab_blocks)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

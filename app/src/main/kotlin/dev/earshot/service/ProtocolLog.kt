@@ -1,6 +1,7 @@
 package dev.earshot.service
 
 import android.util.Log
+import dev.earshot.bt.LogRing
 
 /**
  * Log tag for the typed protocol layer. No PII beyond the headphones' Bluetooth address.
@@ -20,7 +21,7 @@ internal object ProtocolLog {
         }
     }
 
-    fun d(msg: String) = sink(Log.DEBUG, msg, null)
-    fun i(msg: String) = sink(Log.INFO, msg, null)
-    fun w(msg: String, t: Throwable? = null) = sink(Log.WARN, msg, t)
+    fun d(msg: String) { LogRing.add('D', "Protocol", msg); sink(Log.DEBUG, msg, null) }
+    fun i(msg: String) { LogRing.add('I', "Protocol", msg); sink(Log.INFO, msg, null) }
+    fun w(msg: String, t: Throwable? = null) { LogRing.add('W', "Protocol", msg); sink(Log.WARN, msg, t) }
 }
