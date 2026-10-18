@@ -16,6 +16,7 @@ const val PRODUCT_ID_QC_ULTRA_1 = 0x4066
 const val PRODUCT_ID_QC_HEADPHONES = 0x4075
 const val PRODUCT_ID_QC45 = 0x4039
 const val PRODUCT_ID_ULTRA_OPEN = 0x4068
+const val PRODUCT_ID_QC_ULTRA_EARBUDS_1 = 0x4072
 
 /** The QC Ultra 2's built-in modes; the older models have a prefix of this list. */
 private val ULTRA_PRESETS = listOf("Quiet", "Aware", "Immersion", "Cinema")
@@ -37,7 +38,10 @@ enum class BoseModel(
     val productIds: Set<Int>,
     val displayName: String,
     val codename: String,
-    /** RFCOMM channel of the BMAP control socket. */
+    /**
+     * First guess for the RFCOMM channel of the BMAP control socket. Only a guess: the app probes
+     * the learned channel, this one, 2 / 8 / 9 and SDP, and keeps whichever answers BMAP.
+     */
     val rfcommChannel: Int,
     val modeLayout: ModeLayout,
     /** `[31.10]` AudioSettings exists. Without it, noise settings live only in the mode slots. */
@@ -78,9 +82,14 @@ enum class BoseModel(
     ),
 
     /**
-     * lonestarr. bosectl has no config for it; it is the same Bose app generation as wolverine
-     * (Immersive Audio, AudioModes block), so the wolverine layout is the best guess. Cinema is new
-     * on the 2nd Gen, so only Quiet / Aware / Immersion are built in.
+     * lonestarr. bosectl has no config for it and nobody here has one; users reported it "not
+     * working right" since 0.2.0. It is the same Bose app generation as wolverine (Immersive
+     * Audio, AudioModes block), so the wolverine layout stays the *first guess*, but none of it has
+     * to be right any more: the channel is probed (2 first, then 8 / 9 / SDP), `[31.10]` is
+     * dropped for the connection when it is refused or silent (noise edits then rewrite the active
+     * custom slot), the `[31.6]` write follows the STATUS length the unit actually sends, and
+     * functions it ignores are skipped once `[0.1]` proves the link alive. Cinema is new on the
+     * 2nd Gen, so only Quiet / Aware / Immersion are built in (the STATUS `editable` byte wins).
      */
     QC_ULTRA_1(
         setOf(PRODUCT_ID_QC_ULTRA_1), "QuietComfort Ultra Headphones", "lonestarr",
@@ -91,9 +100,11 @@ enum class BoseModel(
     ),
 
     /**
-     * prince, verified by bosectl on fw 1.0.6: channel 8 (the SPP UUID resolves to it), 47/39
-     * ModeConfig, no ANC toggle, no `[31.10]`; editable slots 2-3 observed. `[31.3]` START acks
-     * PROCESSING and the STATUS comes late. Also the QC SC.
+     * prince, verified by bosectl on fw 1.0.6: 47/39 ModeConfig, no ANC toggle, no `[31.10]`;
+     * editable slots 2-3 observed. `[31.3]` START acks PROCESSING and the STATUS comes late (the
+     * switch is then verified with a GET). The channel is **not** fixed: the SPP UUID resolved to 8
+     * on one unit and 9 on another (bosectl #22/#26), so 8 is only the first guess and the link
+     * factory probes 2 / 8 / 9 and SDP. Also the QC SC.
      */
     QC_HEADPHONES(
         setOf(PRODUCT_ID_QC_HEADPHONES), "QuietComfort Headphones / QC SC", "prince",
@@ -114,6 +125,32 @@ enum class BoseModel(
         presetSlots = 0..1, editableSlots = 2..3, slotCount = 4,
         // [1.24] / [1.27] answer FuncNotSupp on hardware (bosectl).
         knownAbsent = LEGACY_ABSENT + setOf(QcUltra2.AUTO_PLAY_PAUSE, QcUltra2.AUTO_ANSWER), verified = true,
+    ),
+
+    /**
+     * edith, verified by bosectl (`qc_ultra2_earbuds.py`): the wolverine feature layout on channel
+     * 2, with several `[2.2]` battery records (1 right, 2 left, 3 case, 4 combined), which
+     * [Battery.aggregate] already reduces to one figure. Before 0.3.1 it fell back to "QC Ultra 2".
+     */
+    QC_ULTRA_EARBUDS_2(
+        setOf(QcUltra2.PRODUCT_ID_EARBUDS), "QuietComfort Ultra Earbuds (2nd Gen)", "edith",
+        rfcommChannel = 2, modeLayout = ModeLayout.STANDARD, hasLiveAudioSettings = true, hasSpatialAudio = true,
+        hasNoiseCancelling = true, presetNames = ULTRA_PRESETS,
+        presetSlots = QcUltra2.PRESET_MODE_SLOTS, editableSlots = QcUltra2.EDITABLE_MODE_SLOTS,
+        slotCount = QcUltra2.MODE_SLOT_COUNT, knownAbsent = emptySet(), verified = true,
+    ),
+
+    /**
+     * scotty (bosectl catalogue only, no config): **unverified**, same assumptions as the QC
+     * Ultra 1st Gen headphones (wolverine layout, Quiet / Aware / Immersion built in), all of
+     * which the connection checks at runtime.
+     */
+    QC_ULTRA_EARBUDS(
+        setOf(PRODUCT_ID_QC_ULTRA_EARBUDS_1), "QuietComfort Ultra Earbuds", "scotty",
+        rfcommChannel = 2, modeLayout = ModeLayout.STANDARD, hasLiveAudioSettings = true, hasSpatialAudio = true,
+        hasNoiseCancelling = true, presetNames = ULTRA_PRESETS.take(3),
+        presetSlots = 0..2, editableSlots = 3..10,
+        slotCount = QcUltra2.MODE_SLOT_COUNT, knownAbsent = emptySet(), verified = false,
     ),
 
     /**
@@ -146,9 +183,6 @@ enum class BoseModel(
         /** What Earshot assumes until `[0.3]` says otherwise: the model it was built and tested on. */
         val DEFAULT = QC_ULTRA_2
 
-        /** The other BMAP channel seen on Bose headphones, for the connect fallback. */
-        fun otherChannel(channel: Int): Int = if (channel == 8) 2 else 8
-
         fun fromProductId(productId: Int?): BoseModel? = entries.firstOrNull { productId in it.productIds }
 
         /**
@@ -162,7 +196,10 @@ enum class BoseModel(
             val n = name?.lowercase()?.replace("quietcomfort", "qc") ?: return null
             return when {
                 "ultra open" in n || "open earbuds" in n -> ULTRA_OPEN_EARBUDS
-                "qc ultra" in n && "earbud" !in n ->
+                // Before the headphone branch: "QC Ultra Earbuds" also contains "qc ultra".
+                "qc ultra" in n && "earbud" in n ->
+                    if ("2nd" in n || "gen 2" in n || Regex("\\bearbuds? (2|ii)\\b").containsMatchIn(n)) QC_ULTRA_EARBUDS_2 else QC_ULTRA_EARBUDS
+                "qc ultra" in n ->
                     if ("2nd" in n || "gen 2" in n || Regex("\\bultra (2|ii)\\b").containsMatchIn(n)) QC_ULTRA_2 else QC_ULTRA_1
                 Regex("qc ?45").containsMatchIn(n) || Regex("qc ?se\\b").containsMatchIn(n) -> QC45
                 Regex("qc ?sc\\b").containsMatchIn(n) -> QC_HEADPHONES

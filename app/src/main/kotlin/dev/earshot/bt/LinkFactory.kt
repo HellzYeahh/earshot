@@ -39,51 +39,40 @@ interface LinkFactory<C : ManagedLink> {
 }
 
 /**
- * The Bose BMAP family: channel 2 on the QC Ultra, 8 on the QC45 and QC Headphones, guessed from
- * the Bluetooth name, falling back to the other channel when the first stays silent, and
- * remembered per device once one answers.
+ * The Bose BMAP family. The channel is probed, not assumed: within one [open] the factory tries
+ * the learned channel, the model's channel guessed from the Bluetooth name, then 2, 8, 9 and the
+ * two SDP lookups ([BmapCandidates.order]), and keeps the first that passes the strict
+ * [LivenessProbe]. Why: two QC Headphones units put BMAP on channel 8 and 9 respectively and
+ * other channels accept the socket without speaking BMAP (bosectl #22/#26/#44). The winner is
+ * remembered per device; when the learned one stops working the walk falls through and the new
+ * winner replaces it.
  */
-class BoseLinkFactory : LinkFactory<BmapConnection> {
-    /** Flipped after a silent channel while none has been learned yet: the name guess may be wrong. */
-    @Volatile
-    private var tryOtherChannel = false
-
-    /** The device [tryOtherChannel] was decided for: a different device starts from its own guess. */
-    @Volatile
-    private var lastAddress: String? = null
+class BoseLinkFactory internal constructor(
+    private val search: BmapChannelSearch,
+) : LinkFactory<BmapConnection> {
+    constructor() : this(BmapChannelSearch())
 
     override val family: DeviceFamily get() = DeviceFamily.BOSE
 
     override suspend fun open(device: BluetoothDevice, name: String?, prefs: DevicePrefs, scope: CoroutineScope): BmapConnection {
         val address = device.address
-        if (!address.equals(lastAddress, ignoreCase = true)) {
-            tryOtherChannel = false
-            lastAddress = address
+        val learned = prefs.candidateFor(address)
+        val candidates = BmapCandidates.order(learned, BoseModel.fromName(name)?.rfcommChannel)
+        BtLog.d("BMAP candidates for $address: ${candidates.joinToString()} (learned: ${learned ?: "none"})")
+        // A socket that opens but never answers BMAP is another app holding the channel or the wrong
+        // channel; find out now rather than after publishing CONNECTED with empty state. The search
+        // throws RfcommConnectException(looksBusy) when something opened but nothing answered, which
+        // the manager turns into the busy message. It closes every socket it does not return.
+        val found = search.find(candidates, scope) { RfcommTransport.connectCandidate(device, it) }
+        if (found.candidate != learned) {
+            try {
+                prefs.saveCandidate(address, found.candidate)
+            } catch (t: Throwable) {
+                found.connection.close()
+                throw t
+            }
         }
-        val learned = prefs.channelFor(address)
-        var connection: BmapConnection? = null
-        try {
-            val guessed = learned ?: (BoseModel.fromName(name)?.rfcommChannel ?: RfcommTransport.CHANNEL)
-            val channel = if (tryOtherChannel) BoseModel.otherChannel(guessed) else guessed
-            val transport = RfcommTransport.connect(device, channel)
-            connection = BmapConnection(transport, scope)
-            // A socket that opens but never answers is another app holding the channel (or the wrong
-            // channel); find out now (one 2 s GET) rather than after publishing CONNECTED with empty
-            // state. Throws RfcommConnectException(looksBusy), which the manager turns into the busy message.
-            LivenessProbe.check(connection)
-            transport.channel?.let { if (it != learned) prefs.saveChannel(address, it) }
-            tryOtherChannel = false
-            return connection
-        } catch (e: RfcommConnectException) {
-            if (learned == null && e.looksBusy) tryOtherChannel = !tryOtherChannel
-            connection?.close()
-            throw e
-        } catch (t: Throwable) {
-            // Cancelled mid-probe (Disconnect, a new device, Bluetooth off) or any other failure: do not
-            // leave the socket held, or the next connect looks "busy" because of ourselves.
-            connection?.close()
-            throw t
-        }
+        return found.connection
     }
 
     override fun adopt(transport: ByteTransport, scope: CoroutineScope): BmapConnection = BmapConnection(transport, scope)

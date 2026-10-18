@@ -22,7 +22,7 @@ object DiagnosticsReport {
         val saved = runCatching { container.devicePrefs.savedDevice() }.getOrNull()
         val family = runCatching { container.devicePrefs.familyOverride() }.getOrNull()
         val profile = saved?.address?.let { runCatching { container.devicePrefs.bragiProfileFor(it) }.getOrNull() }
-        val channel = saved?.address?.let { runCatching { container.devicePrefs.channelFor(it) }.getOrNull() }
+        val channel = saved?.address?.let { runCatching { container.devicePrefs.candidateFor(it) }.getOrNull() }
         return buildString {
             appendLine("Earshot connection report")
             appendLine("App: ${runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()}")

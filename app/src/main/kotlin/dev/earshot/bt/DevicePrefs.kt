@@ -41,17 +41,19 @@ class DevicePrefs(context: Context) {
     }
 
     /**
-     * The RFCOMM channel that last answered for [address] (2 on the QC Ultra 2 family, 8 on the
-     * QC45 / QC Headphones), so reconnects go straight to it. Null until one has worked.
+     * The BMAP channel that last answered the probe for [address] (2 on the QC Ultra 2 family, 8
+     * on the QC45, 8 or 9 on the QC Headphones; an SDP lookup when no fixed channel did), so
+     * reconnects try it first. Null until one has worked. Only a hint: [BoseLinkFactory] falls
+     * through to the other candidates when it stops answering and stores the new winner.
      */
-    suspend fun channelFor(address: String): Int? {
+    suspend fun candidateFor(address: String): BmapCandidate? {
         val prefs = store.data.first()
-        return if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_CHANNEL] else null
+        return if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) BmapCandidate.fromPref(prefs[KEY_CHANNEL]) else null
     }
 
-    suspend fun saveChannel(address: String, channel: Int) {
+    suspend fun saveCandidate(address: String, candidate: BmapCandidate) {
         store.edit { prefs ->
-            if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_CHANNEL] = channel
+            if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_CHANNEL] = candidate.prefValue
         }
     }
 

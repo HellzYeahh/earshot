@@ -3,6 +3,7 @@ package dev.earshot.service
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.NoiseSettings
+import dev.earshot.protocol.BmapError
 import dev.earshot.protocol.BmapOperator
 import dev.earshot.protocol.BmapPacket
 import dev.earshot.protocol.qcultra2.QcUltra2
@@ -154,10 +155,115 @@ class MultiModelProtocolTest {
     @Test
     fun `the QC Ultra 2 keeps its 11 slots and live noise control`() = runTest {
         fake.status(QcUltra2.PRODUCT_ID_VARIANT, "408201")
+        fake.status(QcUltra2.AUDIO_SETTINGS, "0500000001")
         val s = protocol.refresh(fake, HeadphoneState())
         assertEquals(QcUltra2.MODE_SLOT_COUNT, s.modes.size)
         assertTrue(s.capabilities.liveNoiseControl)
         assertTrue(s.capabilities.ancToggle)
+        assertTrue(s.capabilities.listeningModes)
         assertEquals(1, fake.requestsTo(QcUltra2.AUDIO_SETTINGS).size)
+    }
+
+    // ── Runtime capabilities: the catalogue is a first guess ─────────────────────────────
+
+    /** A QC Ultra 1st Gen (lonestarr) whose firmware has no [31.10]: 48-byte slots, custom slot 4 active. */
+    private fun scriptUltra1WithoutAudioSettings(audioSettingsError: BmapError = BmapError.FUNC_NOT_SUPPORTED) {
+        fake.status(QcUltra2.PRODUCT_ID_VARIANT, "406601")
+        fake.error(QcUltra2.AUDIO_SETTINGS, audioSettingsError)
+        fake.status(QcUltra2.CURRENT_MODE, "04")
+        fake.on(QcUltra2.MODE_CONFIG, BmapOperator.START) {
+            listOf(
+                FakeRequester.modeStatus(0, "Quiet", cncWire = 0, editable = false),
+                FakeRequester.modeStatus(1, "Aware", cncWire = 10, editable = false),
+                FakeRequester.modeStatus(2, "Immersion", cncWire = 0, spatial = 2, editable = false),
+                FakeRequester.modeStatus(3, "None", cncWire = 10, editable = true),
+                FakeRequester.modeStatus(4, "Commute", cncWire = 3, wind = false, editable = true),
+            )
+        }
+        fake.echo(QcUltra2.MODE_CONFIG)
+    }
+
+    @Test
+    fun `a refused 31_10 drops live noise control for the connection and noise edits rewrite the 40-byte slot`() = runTest {
+        scriptUltra1WithoutAudioSettings()
+        val s = protocol.refresh(fake, HeadphoneState())
+        assertEquals("QuietComfort Ultra Headphones", s.info?.modelName)
+        assertFalse(s.capabilities.liveNoiseControl)
+        assertTrue(s.capabilities.ancToggle, "48-byte slots carry the ANC byte")
+        assertEquals(7, s.noise?.cancellingLevel) // the active slot's settings
+
+        val after = protocol.setNoise(fake, s, NoiseSettings(cancellingLevel = 2, ancEnabled = false, windBlock = false))
+        assertTrue(fake.requestsTo(QcUltra2.AUDIO_SETTINGS).none { it.operator == BmapOperator.SET_GET })
+        val write = fake.requestsTo(QcUltra2.MODE_CONFIG).single { it.operator == BmapOperator.SET_GET }
+        assertEquals(40, write.payload.size)
+        assertEquals(4, write.payload[0].toInt())
+        assertEquals(8, write.payload[35].toInt()) // level 2 → wire 8
+        assertEquals(0, write.payload[39].toInt()) // ANC off is honoured on the 40-byte layout
+        assertEquals(2, after.noise?.cancellingLevel)
+        assertEquals("Commute", after.modes[4].name)
+
+        // [31.10] is not asked again on this connection.
+        protocol.refresh(fake, after)
+        assertEquals(1, fake.requestsTo(QcUltra2.AUDIO_SETTINGS).size)
+    }
+
+    @Test
+    fun `a silent 31_10 also falls back to the slot write`() = runTest {
+        scriptUltra1WithoutAudioSettings()
+        fake.silent(QcUltra2.AUDIO_SETTINGS)
+        val s = protocol.refresh(fake, HeadphoneState())
+        assertFalse(s.capabilities.liveNoiseControl)
+        protocol.setNoise(fake, s, NoiseSettings(cancellingLevel = 5))
+        assertEquals(1, fake.requestsTo(QcUltra2.MODE_CONFIG).count { it.operator == BmapOperator.SET_GET })
+    }
+
+    @Test
+    fun `the 31_6 write follows the 47-byte frames actually seen, not the catalogue`() = runTest {
+        // A QC Ultra 1st Gen catalogued as STANDARD that turns out to send prince-style 47-byte slots.
+        fake.status(QcUltra2.PRODUCT_ID_VARIANT, "406601")
+        fake.status(QcUltra2.CURRENT_MODE, "04")
+        fake.on(QcUltra2.MODE_CONFIG, BmapOperator.START) {
+            listOf(compactStatus(0, "Quiet", 0, editable = false), compactStatus(4, "Commute", 3, editable = true))
+        }
+        fake.echo(QcUltra2.MODE_CONFIG)
+        val s = protocol.refresh(fake, HeadphoneState())
+        assertFalse(s.capabilities.ancToggle)
+        assertTrue(s.capabilities.windExcludesCancelling)
+        protocol.saveCustomMode(fake, s, 4, "Office", NoiseSettings(cancellingLevel = 10))
+        assertEquals(39, fake.requestsTo(QcUltra2.MODE_CONFIG).single { it.operator == BmapOperator.SET_GET }.payload.size)
+    }
+
+    @Test
+    fun `firmware that refuses all of block 31 hides the modes and shows the 1_5 level read-only`() = runTest {
+        fake.status(QcUltra2.PRODUCT_ID_VARIANT, "402401") // NC700 "goodyear" (bosectl #44): no profile
+        for (f in listOf(QcUltra2.AUDIO_SETTINGS, QcUltra2.CURRENT_MODE, QcUltra2.MODE_CONFIG, QcUltra2.MODES_GET_ALL, QcUltra2.FAVORITES)) {
+            fake.error(f, BmapError.FBLOCK_NOT_SUPPORTED)
+        }
+        fake.status(QcUltra2.CNC, "0b0303") // 11 steps, step 3, enabled
+        protocol.onConnected(fake, HeadphoneState())
+        // The unit still pushes [31.3] on connect.
+        var s = protocol.onUnsolicited(FakeRequester.statusFrame(QcUltra2.CURRENT_MODE, "01"), HeadphoneState())!!
+        s = protocol.refresh(fake, s)
+
+        assertFalse(s.capabilities.listeningModes)
+        assertFalse(s.capabilities.liveNoiseControl)
+        assertFalse(s.capabilities.editableModes)
+        assertTrue(s.modes.isEmpty())
+        assertEquals(1, s.currentModeIndex)
+        assertEquals(7, s.noise?.cancellingLevel) // step 3 of 0..10, step 0 = most cancelling
+        assertEquals(1, fake.sent.count { it.address.block == 31 }, "one ERROR, then the block is skipped")
+
+        protocol.refresh(fake, s)
+        assertEquals(1, fake.sent.count { it.address.block == 31 }, "not asked again on this connection")
+        for (command in listOf<suspend () -> Unit>(
+            { protocol.setMode(fake, s, 0) },
+            { protocol.setNoise(fake, s, NoiseSettings(cancellingLevel = 3)) },
+            { protocol.saveCustomMode(fake, s, 4, "Mine", NoiseSettings()) },
+            { protocol.setFavorites(fake, s, setOf(0)) },
+        )) {
+            val e = assertFailsWith<HeadphoneCommandException> { command() }
+            assertEquals(QcUltra2Protocol.MODES_UNAVAILABLE_MESSAGE, e.message)
+        }
+        assertEquals(1, fake.sent.count { it.address.block == 31 })
     }
 }

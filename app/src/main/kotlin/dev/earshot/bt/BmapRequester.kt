@@ -1,6 +1,7 @@
 package dev.earshot.bt
 
 import dev.earshot.protocol.BmapPacket
+import dev.earshot.protocol.FunctionAddress
 
 /**
  * The slice of [BmapConnection] the typed protocol layer uses. Exists so
@@ -9,6 +10,12 @@ import dev.earshot.protocol.BmapPacket
 interface BmapRequester {
     /** False once the link dropped or [BmapConnection.close] ran; requests then fail immediately. */
     val isOpen: Boolean
+
+    /**
+     * Functions that stayed silent while the link still answered `[0.1]`, so this firmware lacks
+     * them (it ignores the request instead of answering FuncNotSupp). Per connection.
+     */
+    val silentFunctions: Set<FunctionAddress> get() = emptySet()
 
     /**
      * Send [packet] and collect its reply according to [mode]. Throws

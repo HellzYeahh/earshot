@@ -234,6 +234,12 @@ data class HeadphoneCapabilities(
     val editableModes: Boolean = true,
     /** Modes can be starred as favourites (the long-press on a mode chip). False on the Crusher. */
     val favoriteModes: Boolean = true,
+    /**
+     * The headphones expose listening modes at all. False on firmware that refuses the whole
+     * AudioModes block (bosectl #44 saw FblockNotSupp on every `[31.x]` request): the UI hides the
+     * mode carousel and editor, and the noise level (if readable) is shown read-only.
+     */
+    val listeningModes: Boolean = true,
     /** False while the model's layout is a best guess rather than confirmed on hardware. */
     val verified: Boolean = true,
 )

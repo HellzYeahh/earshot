@@ -142,6 +142,27 @@ class HalfDeadLinkTest {
     }
 
     @Test
+    fun `three silent unknown functions while 0_1 still answers keep the link and mark them absent`() = runTest {
+        val t = SilentFakeTransport()
+        val c = BmapConnection(t, backgroundScope, minWriteGapMs = 0)
+        // Older firmware: no ERROR for functions it lacks, but the known-good [0.1] answers.
+        t.answer = { bytes -> if (bytes[0] == 0.toByte() && bytes[1] == 1.toByte()) "00010305 312e322e30" else null }
+        val absent = listOf(FunctionAddress(1, 24), FunctionAddress(1, 27), FunctionAddress(1, 3))
+        for (a in absent) {
+            val e = assertFailsWith<HeadphoneCommandException> { c.request(BmapPacket.get(a), timeoutMs = 2_000) }
+            assertTrue("no reply" in e.message.orEmpty(), e.message)
+        }
+        assertTrue(c.isOpen, "a healthy link must not be closed for silent functions")
+        assertEquals(absent.toSet(), c.silentFunctions)
+        // The count started over: three more silent requests are tolerated the same way.
+        repeat(2) { assertFailsWith<HeadphoneCommandException> { c.request(BmapPacket.get(FunctionAddress(5, 20 + it)), timeoutMs = 2_000) } }
+        assertTrue(c.isOpen)
+        // Commands that work keep working.
+        t.answer = { "02020301 50" }
+        c.request(BmapPacket.get(battery))
+    }
+
+    @Test
     fun `any incoming byte resets the silent count`() = runTest {
         val t = SilentFakeTransport()
         val c = BmapConnection(t, backgroundScope, minWriteGapMs = 0)

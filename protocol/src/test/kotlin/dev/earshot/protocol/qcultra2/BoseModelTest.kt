@@ -16,7 +16,10 @@ class BoseModelTest {
         assertEquals(BoseModel.QC_HEADPHONES, BoseModel.fromProductId(0x4075)) // also the QC SC
         assertEquals(BoseModel.QC45, BoseModel.fromProductId(0x4039))          // also the QC SE
         assertEquals(BoseModel.ULTRA_OPEN_EARBUDS, BoseModel.fromProductId(0x4068))
-        assertNull(BoseModel.fromProductId(0x4062)) // QC Ultra Earbuds: not supported
+        // The earbuds used to fall back to "QC Ultra 2"; now they are named for what they are.
+        assertEquals(BoseModel.QC_ULTRA_EARBUDS_2, BoseModel.fromProductId(0x4062))
+        assertEquals(BoseModel.QC_ULTRA_EARBUDS, BoseModel.fromProductId(0x4072))
+        assertNull(BoseModel.fromProductId(0x4024)) // NC700: no profile, QC Ultra 2 defaults + runtime checks
         assertNull(BoseModel.fromProductId(null))
         assertEquals(BoseModel.QC_ULTRA_2, ProductInfo.parseProductIdVariant(byteArrayOf(0x40, 0x82.toByte(), 1))?.model)
     }
@@ -31,7 +34,12 @@ class BoseModelTest {
         assertEquals(BoseModel.QC_ULTRA_2, BoseModel.fromName("Bose QC Ultra 2 HP")) // [0.15] on wolverine
         assertEquals(BoseModel.QC_ULTRA_1, BoseModel.fromName("Bose QC Ultra Headphones"))
         assertEquals(BoseModel.ULTRA_OPEN_EARBUDS, BoseModel.fromName("Bose Ultra Open Earbuds (2nd Gen)"))
-        assertNull(BoseModel.fromName("Bose QC Ultra Earbuds"))
+        // "QC Ultra Earbuds" contains "qc ultra" but must never land on the headphones.
+        assertEquals(BoseModel.QC_ULTRA_EARBUDS, BoseModel.fromName("Bose QC Ultra Earbuds"))
+        assertEquals(BoseModel.QC_ULTRA_EARBUDS_2, BoseModel.fromName("Bose QC Ultra Earbuds (2nd Gen)"))
+        assertEquals(BoseModel.QC_ULTRA_EARBUDS_2, BoseModel.fromName("Bose QuietComfort Ultra Earbuds 2nd Gen"))
+        assertEquals(BoseModel.QC_ULTRA_EARBUDS_2, BoseModel.fromName("Bose QC Ultra Earbuds II"))
+        assertEquals(BoseModel.QC_ULTRA_1, BoseModel.fromName("Bose QC Ultra"))
         assertNull(BoseModel.fromName("Galaxy Buds"))
         assertNull(BoseModel.fromName(null))
     }
@@ -45,11 +53,16 @@ class BoseModelTest {
             assertTrue(m.windExcludesCnc)
             assertTrue(QcUltra2.AUDIO_SETTINGS in m.knownAbsent)
         }
-        for (m in listOf(BoseModel.QC_ULTRA_2, BoseModel.QC_HEADPHONES_2, BoseModel.QC_ULTRA_1, BoseModel.ULTRA_OPEN_EARBUDS)) {
+        // First guesses only: the app probes 2 / 8 / 9 and SDP whatever the model says.
+        for (m in listOf(
+            BoseModel.QC_ULTRA_2, BoseModel.QC_HEADPHONES_2, BoseModel.QC_ULTRA_1, BoseModel.ULTRA_OPEN_EARBUDS,
+            BoseModel.QC_ULTRA_EARBUDS_2, BoseModel.QC_ULTRA_EARBUDS,
+        )) {
             assertEquals(2, m.rfcommChannel)
         }
-        assertEquals(2, BoseModel.otherChannel(8))
-        assertEquals(8, BoseModel.otherChannel(2))
+        assertEquals(ModeLayout.STANDARD, BoseModel.QC_ULTRA_EARBUDS_2.modeLayout)
+        assertTrue(BoseModel.QC_ULTRA_EARBUDS_2.verified)
+        assertFalse(BoseModel.QC_ULTRA_EARBUDS.verified)
         assertFalse(BoseModel.ULTRA_OPEN_EARBUDS.canEditModes)
         assertFalse(BoseModel.ULTRA_OPEN_EARBUDS.hasNoiseCancelling)
         assertTrue(BoseModel.QC_ULTRA_2.canEditModes)

@@ -27,6 +27,8 @@ import dev.earshot.protocol.qcultra2.AudioStatus
 import dev.earshot.protocol.qcultra2.BoseModel
 import dev.earshot.protocol.qcultra2.ButtonConfig
 import dev.earshot.protocol.qcultra2.ClassicProfile
+import dev.earshot.protocol.qcultra2.CncState
+import dev.earshot.protocol.qcultra2.ModeLayout
 import dev.earshot.protocol.qcultra2.DeviceExtendedInfo
 import dev.earshot.protocol.qcultra2.EqBand
 import dev.earshot.protocol.qcultra2.EqBandId
@@ -69,16 +71,39 @@ internal fun NoiseSettings.toAudioSettings(): AudioSettings = AudioSettings(
 
 // ── Model ────────────────────────────────────────────────────────────────────────────────
 
-internal fun BoseModel.toCapabilities(): HeadphoneCapabilities = HeadphoneCapabilities(
+/**
+ * The catalogue entry corrected by what the connection showed: [layout] is the `[31.6]` layout
+ * of the STATUS frames actually received, [liveNoise] whether `[31.10]` answered, [modes] whether
+ * block 31 exists at all. The defaults are the catalogue's own guesses.
+ */
+internal fun BoseModel.toCapabilities(
+    layout: ModeLayout = modeLayout,
+    liveNoise: Boolean = hasLiveAudioSettings,
+    modes: Boolean = true,
+): HeadphoneCapabilities = HeadphoneCapabilities(
     spatialAudio = hasSpatialAudio,
-    ancToggle = hasNoiseCancelling && modeLayout.hasAncToggle,
-    liveNoiseControl = hasLiveAudioSettings,
-    windExcludesCancelling = windExcludesCnc,
+    ancToggle = hasNoiseCancelling && layout.hasAncToggle,
+    liveNoiseControl = liveNoise && modes,
+    windExcludesCancelling = layout == ModeLayout.COMPACT,
     noiseCancelling = hasNoiseCancelling,
-    ancAlwaysOn = hasNoiseCancelling && !modeLayout.hasAncToggle,
-    editableModes = canEditModes,
+    ancAlwaysOn = hasNoiseCancelling && !layout.hasAncToggle,
+    editableModes = canEditModes && modes,
+    favoriteModes = modes,
+    listeningModes = modes,
     verified = verified,
 )
+
+/**
+ * `[1.5]` CNC `[numSteps, currentStep, flags]` as read-only noise settings, for firmware without
+ * listening modes. Direction: Earshot's fw 10.12 capture reads step 0 in Quiet, and the virtual
+ * unit mirrors the inverted `[31.10]` byte, so step 0 is taken as *most* cancelling (bosectl's
+ * notes say the opposite for their unit; unverified either way). Null for a malformed reply.
+ */
+internal fun CncState.toNoiseSettings(): NoiseSettings? {
+    if (steps < 2 || step !in 0..maxStep) return null
+    val level = ((maxStep - step) * 10 + maxStep / 2) / maxStep
+    return NoiseSettings(cancellingLevel = level, ancEnabled = enabled, windBlock = false, spatialAudio = SpatialAudio.OFF)
+}
 
 // ── Listening modes [31.6] + [31.8] ──────────────────────────────────────────────────────
 

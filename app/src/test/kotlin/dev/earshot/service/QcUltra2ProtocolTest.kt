@@ -167,15 +167,34 @@ class QcUltra2ProtocolTest {
     }
 
     @Test
-    fun `refresh gives up after three consecutive silent reads`() = runTest {
+    fun `refresh gives up after three consecutive silent reads when 0_1 is silent too`() = runTest {
         scriptFullDevice()
         fake.silent(QcUltra2.FIRMWARE_VERSION)
         fake.silent(QcUltra2.SERIAL_NUMBER)
         fake.silent(QcUltra2.PRODUCT_NAME)
+        fake.silent(QcUltra2.BMAP_VERSION) // the known-good check: nobody is listening at all
         val e = runCatching { protocol.refresh(fake, HeadphoneState()) }.exceptionOrNull()
         assertTrue(e is HeadphoneCommandException, "$e")
         assertTrue("stopped answering" in e!!.message.orEmpty())
         assertTrue(fake.requestsTo(QcUltra2.MAC_ADDRESS).isEmpty())
+    }
+
+    @Test
+    fun `three silent reads while 0_1 still answers are skipped as absent and the refresh carries on`() = runTest {
+        scriptFullDevice()
+        fake.silent(QcUltra2.FIRMWARE_VERSION)
+        fake.silent(QcUltra2.SERIAL_NUMBER)
+        fake.silent(QcUltra2.PRODUCT_NAME)
+        val s = protocol.refresh(fake, HeadphoneState())
+        // Older firmware ignores functions it lacks: the link is fine, the rest was read.
+        assertEquals(1, fake.requestsTo(QcUltra2.MAC_ADDRESS).size)
+        assertTrue(fake.requestsTo(QcUltra2.BMAP_VERSION).isNotEmpty())
+        assertEquals(80, s.batteryPercent)
+
+        val before = fake.sent.size
+        protocol.refresh(fake, s)
+        val second = fake.sent.drop(before).map { it.address }
+        assertTrue(QcUltra2.FIRMWARE_VERSION !in second && QcUltra2.SERIAL_NUMBER !in second && QcUltra2.PRODUCT_NAME !in second, second.toString())
     }
 
     @Test

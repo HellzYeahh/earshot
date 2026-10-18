@@ -5,7 +5,6 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import dev.earshot.protocol.BmapOperator
 import dev.earshot.protocol.BmapPacket
-import dev.earshot.protocol.qcultra2.FunctionNames
 import dev.earshot.protocol.toHex
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -26,14 +25,15 @@ import kotlin.concurrent.thread
 /**
  * One RFCOMM socket to the headphones' BMAP channel.
  *
- * Connecting is where phones differ, so [connect] tries, in order:
- *  (a) `createInsecureRfcommSocket(channel)` via reflection: goes straight to the channel, no
- *      SDP. Quiet Rebellion found this is the only strategy that lands on the right channel on
- *      MIUI, whose stack resolves Bose's UUID to channel 14 (a status beacon) or 0. The channel
- *      is 2 on the QC Ultra 2 family and 8 on the QC45 / QC Headphones (bosectl).
- *  (b) the SPP UUID through SDP: the public API, works on stock Android.
- *  (c) Bose's own BMAP UUID through SDP: last resort, same SDP caveat as (b).
- *  (d) reflection on the other Bose channel, in case the model guess was wrong.
+ * Connecting is where phones and units differ, so [connectCandidate] opens one [BmapCandidate]
+ * and [BoseLinkFactory] walks an ordered list of them ([BmapCandidates.order]):
+ *  - `createInsecureRfcommSocket(channel)` via reflection: goes straight to the channel, no SDP.
+ *    Quiet Rebellion found this is the only strategy that lands on the right channel on MIUI,
+ *    whose stack resolves Bose's UUID to channel 14 (a status beacon) or 0. The channel is 2 on
+ *    the QC Ultra 2 family, 8 on the QC45, and 8 *or* 9 on the QC Headphones (bosectl #22/#26).
+ *  - the SPP UUID through SDP: the public API, and what resolves prince to its own 8 or 9.
+ *  - Bose's own BMAP UUID through SDP: last resort, same SDP caveat.
+ * Whichever opens still has to pass the strict [LivenessProbe] before it counts.
  *
  * Reading is done by a dedicated thread blocked in `read()`. The alternative, polling
  * `available()`, costs latency on every reply and CPU while idle for hours in a background
@@ -169,12 +169,9 @@ class RfcommTransport private constructor(
         private const val GREETING_MAX_MS = 1_500L
         private const val GREETING_POLL_MS = 25L
 
-        /** The other channel Bose headphones use for BMAP (QC45 / QC Headphones). */
-        const val LEGACY_CHANNEL = 8
-
         /**
-         * [checkGreeting]: a non-BMAP greeting means a wrong channel, so move on. Off for the
-         * preferred channel, where a silent or odd greeting is left to the liveness probe.
+         * [checkGreeting]: a non-BMAP greeting means a wrong channel, so move on. Off for fixed
+         * channels, where a silent or odd greeting is left to the liveness probe.
          */
         private class Strategy(
             val name: String,
@@ -193,23 +190,21 @@ class RfcommTransport private constructor(
             }
 
         @SuppressLint("MissingPermission")
-        private fun strategies(channel: Int): List<Strategy> {
-            val other = if (channel == CHANNEL) LEGACY_CHANNEL else CHANNEL
-            return listOf(
-                reflection(channel, checkGreeting = false),
-                Strategy("SDP SPP", checkGreeting = true) { it.createInsecureRfcommSocketToServiceRecord(SPP_UUID) },
-                Strategy("SDP BMAP", checkGreeting = true) { it.createInsecureRfcommSocketToServiceRecord(BMAP_UUID) },
-                reflection(other, checkGreeting = true),
-            )
+        private fun strategy(candidate: BmapCandidate): Strategy = when (candidate) {
+            is BmapCandidate.Channel -> reflection(candidate.number, checkGreeting = false)
+            BmapCandidate.SdpSpp -> Strategy("SDP SPP", checkGreeting = true) { it.createInsecureRfcommSocketToServiceRecord(SPP_UUID) }
+            BmapCandidate.SdpBmap -> Strategy("SDP BMAP", checkGreeting = true) { it.createInsecureRfcommSocketToServiceRecord(BMAP_UUID) }
         }
 
         /**
-         * Open the Bose control channel, trying each strategy in turn. Throws [RfcommConnectException]
-         * when all fail, or [SecurityException] when every strategy was refused for permission
-         * reasons (the caller already checked BLUETOOTH_CONNECT, so that means an OEM quirk).
+         * Open one Bose control-channel [candidate]. Throws [RfcommConnectException] when it cannot
+         * be opened (or an SDP lookup landed on a channel whose greeting is not BMAP), or
+         * [SecurityException] when it was refused for permission reasons (the caller already
+         * checked BLUETOOTH_CONNECT, so that means an OEM quirk). An open socket is not proof of
+         * BMAP: the caller probes it.
          */
-        suspend fun connect(device: BluetoothDevice, channel: Int = CHANNEL): RfcommTransport =
-            open(device, strategies(channel))
+        suspend fun connectCandidate(device: BluetoothDevice, candidate: BmapCandidate): RfcommTransport =
+            open(device, listOf(strategy(candidate)))
 
         /**
          * Open an RFCOMM socket to a service by UUID (channel resolved by SDP), as the Skullcandy
@@ -301,9 +296,6 @@ class RfcommTransport private constructor(
             }
         }
 
-        /** Operators the headphones send; a greeting carrying anything else was not framed by BMAP. */
-        private val DEVICE_OPERATORS = setOf(BmapOperator.STATUS, BmapOperator.ERROR, BmapOperator.RESULT, BmapOperator.PROCESSING)
-
         /**
          * Does a non-empty greeting read as BMAP from the headphones? Every frame that decodes
          * must use a device-side operator and a known function block; a greeting that decodes
@@ -313,7 +305,7 @@ class RfcommTransport private constructor(
          */
         internal fun looksLikeBmap(bytes: ByteArray): Boolean {
             val frames = BmapPacket.decodeStream(bytes).packets
-            return frames.isNotEmpty() && frames.all { it.operator in DEVICE_OPERATORS && it.block in FunctionNames.blocks }
+            return frames.isNotEmpty() && frames.all(LivenessProbe::isDeviceFrame)
         }
 
         /**

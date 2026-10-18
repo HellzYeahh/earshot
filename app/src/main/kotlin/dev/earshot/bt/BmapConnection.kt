@@ -71,10 +71,19 @@ class BmapConnection(
     private val clock: () -> Long = System::currentTimeMillis,
     /**
      * Requests in a row that may time out (written fine, no byte back) before the link is
-     * declared half-dead and closed with [UnresponsiveLinkException]. Any incoming byte resets
-     * the count. Same threshold as the protocol's refresh tolerance.
+     * suspected half-dead. Any incoming byte resets the count. Same threshold as the protocol's
+     * refresh tolerance. Reaching it no longer closes the link by itself: see [confirmTimeoutMs].
      */
     val maxSilentReplies: Int = DEFAULT_MAX_SILENT_REPLIES,
+    /**
+     * After [maxSilentReplies] silent requests, a known-good `[0.1]` GET gets this long to answer.
+     * Older firmware stays silent (no ERROR) for functions it lacks, so three unknown functions in
+     * a row used to close a healthy link and loop on reconnects. If `[0.1]` answers, the silent
+     * functions are recorded in [silentFunctions] and the link stays; if it is silent too, the
+     * link really is deaf (the Bose app holding the channel) and is closed with
+     * [UnresponsiveLinkException] as before.
+     */
+    val confirmTimeoutMs: Long = DEFAULT_CONFIRM_TIMEOUT_MS,
 ) : BmapRequester, ManagedLink {
     // Child of the parent's Job (dies with it) but with its own supervisor so a reader failure
     // never cancels the caller. Keeps the parent's dispatcher when it has one (tests inject a
@@ -89,8 +98,24 @@ class BmapConnection(
     // than a frame's worth without decoding); that happens after a greeting burst cut mid-frame
     // or when an SDP fallback landed on the wrong channel. Log it so a stuck link is diagnosable.
     private val frames = BmapFrameBuffer(onDesync = { dropped ->
+        junkBytes += dropped.size
         BtLog.w("frame desync: dropped ${dropped.size} undecodable bytes (${dropped.take(16).toByteArray().toHex()}…)")
     })
+
+    // What came in so far, for the strict liveness probe: a beacon or log channel must not pass as
+    // BMAP. Written by the reader coroutine only.
+    @Volatile private var bytesIn = 0L
+    @Volatile private var deviceFrames = 0
+    @Volatile private var oddFrames = 0
+    @Volatile private var junkBytes = 0L
+
+    /** Counts of what arrived on this connection; see [LivenessProbe.judge]. */
+    data class Traffic(val bytes: Long, val deviceFrames: Int, val oddFrames: Int, val junkBytes: Long) {
+        /** Something arrived and every byte of it framed as device-side BMAP on a known block. */
+        val looksLikeBmap: Boolean get() = deviceFrames > 0 && oddFrames == 0 && junkBytes == 0L
+    }
+
+    fun traffic(): Traffic = Traffic(bytesIn, deviceFrames, oddFrames, junkBytes)
     private val closedSignal = CompletableDeferred<Throwable?>()
 
     private val _unsolicited = MutableSharedFlow<BmapPacket>(extraBufferCapacity = 64)
@@ -112,6 +137,19 @@ class BmapConnection(
     @Volatile
     private var silentInARow = 0
 
+    /** The functions behind [silentInARow]; recorded in [silentFunctions] when `[0.1]` proves the link alive. */
+    @Volatile
+    private var silentStreak: List<FunctionAddress> = emptyList()
+
+    @Volatile
+    private var silentSet: Set<FunctionAddress> = emptySet()
+
+    /**
+     * Functions that timed out while the link demonstrably still answered: absent on this firmware,
+     * for this connection only (a new connection starts empty). The protocol's refresh skips them.
+     */
+    override val silentFunctions: Set<FunctionAddress> get() = silentSet
+
     /** True once any byte arrived on this connection: proof that something is listening on the other end. */
     @Volatile
     var hasAnswered: Boolean = false
@@ -128,6 +166,8 @@ class BmapConnection(
                 // Any byte at all proves the far end is alive, even one that does not frame.
                 hasAnswered = true
                 silentInARow = 0
+                silentStreak = emptyList()
+                bytesIn += chunk.size
                 frames.feed(chunk).forEach(::dispatch)
             }
             finish(null)
@@ -174,6 +214,44 @@ class BmapConnection(
         watched: Boolean,
     ): List<BmapPacket> = mutex.withLock {
         requireOpen()
+        exchangeLocked(packet, mode, timeoutMs)?.let { return@withLock it }
+        if (!watched) throw HeadphoneCommandException("${packet.address}: no reply from the headphones")
+        silentStreak = silentStreak + packet.address
+        if (++silentInARow < maxSilentReplies) throw HeadphoneCommandException("${packet.address}: no reply from the headphones")
+        // Silent N times in a row: a deaf link, or firmware that ignores functions it lacks
+        // instead of answering FuncNotSupp. Ask something every firmware answers before deciding.
+        val streak = silentStreak
+        if (confirmAliveLocked()) {
+            silentSet = silentSet + streak
+            silentInARow = 0
+            silentStreak = emptyList()
+            BtLog.w("${streak.joinToString()} got no reply but $CONFIRM_ADDRESS still answers: treating them as absent on this firmware")
+            throw HeadphoneCommandException("${packet.address}: no reply from the headphones")
+        }
+        // The socket takes our bytes but nothing comes back, not even [0.1]: on real hardware this
+        // is another app (the Bose app) holding the BMAP channel. Waiting out every later command's
+        // timeout helps nobody; drop the link so the manager retries with backoff and tells the
+        // user what is going on.
+        BtLog.w("${packet.address}: $silentInARow requests in a row and $CONFIRM_ADDRESS got no reply, closing the half-dead link")
+        close(UnresponsiveLinkException("$silentInARow requests in a row got no reply"))
+        throw HeadphoneCommandException(MESSAGE_STOPPED_ANSWERING)
+    }
+
+    /** One `[0.1]` GET under the held mutex: true when anything answers it in time. */
+    private suspend fun confirmAliveLocked(): Boolean {
+        if (!isOpen) return false
+        return try {
+            exchangeLocked(BmapPacket.get(CONFIRM_ADDRESS), ReplyMode.SINGLE, confirmTimeoutMs) != null
+        } catch (e: HeadphoneCommandException) {
+            false
+        }
+    }
+
+    /**
+     * Write [packet] and collect its reply; the caller holds [mutex]. Null when the write went out
+     * but nothing came back within [timeoutMs]: the caller decides what that silence means.
+     */
+    private suspend fun exchangeLocked(packet: BmapPacket, mode: ReplyMode, timeoutMs: Long): List<BmapPacket>? {
         val req = PendingRequest(packet.address, mode)
         pending = req
         try {
@@ -205,18 +283,9 @@ class BmapConnection(
                     BtLog.w("${packet.address}: timeout with ${frames.pendingSize} undecoded bytes, resetting frame buffer")
                     frames.reset()
                 }
-                if (watched && ++silentInARow >= maxSilentReplies) {
-                    // The socket takes our bytes but nothing ever comes back: on real hardware this
-                    // is another app (the Bose app) holding BMAP channel 2. Waiting out every later
-                    // command's timeout helps nobody; drop the link so the manager retries with
-                    // backoff and tells the user what is going on.
-                    BtLog.w("${packet.address}: $silentInARow requests in a row got no reply, closing the half-dead link")
-                    close(UnresponsiveLinkException("$silentInARow requests in a row got no reply"))
-                    throw HeadphoneCommandException(MESSAGE_STOPPED_ANSWERING)
-                }
-                throw HeadphoneCommandException("${packet.address}: no reply from the headphones")
+                return null
             }
-            when (mode) {
+            return when (mode) {
                 ReplyMode.SINGLE -> listOf(first)
                 ReplyMode.MULTI -> {
                     val all = arrayListOf(first)
@@ -306,6 +375,7 @@ class BmapConnection(
 
     private fun dispatch(frame: BmapPacket) {
         BtLog.d("<- $frame")
+        if (LivenessProbe.isDeviceFrame(frame)) deviceFrames++ else oddFrames++
         val req = pending
         if (req != null && req.accepts(frame)) {
             req.frames.trySend(frame)
@@ -328,6 +398,10 @@ class BmapConnection(
         const val DEFAULT_QUIET_GAP_MS = 400L
         const val DEFAULT_MIN_WRITE_GAP_MS = 80L
         const val DEFAULT_MAX_SILENT_REPLIES = 3
+        const val DEFAULT_CONFIRM_TIMEOUT_MS = 1_500L
+
+        /** The known-good GET of the silence check: `[0.1]` BmapVersion, answered by every firmware (see [LivenessProbe]). */
+        val CONFIRM_ADDRESS = FunctionAddress(0, 1)
         const val MESSAGE_STOPPED_ANSWERING = "The headphones stopped answering"
     }
 }
