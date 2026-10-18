@@ -27,8 +27,17 @@ object Battery {
         return if (v == UNKNOWN || v > 100) null else v
     }
 
-    /** All 4-byte records; a trailing partial record is ignored. */
+    /**
+     * All 4-byte records; a trailing partial record is ignored. A payload of 1 to 3 bytes is one
+     * record for the whole product (Bose `StatusBatteryLevelResponse`: up to 4 bytes is a single
+     * record), with the minutes only when both bytes are there.
+     */
     fun parseReadings(payload: ByteArray): List<BatteryReading> {
+        if (payload.size in 1..3) {
+            val level = payload.u8(0)
+            val minutes = if (payload.size == 3) payload.u16be(1).takeIf { it != 0xFFFF } else null
+            return listOf(BatteryReading(BatteryComponent.SINGLE.code, if (level == UNKNOWN || level > 100) null else level, minutes))
+        }
         val out = ArrayList<BatteryReading>(payload.size / 4)
         var i = 0
         while (i + 3 < payload.size) {
@@ -62,7 +71,10 @@ object Battery {
     }
 }
 
-data class BatteryStatus(val percent: Int?, val readings: List<BatteryReading>)
+data class BatteryStatus(val percent: Int?, val readings: List<BatteryReading>) {
+    /** The record for [component], if the firmware sent one (records are matched by id, never by position). */
+    fun reading(component: BatteryComponent): BatteryReading? = readings.firstOrNull { it.componentCode == component.code }
+}
 
 /**
  * `[2.3]` per Quiet Rebellion "charging state"; the Bose app calls `[2.3]` **AuxCableDetection**.

@@ -1,5 +1,7 @@
 package dev.earshot.core.fake
 
+import dev.earshot.core.BatteryDetail
+import dev.earshot.core.BatteryLevel
 import dev.earshot.core.BluetoothProfile
 import dev.earshot.core.ButtonAction
 import dev.earshot.core.ButtonAssignment
@@ -7,6 +9,8 @@ import dev.earshot.core.ConnectionState
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.DeviceInfo
 import dev.earshot.core.DeviceProfiles
+import dev.earshot.core.FormFactor
+import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
@@ -49,9 +53,11 @@ class FakeHeadphoneRepository(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val commandDelayMillis: Long = 150,
     startConnected: Boolean = false,
+    /** What "connected" looks like: [connectedState], [connectedEarbudsState] or [basicTierState]. */
+    private var connectedTemplate: () -> HeadphoneState = { connectedState() },
 ) : HeadphoneRepository {
 
-    private val _state = MutableStateFlow(if (startConnected) connectedState() else HeadphoneState())
+    private val _state = MutableStateFlow(if (startConnected) connectedTemplate() else HeadphoneState())
     override val state: StateFlow<HeadphoneState> = _state
 
     private val _events = MutableSharedFlow<HeadphoneEvent>(extraBufferCapacity = 16)
@@ -62,25 +68,42 @@ class FakeHeadphoneRepository(
     override fun connect() {
         if (_state.value.isConnected || connectJob?.isActive == true) return
         connectJob = scope.launch {
-            _state.update { it.copy(connection = ConnectionState(ConnectionStatus.CONNECTING, DEVICE_NAME, DEVICE_ADDRESS)) }
+            val target = connectedTemplate()
+            _state.update { it.copy(connection = target.connection.copy(status = ConnectionStatus.CONNECTING)) }
             delay(800)
-            _state.value = connectedState()
+            _state.value = target
             _events.tryEmit(HeadphoneEvent.Connected)
         }
     }
 
     override fun disconnect() {
         connectJob?.cancel()
-        _state.update { it.copy(connection = ConnectionState(ConnectionStatus.DISCONNECTED, DEVICE_NAME, DEVICE_ADDRESS)) }
+        // Like the real repository: the headphone data goes with the link, only the name stays.
+        val connection = _state.value.connection
+        _state.value = HeadphoneState(
+            connection = ConnectionState(ConnectionStatus.DISCONNECTED, connection.deviceName ?: DEVICE_NAME, connection.deviceAddress ?: DEVICE_ADDRESS),
+        )
         _events.tryEmit(HeadphoneEvent.Disconnected)
     }
 
     override suspend fun deviceCandidates(): List<HeadphoneCandidate> = listOf(
         HeadphoneCandidate(DEVICE_ADDRESS, DEVICE_NAME, looksLikeBose = true, isAudioDevice = true),
+        HeadphoneCandidate(EARBUDS_ADDRESS, EARBUDS_NAME, looksLikeBose = true, isAudioDevice = true),
+        HeadphoneCandidate(BASIC_ADDRESS, BASIC_NAME, looksLikeBose = true, isAudioDevice = true),
         HeadphoneCandidate("AA:BB:CC:DD:EE:03", "Car stereo", looksLikeBose = false, isAudioDevice = true),
     )
 
-    override suspend fun chooseDevice(address: String, name: String?) = connect()
+    /** Switches the fake to whichever of its three products [address] names, then connects. */
+    override suspend fun chooseDevice(address: String, name: String?) {
+        connectedTemplate = when (address) {
+            EARBUDS_ADDRESS -> { { connectedEarbudsState() } }
+            BASIC_ADDRESS -> { { basicTierState() } }
+            else -> { { connectedState() } }
+        }
+        connectJob?.cancel()
+        if (_state.value.isConnected) disconnect()
+        connect()
+    }
 
     override suspend fun refresh() {
         requireConnected()
@@ -97,7 +120,7 @@ class FakeHeadphoneRepository(
 
     override suspend fun saveCustomMode(index: Int, name: String, settings: NoiseSettings) {
         requireConnected()
-        if (index !in ListeningMode.CUSTOM_SLOTS) throw HeadphoneCommandException("Presets can't be edited")
+        if (!isCustomSlot(index)) throw HeadphoneCommandException("Presets can't be edited")
         command { s ->
             s.copy(modes = s.modes.map { m ->
                 if (m.index == index) m.copy(name = name, isConfigured = true, settings = settings) else m
@@ -144,7 +167,7 @@ class FakeHeadphoneRepository(
 
     override suspend fun resetCustomMode(index: Int) {
         requireConnected()
-        if (index !in ListeningMode.CUSTOM_SLOTS) throw HeadphoneCommandException("Only custom slots can be reset")
+        if (!isCustomSlot(index)) throw HeadphoneCommandException("Only custom slots can be reset")
         command { s -> s.copy(modes = s.modes.map { if (it.index == index) it.copy(name = "", isConfigured = false, settings = null, isFavorite = false) else it }) }
     }
 
@@ -168,6 +191,13 @@ class FakeHeadphoneRepository(
     }
 
     override suspend fun setTouchControls(enabled: Boolean) { requireConnected(); command { it.copy(touchControlsEnabled = enabled) } }
+
+    override suspend fun setAutoOff(minutes: Int) {
+        requireConnected()
+        if (_state.value.autoOffMinutes == null) throw HeadphoneCommandException("Auto-off isn't available on these headphones")
+        if (minutes < 0) throw HeadphoneCommandException("Auto-off must be 0 (never) or a number of minutes")
+        command { it.copy(autoOffMinutes = minutes) }
+    }
 
     override suspend fun setVolume(level: Int) {
         requireConnected()
@@ -223,6 +253,10 @@ class FakeHeadphoneRepository(
 
     // ---- helpers ---------------------------------------------------------------------------
 
+    /** Custom slots differ per model (2..3 on the QC45, 4..10 on the QC Ultra): ask the slot itself. */
+    private fun isCustomSlot(index: Int): Boolean =
+        _state.value.modes.firstOrNull { it.index == index }?.let { !it.isPreset && it.isEditable } == true
+
     private fun requireConnected() {
         if (!_state.value.isConnected) throw HeadphoneCommandException("Headphones not connected")
     }
@@ -236,6 +270,12 @@ class FakeHeadphoneRepository(
     companion object {
         const val DEVICE_NAME = "Bose QC Ultra Headphones"
         const val DEVICE_ADDRESS = "68:F2:1F:12:34:56"
+
+        /** The earbuds connect through their LE Audio twin, so the name keeps Android's "LE-" prefix. */
+        const val EARBUDS_NAME = "LE-Bose QC Ultra 2 Earbuds"
+        const val EARBUDS_ADDRESS = "AC:BF:71:12:34:57"
+        const val BASIC_NAME = "Bose NC 700 Headphones"
+        const val BASIC_ADDRESS = "4C:87:5D:12:34:58"
 
         val KNOWN_NAMES = mapOf(
             (0 to 5) to "Firmware version", (1 to 7) to "EQ", (2 to 2) to "Battery",
@@ -279,6 +319,9 @@ class FakeHeadphoneRepository(
                     productName = "Bose QC Ultra 2 HP", customName = "Fargo",
                     firmwareVersion = "8.2.20", serialNumber = "085958T00000000", productId = 0x4082,
                     bluetoothAddress = DEVICE_ADDRESS,
+                    modelName = "QuietComfort Ultra Headphones (2nd Gen)",
+                    family = "QuietComfort Ultra Headphones",
+                    generation = "2nd Gen",
                 ),
                 shortcutButton = ButtonAssignment(
                     // Real firmware 10.12: the shortcut button offers these four (Bose app menu).
@@ -302,6 +345,84 @@ class FakeHeadphoneRepository(
                 availableToConnect = true,
                 thisPhoneAddress = "AA:BB:CC:DD:EE:01",
                 livePushEnabled = true,
+                battery = BatteryDetail(overall = BatteryLevel(72, minutesLeft = 17 * 60)),
+                autoOffMinutes = 20,
+                eqRange = -10..10,
+            )
+        }
+
+        /**
+         * QuietComfort Ultra Earbuds (2nd Gen) on LE Audio: per-bud batteries plus the case (last
+         * known), the bosectl edith layout, no remappable shortcut, no custom name set.
+         */
+        fun connectedEarbudsState(): HeadphoneState {
+            val base = connectedState()
+            return base.copy(
+                connection = ConnectionState(ConnectionStatus.CONNECTED, EARBUDS_NAME, EARBUDS_ADDRESS),
+                batteryPercent = 64,
+                battery = BatteryDetail(
+                    left = BatteryLevel(64, minutesLeft = 4 * 60),
+                    right = BatteryLevel(71, minutesLeft = 4 * 60 + 30),
+                    case = BatteryLevel(58),
+                ),
+                modes = base.modes.map { if (it.index == 4) it.copy(name = "Commute") else it },
+                info = DeviceInfo(
+                    productName = "Bose QC Ultra 2 Earbuds", firmwareVersion = "4.1.3", serialNumber = "087654E00000000",
+                    productId = 0x4062, bluetoothAddress = EARBUDS_ADDRESS,
+                    modelName = "QuietComfort Ultra Earbuds (2nd Gen)",
+                    family = "QuietComfort Ultra Earbuds",
+                    generation = "2nd Gen",
+                ),
+                capabilities = HeadphoneCapabilities(formFactor = FormFactor.EARBUDS),
+                shortcutButton = null,
+                touchControlsEnabled = true,
+                autoOffMinutes = null,
+                volume = null,
+                volumeMax = null,
+                micMuted = null,
+            )
+        }
+
+        /**
+         * A "basic tier" product (NC 700, bosectl #44): no AudioModes block, so no modes; the
+         * cancelling level is shown read-only and Home carries the support note.
+         */
+        fun basicTierState(): HeadphoneState {
+            val base = connectedState()
+            return base.copy(
+                connection = ConnectionState(ConnectionStatus.CONNECTED, BASIC_NAME, BASIC_ADDRESS),
+                batteryPercent = 41,
+                battery = BatteryDetail(overall = BatteryLevel(41)),
+                currentModeIndex = null,
+                modes = emptyList(),
+                noise = NoiseSettings(cancellingLevel = 7),
+                info = DeviceInfo(
+                    productName = "Bose NC 700 Headphones", firmwareVersion = "2.0.4", serialNumber = "074512P00000000",
+                    productId = 0x4024, bluetoothAddress = BASIC_ADDRESS,
+                    modelName = "Noise Cancelling Headphones 700",
+                    family = "Noise Cancelling Headphones 700",
+                ),
+                capabilities = HeadphoneCapabilities(
+                    spatialAudio = false, ancToggle = false, liveNoiseControl = false, windBlock = false,
+                    editableModes = false, favoriteModes = false, listeningModes = false, verified = false,
+                    supportNote = "Earshot supports the basics on these headphones: battery, EQ, settings and the " +
+                        "noise cancelling level. Their listening modes can only be changed on the headphones.",
+                ),
+                shortcutButton = null,
+                touchControlsEnabled = null,
+                sidetone = null,
+                sidetonePersistent = null,
+                autoAnswer = null,
+                leAudioSupported = false,
+                leAudioEnabled = null,
+                lePreference = null,
+                latencyMs = null,
+                latencyRangeMs = null,
+                autoOffMinutes = null,
+                volume = null,
+                volumeMax = null,
+                playback = null,
+                micMuted = null,
             )
         }
     }

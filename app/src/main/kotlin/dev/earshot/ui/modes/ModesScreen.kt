@@ -43,6 +43,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,7 +55,9 @@ import dev.earshot.core.HeadphoneState
 import dev.earshot.core.ListeningMode
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.fake.FakeHeadphoneRepository
+import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.ui.common.ConfirmDialog
+import dev.earshot.ui.common.InfoBanner
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.EarshotViewModel
 import dev.earshot.ui.common.LightDarkPreview
@@ -109,13 +112,38 @@ fun ModesContent(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 4.dp, bottom = padding.calculateBottomPadding() + 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val hasModes = state.capabilities.listeningModes
+            val caps = state.capabilities
+            val hasModes = caps.listeningModes
+            val buds = HeadphoneLabels.isEarbuds(HeadphoneLabels.formFactor(state))
+            // Counted from what the model reported, not the QC Ultra's 4 + 7.
+            val presetCount = state.modes.count { it.isPreset }
+            val customCount = state.modes.count { !it.isPreset }
             item {
                 Text(
-                    stringResource(if (hasModes) R.string.modes_intro else R.string.home_modes_unavailable),
+                    when {
+                        !hasModes -> stringResource(if (buds) R.string.home_modes_unavailable_buds else R.string.home_modes_unavailable)
+                        else -> stringResource(
+                            if (buds) R.string.modes_intro_counts_buds else R.string.modes_intro_counts,
+                            pluralStringResource(R.plurals.modes_builtin_count, presetCount, presetCount),
+                            pluralStringResource(R.plurals.modes_custom_count, customCount, customCount),
+                        )
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                )
+            }
+            // A model without custom slots gets a friendly note instead of an editor with nothing in it.
+            if (hasModes && state.modes.isNotEmpty() && (customCount == 0 || !caps.editableModes)) item {
+                InfoBanner(
+                    stringResource(
+                        when {
+                            customCount > 0 -> R.string.modes_not_editable
+                            buds -> R.string.modes_no_custom_buds
+                            else -> R.string.modes_no_custom
+                        },
+                    ),
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
             }
             // No mode list and no editor on firmware without listening modes.
@@ -124,6 +152,7 @@ fun ModesContent(
                     mode = mode,
                     isCurrent = mode.index == state.currentModeIndex,
                     enabled = enabled,
+                    editable = caps.editableModes && mode.isEditable && !mode.isPreset,
                     onUse = { onUse(mode.index) },
                     onEdit = { editing = mode.index },
                 )
@@ -132,7 +161,7 @@ fun ModesContent(
     }
 
     val editIndex = editing
-    if (editIndex != null && state.capabilities.listeningModes) {
+    if (editIndex != null && state.capabilities.listeningModes && state.capabilities.editableModes) {
         val mode = state.modes.firstOrNull { it.index == editIndex }
         ModeEditorSheet(
             slotIndex = editIndex,
@@ -161,8 +190,7 @@ fun ModesContent(
 }
 
 @Composable
-private fun ModeRow(mode: ListeningMode, isCurrent: Boolean, enabled: Boolean, onUse: () -> Unit, onEdit: () -> Unit) {
-    val editable = mode.isEditable && !mode.isPreset
+private fun ModeRow(mode: ListeningMode, isCurrent: Boolean, enabled: Boolean, editable: Boolean, onUse: () -> Unit, onEdit: () -> Unit) {
     SectionCard(contentPadding = PaddingValues(0.dp)) {
         Row(
             Modifier
@@ -189,17 +217,19 @@ private fun ModeRow(mode: ListeningMode, isCurrent: Boolean, enabled: Boolean, o
                     }
                 }
                 Text(
-                    if (mode.isConfigured) mode.name else stringResource(R.string.modes_empty_slot),
+                    if (mode.isConfigured) mode.name.ifBlank { stringResource(R.string.mode_slot_number, mode.index) } else stringResource(R.string.modes_empty_slot),
                     style = MaterialTheme.typography.titleMedium,
                     color = if (mode.isConfigured) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    when {
-                        mode.isPreset -> stringResource(R.string.modes_builtin)
-                        mode.settings != null -> describe(mode.settings)
-                        else -> stringResource(R.string.modes_tap_to_set_up)
-                    },
+                val subtitle = when {
+                    mode.isPreset -> stringResource(R.string.modes_builtin)
+                    mode.settings != null -> describe(mode.settings)
+                    editable -> stringResource(R.string.modes_tap_to_set_up)
+                    else -> null
+                }
+                if (subtitle != null) Text(
+                    subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -292,5 +322,18 @@ private const val MAX_NAME_BYTES = 31
 private fun ModesPreview() {
     EarshotPreview {
         ModesContent(state = FakeHeadphoneRepository.connectedState(), onBack = {}, onUse = {}, onSave = { _, _, _, _ -> })
+    }
+}
+
+/** A QC45-style model: two presets and no custom slots, so the note replaces the editor. */
+@LightDarkPreview
+@Composable
+private fun ModesNoCustomPreview() {
+    EarshotPreview {
+        val buds = FakeHeadphoneRepository.connectedEarbudsState()
+        ModesContent(
+            state = buds.copy(modes = buds.modes.filter { it.index < 2 }),
+            onBack = {}, onUse = {}, onSave = { _, _, _, _ -> },
+        )
     }
 }

@@ -19,7 +19,16 @@ class BoseModelTest {
         // The earbuds used to fall back to "QC Ultra 2"; now they are named for what they are.
         assertEquals(BoseModel.QC_ULTRA_EARBUDS_2, BoseModel.fromProductId(0x4062))
         assertEquals(BoseModel.QC_ULTRA_EARBUDS, BoseModel.fromProductId(0x4072))
-        assertNull(BoseModel.fromProductId(0x4024)) // NC700: no profile, QC Ultra 2 defaults + runtime checks
+        // 0.4.0 (docs/bose-models.md §A, §B): the models that used to fall back to the QC Ultra 2 defaults.
+        assertEquals(BoseModel.NC700, BoseModel.fromProductId(0x4024))
+        assertEquals(BoseModel.QC_EARBUDS_2, BoseModel.fromProductId(0x4064))
+        assertEquals(BoseModel.QC_EARBUDS, BoseModel.fromProductId(0x402F))
+        assertEquals(BoseModel.ULTRA_OPEN_EARBUDS_2, BoseModel.fromProductId(0x4089))
+        assertEquals(BoseModel.QC35, BoseModel.fromProductId(0x400C))
+        assertEquals(BoseModel.QC35_II, BoseModel.fromProductId(0x4020))
+        assertEquals(BoseModel.QC_EARBUDS_2024, BoseModel.fromProductId(0x0023))
+        assertEquals("mariah", BoseModel.QC_HEADPHONES_2.codename)
+        assertNull(BoseModel.fromProductId(0x40aa))
         assertNull(BoseModel.fromProductId(null))
         assertEquals(BoseModel.QC_ULTRA_2, ProductInfo.parseProductIdVariant(byteArrayOf(0x40, 0x82.toByte(), 1))?.model)
     }
@@ -33,7 +42,10 @@ class BoseModelTest {
         assertEquals(BoseModel.QC_HEADPHONES_2, BoseModel.fromName("Bose QuietComfort Headphones (2nd Gen)"))
         assertEquals(BoseModel.QC_ULTRA_2, BoseModel.fromName("Bose QC Ultra 2 HP")) // [0.15] on wolverine
         assertEquals(BoseModel.QC_ULTRA_1, BoseModel.fromName("Bose QC Ultra Headphones"))
-        assertEquals(BoseModel.ULTRA_OPEN_EARBUDS, BoseModel.fromName("Bose Ultra Open Earbuds (2nd Gen)"))
+        assertEquals(BoseModel.ULTRA_OPEN_EARBUDS, BoseModel.fromName("Bose Ultra Open Earbuds"))
+        assertEquals(BoseModel.ULTRA_OPEN_EARBUDS_2, BoseModel.fromName("Bose Ultra Open Earbuds (2nd Gen)"))
+        assertEquals(BoseModel.ULTRA_OPEN_EARBUDS_2, BoseModel.fromName("Bose Ultra Open 2 Earbuds"))
+        assertNull(BoseModel.fromName("Bose Sport Open Earbuds"))
         // "QC Ultra Earbuds" contains "qc ultra" but must never land on the headphones.
         assertEquals(BoseModel.QC_ULTRA_EARBUDS, BoseModel.fromName("Bose QC Ultra Earbuds"))
         assertEquals(BoseModel.QC_ULTRA_EARBUDS_2, BoseModel.fromName("Bose QC Ultra Earbuds (2nd Gen)"))
@@ -42,6 +54,76 @@ class BoseModelTest {
         assertEquals(BoseModel.QC_ULTRA_1, BoseModel.fromName("Bose QC Ultra"))
         assertNull(BoseModel.fromName("Galaxy Buds"))
         assertNull(BoseModel.fromName(null))
+    }
+
+    @Test
+    fun `the Bose app's original names map to their models`() {
+        // docs/bose-models.md §D5 / §D13: the originalName of every product in scope.
+        val names = mapOf(
+            "Bose QC Ultra 2 HP" to BoseModel.QC_ULTRA_2,
+            "Bose QC 2 HP" to BoseModel.QC_HEADPHONES_2,
+            "Bose QC Ultra 2 Earbuds" to BoseModel.QC_ULTRA_EARBUDS_2,
+            "Bose QC Ultra Headphones" to BoseModel.QC_ULTRA_1,
+            "Bose QC Ultra Earbuds" to BoseModel.QC_ULTRA_EARBUDS,
+            "Bose QC Earbuds II" to BoseModel.QC_EARBUDS_2,
+            "Bose QuietComfort Headphones" to BoseModel.QC_HEADPHONES,
+            "Bose QC 45" to BoseModel.QC45,
+            "Bose NC 700 Headphones" to BoseModel.NC700,
+            "Bose QuietComfort Earbuds" to BoseModel.QC_EARBUDS,
+            "Bose Ultra Open Earbuds" to BoseModel.ULTRA_OPEN_EARBUDS,
+            "Bose Ultra Open 2 Earbuds" to BoseModel.ULTRA_OPEN_EARBUDS_2,
+            // Setup copy and other spellings.
+            "Bose QC Headphones 2" to BoseModel.QC_HEADPHONES_2,
+            "Bose QC35 II" to BoseModel.QC35_II,
+            "Bose QuietComfort 35" to BoseModel.QC35,
+            "LE-Bose QC Ultra 2 Earbuds" to BoseModel.QC_ULTRA_EARBUDS_2,
+            "Bose QuietComfort Earbuds II" to BoseModel.QC_EARBUDS_2,
+        )
+        for ((name, model) in names) assertEquals(model, BoseModel.fromName(name), name)
+    }
+
+    @Test
+    fun `entries carry family, generation and form factor`() {
+        assertEquals("QuietComfort Ultra Headphones", BoseModel.QC_ULTRA_2.family)
+        assertEquals("2nd Gen", BoseModel.QC_ULTRA_2.generation)
+        assertNull(BoseModel.QC_ULTRA_1.generation, "the 1st Gen's marketing name has no suffix")
+        // "2nd Gen" chips: exactly 0x4082, 0x4062, 0x4083 and 0x4089 (§D13).
+        assertEquals(
+            setOf(QcUltra2.PRODUCT_ID, QcUltra2.PRODUCT_ID_EARBUDS, QcUltra2.PRODUCT_ID_QC_HEADPHONES_2ND_GEN, PRODUCT_ID_ULTRA_OPEN_2),
+            BoseModel.entries.filter { it.generation != null }.flatMap { it.productIds }.toSet(),
+        )
+        assertEquals(ProductForm.EARBUDS, BoseModel.QC_EARBUDS.formFactor)
+        assertEquals(ProductForm.OPEN_EARBUDS, BoseModel.ULTRA_OPEN_EARBUDS_2.formFactor)
+        assertEquals(ProductForm.HEADPHONES, BoseModel.NC700.formFactor)
+        assertEquals(listOf("Stereo", "Immersion"), BoseModel.ULTRA_OPEN_EARBUDS.presetNames)
+        assertEquals(listOf("Stereo", "Immersion", "Cinema"), BoseModel.ULTRA_OPEN_EARBUDS_2.presetNames)
+        assertFalse(BoseModel.ULTRA_OPEN_EARBUDS.hasLiveAudioSettings, "no [31.10] in bosectl's serena config")
+        assertEquals(10, BoseModel.QC_ULTRA_1.slotCount)
+        assertEquals(10, BoseModel.QC_ULTRA_EARBUDS.slotCount)
+        assertTrue(BoseModel.QC_ULTRA_1.hasWindBlock)
+        for (m in listOf(BoseModel.QC35, BoseModel.QC35_II, BoseModel.QC_EARBUDS_2024)) {
+            assertTrue(m.isUnsupported)
+            assertTrue(!m.supportNote.isNullOrBlank())
+        }
+        assertTrue("Bose Connect" in BoseModel.QC35.supportNote.orEmpty())
+        assertTrue("QC Earbuds app" in BoseModel.QC_EARBUDS_2024.supportNote.orEmpty())
+        assertEquals(SupportTier.BASIC, BoseModel.QC_EARBUDS.tier)
+        assertEquals(SupportTier.BASIC, BoseModel.NC700.tier)
+        assertTrue(BoseModel.QC_EARBUDS.directCnc && BoseModel.NC700.directCnc)
+        assertEquals(ModeLayout.BASIC, BoseModel.QC_EARBUDS.modeLayout)
+        assertEquals(8, BoseModel.QC_EARBUDS.rfcommChannel)
+        // Every product id is in exactly one entry.
+        val ids = BoseModel.entries.flatMap { it.productIds }
+        assertEquals(ids.size, ids.toSet().size)
+    }
+
+    @Test
+    fun `an unknown name gives a family and a form factor`() {
+        assertEquals("Foo Earbuds", BoseModel.familyFromName("Bose Foo Earbuds"))
+        assertNull(BoseModel.familyFromName("  "))
+        assertEquals(ProductForm.EARBUDS, BoseModel.formFromName("Bose Foo Earbuds"))
+        assertEquals(ProductForm.OPEN_EARBUDS, BoseModel.formFromName("Bose Sport Open Earbuds"))
+        assertEquals(ProductForm.HEADPHONES, BoseModel.formFromName(null))
     }
 
     @Test

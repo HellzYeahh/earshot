@@ -14,6 +14,7 @@ import dev.earshot.MainActivity
 import dev.earshot.R
 import dev.earshot.core.AutomationRepository
 import dev.earshot.core.HeadphoneRepository
+import dev.earshot.extras.HeadphoneLabels
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
@@ -42,7 +43,8 @@ class LowBatteryAlert(
         if (job?.isActive == true) return
         job = scope.launch {
             combine(
-                headphones.state.map { Triple(it.isConnected, it.batteryPercent, it.isCharging) }.distinctUntilChanged(),
+                // Earbuds: the lower bud, the one that runs out first (the combined figure hides it).
+                headphones.state.map { Triple(it.isConnected, HeadphoneLabels.alertPercent(it), it.isCharging) }.distinctUntilChanged(),
                 automation.preferences.map { it.lowBatteryThreshold }.distinctUntilChanged(),
             ) { (connected, percent, charging), threshold -> Sample(connected, percent, charging, threshold) }
                 .distinctUntilChanged()
@@ -65,8 +67,8 @@ class LowBatteryAlert(
         }
         val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Alerts", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Headphone battery warnings"
+            NotificationChannel(CHANNEL_ID, appContext.getString(R.string.alert_channel_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = appContext.getString(R.string.alert_channel_description)
             },
         )
         val open = PendingIntent.getActivity(
@@ -74,11 +76,19 @@ class LowBatteryAlert(
             Intent(appContext, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val name = headphones.state.value.connection.deviceName ?: "Headphones"
+        val state = headphones.state.value
+        val buds = HeadphoneLabels.isEarbuds(HeadphoneLabels.formFactor(state))
+        val name = HeadphoneLabels.displayName(state)
+            ?: appContext.getString(if (buds) R.string.device_generic_name_buds else R.string.device_generic_name)
+        val text = when (HeadphoneLabels.lowerBud(state)) {
+            HeadphoneLabels.Bud.LEFT -> appContext.getString(R.string.alert_low_text_left, percent)
+            HeadphoneLabels.Bud.RIGHT -> appContext.getString(R.string.alert_low_text_right, percent)
+            null -> appContext.getString(R.string.alert_low_text, percent)
+        }
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile_mode)
-            .setContentTitle("$name battery low")
-            .setContentText("$percent% left. Time to charge.")
+            .setContentTitle(appContext.getString(R.string.alert_low_title, name))
+            .setContentText(text)
             .setContentIntent(open)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_STATUS)

@@ -25,11 +25,14 @@ import dev.earshot.virtual.DemoDevice
 import dev.earshot.virtual.DemoMode
 import dev.earshot.virtual.VirtualCrusher
 import dev.earshot.virtual.VirtualCrusherTransport
+import dev.earshot.virtual.VirtualProfile
 import dev.earshot.virtual.VirtualQcUltra2
 import dev.earshot.virtual.VirtualTransport
+import dev.earshot.virtual.virtualProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Manual dependency container. One instance per process, owned by [EarshotApp].
@@ -43,8 +46,11 @@ class AppContainer(private val appContext: Context) {
     /** Demo mode: talk to an in-process virtual QC Ultra 2 instead of real Bluetooth. */
     val demoMode: DemoMode by lazy { DemoMode(appContext) }
 
-    /** One virtual unit per process so its state survives demo reconnects. */
-    private val virtualHeadphones: VirtualQcUltra2 by lazy { VirtualQcUltra2() }
+    /** One virtual unit per Bose demo device and process, so its state survives demo reconnects. */
+    private val virtualHeadphones = ConcurrentHashMap<DemoDevice, VirtualQcUltra2>()
+
+    private fun virtualUnit(device: DemoDevice, profile: VirtualProfile): VirtualQcUltra2 =
+        virtualHeadphones.computeIfAbsent(device) { VirtualQcUltra2(profile = profile) }
 
     /** One virtual Crusher per process, for the same reason (and one that asks for the pairing). */
     private val virtualCrusher: VirtualCrusher by lazy { VirtualCrusher() }
@@ -52,7 +58,10 @@ class AppContainer(private val appContext: Context) {
 
     /** Demo transports are device-specific: only the family the demo device belongs to gets one. */
     private val boseDemoTransport: () -> (() -> ByteTransport)? = {
-        if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking() == DemoDevice.QC_ULTRA) VirtualTransport.factory(virtualHeadphones) else null
+        if (!demoMode.isEnabledBlocking()) null
+        else demoMode.deviceBlocking().let { device ->
+            device.virtualProfile()?.let { profile -> VirtualTransport.factory(virtualUnit(device, profile)) }
+        }
     }
 
     private val crusherDemoTransport: () -> (() -> ByteTransport)? = {
@@ -60,7 +69,7 @@ class AppContainer(private val appContext: Context) {
         else when (demoMode.deviceBlocking()) {
             DemoDevice.CRUSHER -> ({ VirtualCrusherTransport(virtualCrusher) })
             DemoDevice.CRUSHER_SECURE -> ({ VirtualCrusherTransport(virtualCrusherSecure) })
-            DemoDevice.QC_ULTRA -> null
+            else -> null
         }
     }
 
@@ -68,7 +77,10 @@ class AppContainer(private val appContext: Context) {
     private val headphoneProtocol: HeadphoneProtocol by lazy { QcUltra2Protocol() }
 
     private val boseHeadphones: ServiceHeadphoneRepository by lazy {
-        ServiceHeadphoneRepository(appContext, headphoneProtocol, applicationScope, boseDemoTransport)
+        ServiceHeadphoneRepository(
+            appContext, headphoneProtocol, applicationScope, boseDemoTransport,
+            demoName = { "Virtual ${runCatching { demoMode.deviceBlocking().displayName }.getOrDefault("QC Ultra")} (demo)" },
+        )
     }
 
     /** The Skullcandy Crusher 1080 ANC (Bragi BOS-RPC): a separate stack behind the same contract. */

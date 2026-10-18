@@ -19,6 +19,7 @@ class SettingsViewModel(private val headphones: HeadphoneRepository, messenger: 
     fun setAutoAnswer(enabled: Boolean) = launchCatching { headphones.setAutoAnswer(enabled) }
     fun setMultipoint(enabled: Boolean) = launchCatching { headphones.setMultipoint(enabled) }
     fun setTouchControls(enabled: Boolean) = launchCatching { headphones.setTouchControls(enabled) }
+    fun setAutoOff(minutes: Int) = launchCatching { headphones.setAutoOff(minutes) }
     fun setVoicePrompts(prompts: VoicePrompts) = launchCatching { headphones.setVoicePrompts(prompts) }
     fun setShortcutButton(action: ButtonAction) = launchCatching { headphones.setShortcutButton(action) }
     fun rename(name: String) = launchCatching { headphones.setDeviceName(name); messenger.show(R.string.settings_renamed, name) }

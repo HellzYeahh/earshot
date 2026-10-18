@@ -63,8 +63,8 @@ class ConnectionManager<C : ManagedLink>(
      * the next connect.
      */
     private val demoTransport: () -> (() -> ByteTransport)? = { null },
-    /** Shown while the virtual headphones are connected (demo mode). */
-    private val demoName: String = DEMO_NAME,
+    /** Shown while the virtual headphones are connected (demo mode); read per demo session, so it follows the chosen demo device. */
+    private val demoName: () -> String = { DEMO_NAME },
 ) {
     private val _state = MutableStateFlow(ConnectionState())
     val state: StateFlow<ConnectionState> = _state.asStateFlow()
@@ -256,27 +256,27 @@ class ConnectionManager<C : ManagedLink>(
     private suspend fun runDemoLoop(transportFactory: () -> ByteTransport) {
         currentAddress = DEMO_ADDRESS
         while (true) {
-            setState(ConnectionStatus.CONNECTING, demoName, DEMO_ADDRESS, message = null)
+            setState(ConnectionStatus.CONNECTING, demoName(), DEMO_ADDRESS, message = null)
             var connection: C? = null
             try {
                 connection = factory.adopt(transportFactory(), scope)
                 _connection.value = connection
-                setState(ConnectionStatus.CONNECTED, demoName, DEMO_ADDRESS, message = null)
+                setState(ConnectionStatus.CONNECTED, demoName(), DEMO_ADDRESS, message = null)
                 val cause = connection.awaitClosed()
                 _connection.value = null
                 BtLog.i("demo session ended: ${cause?.message ?: "closed locally"}")
                 if (userStopped) {
-                    setState(ConnectionStatus.DISCONNECTED, demoName, DEMO_ADDRESS, message = null)
+                    setState(ConnectionStatus.DISCONNECTED, demoName(), DEMO_ADDRESS, message = null)
                     return
                 }
-                setState(ConnectionStatus.DISCONNECTED, demoName, DEMO_ADDRESS, message = "Connection lost")
+                setState(ConnectionStatus.DISCONNECTED, demoName(), DEMO_ADDRESS, message = "Connection lost")
             } catch (e: CancellationException) {
                 connection?.close()
                 _connection.value = null
                 throw e
             } catch (e: Exception) {
                 BtLog.w("demo transport failed: ${e.message}")
-                setState(ConnectionStatus.DISCONNECTED, demoName, DEMO_ADDRESS, message = "Demo headphones failed: ${e.message}")
+                setState(ConnectionStatus.DISCONNECTED, demoName(), DEMO_ADDRESS, message = "Demo headphones failed: ${e.message}")
             }
             if (userStopped) return
             retryNow.tryReceive()
@@ -334,10 +334,15 @@ class ConnectionManager<C : ManagedLink>(
         }
     }
 
-    /** True when [address] is the saved device or, before any choice was made, looks like a Bose. */
+    /**
+     * True when [address] is the saved device (or its LE Audio / classic twin, which links up on
+     * its own address) or, before any choice was made, looks like a Bose.
+     */
     suspend fun isOurDevice(address: String): Boolean {
         val saved = prefs.savedDevice()?.address
-        if (saved != null) return saved.equals(address, ignoreCase = true)
+        if (saved != null) {
+            return saved.equals(address, ignoreCase = true) || finder.twinsOf(saved).any { it.address.equals(address, ignoreCase = true) }
+        }
         // Nothing chosen yet: accept the device if the name says Bose.
         return finder.candidates().any { it.address.equals(address, ignoreCase = true) && it.looksLikeBose }
     }

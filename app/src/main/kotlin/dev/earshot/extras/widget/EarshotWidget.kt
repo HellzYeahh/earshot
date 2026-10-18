@@ -42,7 +42,7 @@ import dev.earshot.MainActivity
 import dev.earshot.appContainer
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneState
-import dev.earshot.core.ListeningMode
+import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.extras.tile.TileCycle
 
 /**
@@ -96,11 +96,20 @@ class EarshotWidget : GlanceAppWidget() {
                 Spacer(GlanceModifier.height(6.dp))
                 Button(text = "Connect", onClick = actionRunCallback<ConnectAction>(), modifier = GlanceModifier.fillMaxWidth())
             } else {
+                val buds = HeadphoneLabels.hasBudBatteries(state)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(batteryText(state), style = TextStyle(fontSize = 26.sp, fontWeight = FontWeight.Bold, color = GlanceTheme.colors.onSurface))
-                    Spacer(GlanceModifier.width(8.dp))
-                    Text(state.currentMode?.name ?: "—", style = title())
+                    // Earbuds: "L 64% · R 71%" is too wide for the big figure; it takes the whole line.
+                    Text(
+                        batteryText(state),
+                        style = TextStyle(fontSize = if (buds) 18.sp else 26.sp, fontWeight = FontWeight.Bold, color = GlanceTheme.colors.onSurface),
+                        maxLines = 1,
+                    )
+                    if (!buds) {
+                        Spacer(GlanceModifier.width(8.dp))
+                        Text(secondaryLine(state), style = title(), maxLines = 1)
+                    }
                 }
+                if (buds) Text(secondaryLine(state), style = body(), maxLines = 1)
                 Spacer(GlanceModifier.height(6.dp))
                 BatteryBar(state)
             }
@@ -115,14 +124,24 @@ class EarshotWidget : GlanceAppWidget() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = GlanceModifier.defaultWeight()) {
-                Text(state.connection.deviceName ?: "Earshot", style = title(), maxLines = 1)
+                Text(HeadphoneLabels.displayName(state) ?: "Earshot", style = title(), maxLines = 1)
                 Text(
-                    if (state.isConnected) "${state.currentMode?.name ?: "—"} · EQ ${s.eqPresetName ?: "flat"}" else statusLine(state),
+                    if (state.isConnected) {
+                        listOfNotNull(
+                            secondaryLine(state).takeIf { state.capabilities.listeningModes },
+                            "EQ ${s.eqPresetName ?: "flat"}",
+                            HeadphoneLabels.caseShort(state.battery?.case),
+                        ).joinToString(" · ")
+                    } else statusLine(state),
                     style = body(), maxLines = 1,
                 )
             }
             if (state.isConnected) {
-                Text(batteryText(state), style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = GlanceTheme.colors.primary))
+                Text(
+                    batteryText(state),
+                    style = TextStyle(fontSize = if (HeadphoneLabels.hasBudBatteries(state)) 18.sp else 24.sp, fontWeight = FontWeight.Bold, color = GlanceTheme.colors.primary),
+                    maxLines = 1,
+                )
             }
         }
         Spacer(GlanceModifier.height(8.dp))
@@ -132,20 +151,24 @@ class EarshotWidget : GlanceAppWidget() {
             Button(text = if (state.connection.status == ConnectionStatus.CONNECTING) "Connecting…" else "Connect",
                 onClick = actionRunCallback<ConnectAction>(), modifier = GlanceModifier.fillMaxWidth(),
                 enabled = state.connection.status != ConnectionStatus.CONNECTING)
-        } else {
+        } else if (state.capabilities.listeningModes) {
             ModeButtons(state, s.cycle)
         }
     }
 
     @Composable
     private fun ModeButtons(state: HeadphoneState, cycle: List<Int>) {
-        val slots = TileCycle.order(cycle, state.modes).take(3)
+        // Only slots with a real name: a "Mode 5" button (or a QC Ultra preset name on another
+        // model) would switch to something the user can't recognise.
+        val slots = TileCycle.order(cycle, state.modes)
+            .mapNotNull { index -> HeadphoneLabels.modeName(state, index)?.let { index to it } }
+            .take(3)
         Row(modifier = GlanceModifier.fillMaxWidth()) {
-            slots.forEachIndexed { i, index ->
+            slots.forEachIndexed { i, (index, name) ->
                 if (i > 0) Spacer(GlanceModifier.width(6.dp))
                 val selected = state.currentModeIndex == index
                 Button(
-                    text = modeName(state, index),
+                    text = name,
                     onClick = actionRunCallback<SetModeAction>(actionParametersOf(SetModeAction.MODE_INDEX to index)),
                     modifier = GlanceModifier.defaultWeight(),
                     enabled = !state.isBusy,
@@ -177,8 +200,15 @@ class EarshotWidget : GlanceAppWidget() {
     @Composable private fun title() = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = GlanceTheme.colors.onSurface)
     @Composable private fun body() = TextStyle(fontSize = 12.sp, color = GlanceTheme.colors.onSurfaceVariant)
 
+    /** "72%" (headphones) or "L 64% · R 71%" (earbuds), with a bolt while charging. */
     private fun batteryText(state: HeadphoneState): String =
-        state.batteryPercent?.let { "$it%" + if (state.isCharging == true) "⚡" else "" } ?: "—"
+        HeadphoneLabels.batteryShort(state)?.let { it + if (state.isCharging == true) " ⚡" else "" } ?: "—"
+
+    /** The current mode, or for a model without modes its name, so the line is never a dash. */
+    private fun secondaryLine(state: HeadphoneState): String = when {
+        !state.capabilities.listeningModes -> HeadphoneLabels.displayName(state) ?: "Connected"
+        else -> state.currentMode?.name?.takeIf { it.isNotBlank() } ?: "—"
+    }
 
     private fun statusLine(state: HeadphoneState): String = when (state.connection.status) {
         ConnectionStatus.CONNECTING -> "Connecting…"
@@ -186,10 +216,6 @@ class EarshotWidget : GlanceAppWidget() {
         ConnectionStatus.NO_PAIRED_DEVICE -> "No Bose headphones paired"
         else -> "Disconnected"
     }
-
-    private fun modeName(state: HeadphoneState, index: Int): String =
-        state.modes.firstOrNull { it.index == index }?.name?.takeIf { it.isNotBlank() }
-            ?: ListeningMode.PRESET_NAMES.getOrNull(index) ?: "Mode $index"
 
     companion object {
         val COMPACT = DpSize(110.dp, 50.dp)

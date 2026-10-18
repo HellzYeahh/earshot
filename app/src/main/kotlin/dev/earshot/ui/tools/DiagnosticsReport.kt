@@ -1,10 +1,12 @@
 package dev.earshot.ui.tools
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.os.Build
 import dev.earshot.appContainer
+import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.LogRing
 import dev.earshot.core.HeadphoneState
 
@@ -32,6 +34,7 @@ object DiagnosticsReport {
             appendLine("Headphone type setting: ${family ?: "automatic"}")
             appendLine("Learned link: ${profile ?: "-"} / Bose channel ${channel ?: "-"}")
             appendLine("Connection: ${state.connection.status} ${state.connection.message ?: ""}".trim())
+            saved?.address?.let { appendLeAudio(context, it) }
             appendModel(state)
             appendLine()
             appendLine("Bluetooth services the phone knows for the headphones:")
@@ -41,6 +44,31 @@ object DiagnosticsReport {
             appendLine("Recent log:")
             LogRing.tail(150).forEach { appendLine(it) }
         }
+    }
+
+    /**
+     * Earbuds on LE Audio show up as a second "LE-…" device (0.3.1 report: Earshot waited for a
+     * link that was there). List the device type, its twin and whether LE Audio is up.
+     */
+    @SuppressLint("MissingPermission")
+    private suspend fun StringBuilder.appendLeAudio(context: Context, address: String) {
+        val finder = DeviceFinder(context.applicationContext, context.applicationContext.appContainer.devicePrefs)
+        val device = finder.deviceFor(address)
+        appendLine("Device type: ${device?.let { typeName(finder.typeOf(it)) } ?: "not bonded"}")
+        val twins = finder.twinsOf(address)
+        if (twins.isEmpty()) appendLine("LE Audio twin: none")
+        twins.forEach { twin ->
+            val name = runCatching { twin.name }.getOrNull()
+            appendLine("LE Audio twin: $name ${twin.address} (${typeName(finder.typeOf(twin))})")
+        }
+        appendLine("Linked for audio: ${finder.isAudioConnected(address) ?: "unknown"}, over LE Audio: ${finder.isLeAudioConnected(address)}")
+    }
+
+    private fun typeName(type: Int): String = when (type) {
+        BluetoothDevice.DEVICE_TYPE_CLASSIC -> "classic"
+        BluetoothDevice.DEVICE_TYPE_LE -> "LE only"
+        BluetoothDevice.DEVICE_TYPE_DUAL -> "dual"
+        else -> "unknown"
     }
 
     private fun StringBuilder.appendModel(state: HeadphoneState) {

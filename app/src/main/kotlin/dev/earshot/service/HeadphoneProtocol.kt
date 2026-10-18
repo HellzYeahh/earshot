@@ -73,6 +73,8 @@ interface HeadphoneProtocol {
     suspend fun setLeAudioEnabled(c: BmapRequester, current: HeadphoneState, enabled: Boolean): HeadphoneState = notSupported()
     suspend fun setLatencyMs(c: BmapRequester, current: HeadphoneState, ms: Int): HeadphoneState = notSupported()
     suspend fun setTouchControls(c: BmapRequester, current: HeadphoneState, enabled: Boolean): HeadphoneState = notSupported()
+    /** `[1.4]` auto-off minutes, 0 = never (choices: [dev.earshot.protocol.qcultra2.AutoOffOptions]). */
+    suspend fun setAutoOff(c: BmapRequester, current: HeadphoneState, minutes: Int): HeadphoneState = notSupported()
     suspend fun setVolume(c: BmapRequester, current: HeadphoneState, level: Int): HeadphoneState = notSupported()
     suspend fun transport(c: BmapRequester, current: HeadphoneState, control: TransportControl): HeadphoneState = notSupported()
     /** Lab console; returns text, never touches state. */

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -182,7 +183,9 @@ fun NavRow(
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 8.dp),
+                // Capped so a long value (a renamed "Virtual Crusher 1080 (demo)") ellipsizes
+                // instead of squeezing the title into a narrow wrapped column.
+                modifier = Modifier.padding(start = 8.dp).widthIn(max = 120.dp),
             )
         }
         Icon(

@@ -3,6 +3,7 @@ package dev.earshot.ui.home
 import androidx.lifecycle.viewModelScope
 import dev.earshot.R
 import dev.earshot.core.ButtonPress
+import dev.earshot.core.HeadphoneCandidate
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.NoiseSettings
@@ -41,6 +42,12 @@ class HomeViewModel(
 
     fun connect() = headphones.connect()
     fun refresh() = launchCatching { headphones.refresh() }
+
+    /** The header's device switcher: remember [address] as the headphones and connect to it. */
+    fun chooseDevice(address: String, name: String?) = launchCatching { headphones.chooseDevice(address, name) }
+
+    /** Bonded devices for the switcher; an empty list (not an error) when Bluetooth can't be read. */
+    suspend fun candidates(): List<HeadphoneCandidate> = runCatching { headphones.deviceCandidates() }.getOrDefault(emptyList())
     fun setMode(index: Int) = launchCatching { headphones.setMode(index) }
 
     /** Skullcandy Crusher haptic bass; whatever is null stays as it is on the headphones. */

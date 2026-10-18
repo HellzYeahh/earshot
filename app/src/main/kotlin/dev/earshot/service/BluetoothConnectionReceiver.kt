@@ -37,7 +37,8 @@ class BluetoothConnectionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val address = when (intent.action) {
             BluetoothDevice.ACTION_ACL_CONNECTED -> DeviceFinder.deviceAddressFrom(intent)
-            BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED ->
+            // LE Audio links up without A2DP (earbuds on LE Audio only): its own profile broadcast.
+            BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED, DeviceFinder.ACTION_LE_AUDIO_CONNECTION_STATE_CHANGED ->
                 if (DeviceFinder.isProfileConnected(intent)) DeviceFinder.deviceAddressFrom(intent) else null
             else -> null
         } ?: return

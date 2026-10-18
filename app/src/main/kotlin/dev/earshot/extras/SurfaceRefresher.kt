@@ -2,6 +2,7 @@ package dev.earshot.extras
 
 import android.content.Context
 import dev.earshot.core.AudioTuningRepository
+import dev.earshot.core.BatteryDetail
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.extras.tile.ModeTileService
@@ -35,7 +36,7 @@ class SurfaceRefresher(
         if (job?.isActive == true) return
         job = scope.launch {
             combine(
-                headphones.state.map { Key(it.isConnected, it.connection.status, it.batteryPercent, it.isCharging, it.currentModeIndex, it.modes.size, it.isBusy) },
+                headphones.state.map { Key(it.isConnected, it.connection.status, it.batteryPercent, it.battery, it.isCharging, it.currentModeIndex, it.modes.size, it.isBusy, it.capabilities.listeningModes) },
                 tuning.state.map { it.activePreset?.id },
             ) { a, b -> a to b }
                 .distinctUntilChanged()
@@ -52,8 +53,8 @@ class SurfaceRefresher(
     fun stop() { job?.cancel(); job = null }
 
     private data class Key(
-        val connected: Boolean, val status: ConnectionStatus, val battery: Int?,
-        val charging: Boolean?, val mode: Int?, val modeCount: Int, val busy: Boolean,
+        val connected: Boolean, val status: ConnectionStatus, val battery: Int?, val batteryDetail: BatteryDetail?,
+        val charging: Boolean?, val mode: Int?, val modeCount: Int, val busy: Boolean, val hasModes: Boolean,
     )
 
     private companion object { const val THROTTLE_MILLIS = 2_000L }

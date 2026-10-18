@@ -32,9 +32,22 @@ sealed interface BmapCandidate {
         override fun toString(): String = "SDP BMAP"
     }
 
+    /**
+     * BMAP over an LE L2CAP channel, for headphones the phone reaches over LE Audio only (the
+     * "LE-Bose …" device). Opened on the LE identity, not the classic address; see [BmapPsmReader].
+     */
+    data object LeCoc : BmapCandidate {
+        override val prefValue: Int get() = PREF_LE_COC
+        override fun toString(): String = "LE CoC"
+    }
+
+    /** True for the candidates that open an RFCOMM socket on the classic (BR/EDR) device. */
+    val isClassic: Boolean get() = this !is LeCoc
+
     companion object {
         const val PREF_SDP_SPP = -1
         const val PREF_SDP_BMAP = -2
+        const val PREF_LE_COC = -3
 
         /** RFCOMM server channels are 1..30. */
         val VALID_CHANNELS = 1..30
@@ -43,6 +56,7 @@ sealed interface BmapCandidate {
             null -> null
             PREF_SDP_SPP -> SdpSpp
             PREF_SDP_BMAP -> SdpBmap
+            PREF_LE_COC -> LeCoc
             in VALID_CHANNELS -> Channel(value)
             else -> null
         }
@@ -58,20 +72,35 @@ object BmapCandidates {
     val PROBED_CHANNELS: List<Int> = listOf(2, 8, 9)
 
     /**
-     * Learned winner first (reconnects go straight to it), then the model's channel guessed from the
+     * Learned winner first within its transport (reconnects go straight to it), then the model's channel guessed from the
      * Bluetooth name, then 2 / 8 / 9, then the two SDP lookups (the durable fix bosectl's maintainer
      * recommends, last because each costs an SDP query and MIUI resolves the Bose UUID to the beacon).
      * Duplicates and impossible channels are dropped; a stale learned channel simply fails its probe
      * and the next candidate is tried.
+     *
+     * LE Audio: [hasClassic] / [hasLe] say whether a classic device and an LE identity are there to
+     * open (the picked device or its twin, see [LeAudioTwins]). The LE channel goes first when
+     * [preferLe] (the phone is on LE Audio, or the user picked the "LE-" device), else last; the
+     * RFCOMM candidates are dropped when there is no classic device at all.
      */
-    fun order(learned: BmapCandidate?, guessedChannel: Int?): List<BmapCandidate> {
-        val all = buildList {
-            learned?.let { add(it) }
+    fun order(
+        learned: BmapCandidate?,
+        guessedChannel: Int?,
+        hasClassic: Boolean = true,
+        hasLe: Boolean = false,
+        preferLe: Boolean = false,
+    ): List<BmapCandidate> {
+        // The learned winner leads its own group; which group goes first is the transport the phone
+        // is on now, so a classic channel learned last week does not delay an LE Audio connect.
+        val classic = buildList {
+            learned?.takeIf { it.isClassic }?.let { add(it) }
             guessedChannel?.let { add(BmapCandidate.Channel(it)) }
             PROBED_CHANNELS.forEach { add(BmapCandidate.Channel(it)) }
             add(BmapCandidate.SdpSpp)
             add(BmapCandidate.SdpBmap)
-        }
+        }.takeIf { hasClassic }.orEmpty()
+        val le = listOf(BmapCandidate.LeCoc).takeIf { hasLe }.orEmpty()
+        val all = if (preferLe) le + classic else classic + le
         return all.filter { it !is BmapCandidate.Channel || it.number in BmapCandidate.VALID_CHANNELS }.distinct()
     }
 }

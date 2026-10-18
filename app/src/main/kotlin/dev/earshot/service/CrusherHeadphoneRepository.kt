@@ -84,7 +84,7 @@ class CrusherHeadphoneRepository(
         appContext, deviceFinder, devicePrefs, scope, BragiLinkFactory(),
         autoConnect = autoConnect,
         demoTransport = demoTransport,
-        demoName = DEMO_NAME,
+        demoName = { DEMO_NAME },
     )
 
     private val _state = MutableStateFlow(HeadphoneState())

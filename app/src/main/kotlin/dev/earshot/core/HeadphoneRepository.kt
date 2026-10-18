@@ -101,6 +101,9 @@ interface HeadphoneRepository {
     /** Turn the touch controls on or off (`[1.34]` DisableCaptouch, inverted). */
     suspend fun setTouchControls(enabled: Boolean): Unit = unsupported()
 
+    /** `[1.4]` auto-off timer in minutes (0 = never). Only offered when [HeadphoneState.autoOffMinutes] is non-null. */
+    suspend fun setAutoOff(minutes: Int): Unit = unsupported()
+
     /** Absolute headphone volume 0..[HeadphoneState.volumeMax] (`[5.5]` SET_GET). Untested on hardware. */
     suspend fun setVolume(level: Int): Unit = unsupported()
 

@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -119,7 +120,8 @@ fun ConnectionContent(
         ) {
             AnimatedVisibility(visible = restarting) { RestartingBanner() }
             if (!state.isConnected && !restarting) InfoBanner(stringResource(R.string.settings_not_connected))
-            LeAudioCard(state, enabled, onSetLeAudio)
+            // The LE Audio switch is a Bose BMAP function; the Crusher (state.crusher) has none.
+            if (state.crusher == null) LeAudioCard(state, enabled, onSetLeAudio)
             SectionCard {
                 NavRow(
                     title = stringResource(R.string.conn_codec_row),
@@ -164,6 +166,8 @@ private fun RestartingBanner() {
 private fun LeAudioCard(state: HeadphoneState, enabled: Boolean, onSetLeAudio: (Boolean) -> Unit) {
     var pending by rememberSaveable { mutableStateOf<Boolean?>(null) }
     val supported = state.leAudioSupported
+    val context = LocalContext.current
+    val phone = remember(context) { PhoneLeAudio.support(context) }
     SectionCard(title = stringResource(R.string.conn_le_audio)) {
         StatusLine(
             text = when (supported) {
@@ -178,14 +182,33 @@ private fun LeAudioCard(state: HeadphoneState, enabled: Boolean, onSetLeAudio: (
             },
             positive = supported == true,
         )
+        StatusLine(
+            text = stringResource(
+                when (phone) {
+                    true -> R.string.conn_le_phone_supported
+                    false -> R.string.conn_le_phone_not_supported
+                    null -> R.string.conn_le_phone_unknown
+                },
+            ),
+            icon = when (phone) {
+                true -> Icons.Default.CheckCircle
+                false -> Icons.Outlined.Cancel
+                null -> Icons.Default.HelpOutline
+            },
+            positive = phone == true,
+        )
         StatusLine(text = preferenceLabel(state.lePreference), icon = Icons.Default.HelpOutline, positive = state.lePreference?.preferred == true)
+        // Always usable while connected: on headphones that report no support (or no readable
+        // switch) the write is still offered, behind a caution dialog. Firmware without LE Audio
+        // refuses or ignores it and the result check after the restart says so.
+        val risks = leAudioRisks(supported, state.leAudioEnabled != null, phone)
         SwitchRow(
             title = stringResource(R.string.conn_le_enabled_switch),
-            subtitle = stringResource(R.string.conn_le_enabled_subtitle),
+            subtitle = stringResource(if (risks.isEmpty()) R.string.conn_le_enabled_subtitle else R.string.conn_le_enabled_subtitle_risky),
             checked = state.leAudioEnabled ?: false,
             // The switch asks first: the headphones reboot, so an accidental flick costs ~20 s of silence.
             onCheckedChange = { pending = it },
-            enabled = enabled && supported == true && state.leAudioEnabled != null,
+            enabled = enabled,
         )
         if (state.pairedDevices.isNotEmpty()) {
             Text(
@@ -199,14 +222,35 @@ private fun LeAudioCard(state: HeadphoneState, enabled: Boolean, onSetLeAudio: (
     }
     val target = pending
     if (target != null) {
-        ConfirmDialog(
-            title = stringResource(R.string.conn_le_confirm_title, stringResource(if (target) R.string.conn_on else R.string.conn_off)),
-            text = stringResource(R.string.conn_le_confirm_body),
-            confirmLabel = stringResource(R.string.conn_le_confirm_action),
-            onConfirm = { onSetLeAudio(target) },
-            onDismiss = { pending = null },
-        )
+        val risks = leAudioRisks(supported, state.leAudioEnabled != null, phone)
+        if (risks.isEmpty()) {
+            ConfirmDialog(
+                title = stringResource(R.string.conn_le_confirm_title, stringResource(if (target) R.string.conn_on else R.string.conn_off)),
+                text = stringResource(R.string.conn_le_confirm_body),
+                confirmLabel = stringResource(R.string.conn_le_confirm_action),
+                onConfirm = { onSetLeAudio(target) },
+                onDismiss = { pending = null },
+            )
+        } else {
+            // map is inline, so stringResource may be called in it (joinToString's lambda is not).
+            val reasons = risks.map { "• " + stringResource(it) }.joinToString("\n")
+            ConfirmDialog(
+                title = stringResource(R.string.conn_le_risky_title),
+                text = stringResource(R.string.conn_le_risky_body, reasons),
+                confirmLabel = stringResource(R.string.conn_le_risky_action),
+                onConfirm = { onSetLeAudio(target) },
+                onDismiss = { pending = null },
+                destructive = true,
+            )
+        }
     }
+}
+
+/** Why switching LE Audio may not work here, as string resources; empty when nothing speaks against it. */
+private fun leAudioRisks(headphonesSupport: Boolean?, switchReadable: Boolean, phoneSupport: Boolean?): List<Int> = buildList {
+    if (headphonesSupport == false) add(R.string.conn_le_reason_headphones)
+    if (!switchReadable) add(R.string.conn_le_reason_no_switch)
+    if (phoneSupport == false) add(R.string.conn_le_reason_phone)
 }
 
 @Composable

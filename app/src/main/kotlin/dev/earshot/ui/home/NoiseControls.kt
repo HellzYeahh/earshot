@@ -1,9 +1,7 @@
 package dev.earshot.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -77,22 +75,20 @@ fun NoiseControls(
             )
         }
         if (compact) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (capabilities.ancToggle) SwitchRow(
-                    title = stringResource(R.string.noise_anc),
-                    checked = settings.ancEnabled,
-                    enabled = enabled,
-                    onCheckedChange = { onChange(settings.copy(ancEnabled = it)) },
-                    modifier = Modifier.weight(1f),
-                )
-                if (capabilities.windBlock) SwitchRow(
-                    title = stringResource(R.string.noise_wind_block),
-                    checked = settings.windBlock,
-                    enabled = enabled,
-                    onCheckedChange = { onChange(settings.copy(windBlock = it)) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            // One switch per row. Side by side (weight 1f each) left the "Noise cancelling" label
+            // about 60 dp at phone width, and it wrapped letter by letter next to Wind Block.
+            if (capabilities.ancToggle) SwitchRow(
+                title = stringResource(R.string.noise_anc),
+                checked = settings.ancEnabled,
+                enabled = enabled,
+                onCheckedChange = { onChange(settings.copy(ancEnabled = it)) },
+            )
+            if (capabilities.windBlock) SwitchRow(
+                title = stringResource(R.string.noise_wind_block),
+                checked = settings.windBlock,
+                enabled = enabled,
+                onCheckedChange = { onChange(settings.copy(windBlock = it)) },
+            )
         } else {
             if (capabilities.ancToggle) SwitchRow(
                 title = stringResource(R.string.noise_anc),

@@ -3,6 +3,8 @@ package dev.earshot.bt
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
+import android.bluetooth.BluetoothSocketSettings
+import android.os.Build
 import dev.earshot.protocol.BmapOperator
 import dev.earshot.protocol.BmapPacket
 import dev.earshot.protocol.toHex
@@ -33,6 +35,7 @@ import kotlin.concurrent.thread
  *    the QC Ultra 2 family, 8 on the QC45, and 8 *or* 9 on the QC Headphones (bosectl #22/#26).
  *  - the SPP UUID through SDP: the public API, and what resolves prince to its own 8 or 9.
  *  - Bose's own BMAP UUID through SDP: last resort, same SDP caveat.
+ *  - an LE L2CAP channel ([connectLeCoc]) when the phone reaches the headphones over LE Audio only.
  * Whichever opens still has to pass the strict [LivenessProbe] before it counts.
  *
  * Reading is done by a dedicated thread blocked in `read()`. The alternative, polling
@@ -46,6 +49,8 @@ class RfcommTransport private constructor(
     val strategy: String,
     /** The RFCOMM channel when a reflection strategy opened it; null when SDP chose. */
     val channel: Int?,
+    /** Extra cleanup when the socket closes: the GATT client of an LE channel ([connectLeCoc]). */
+    private val onClose: (() -> Unit)? = null,
 ) : ByteTransport {
 
     private val input = socket.inputStream
@@ -77,6 +82,7 @@ class RfcommTransport private constructor(
         // Closing the socket is what unblocks the reader thread's read().
         runCatching { socket.close() }
         chunks.close()
+        onClose?.let { runCatching(it) }
     }
 
     private fun startReader() {
@@ -194,6 +200,8 @@ class RfcommTransport private constructor(
             is BmapCandidate.Channel -> reflection(candidate.number, checkGreeting = false)
             BmapCandidate.SdpSpp -> Strategy("SDP SPP", checkGreeting = true) { it.createInsecureRfcommSocketToServiceRecord(SPP_UUID) }
             BmapCandidate.SdpBmap -> Strategy("SDP BMAP", checkGreeting = true) { it.createInsecureRfcommSocketToServiceRecord(BMAP_UUID) }
+            // Needs a GATT lookup first: BoseLinkFactory opens it through connectLeCoc.
+            BmapCandidate.LeCoc -> throw IllegalArgumentException("the LE channel is not an RFCOMM candidate")
         }
 
         /**
@@ -205,6 +213,44 @@ class RfcommTransport private constructor(
          */
         suspend fun connectCandidate(device: BluetoothDevice, candidate: BmapCandidate): RfcommTransport =
             open(device, listOf(strategy(candidate)))
+
+        /**
+         * BMAP over an LE L2CAP connection-oriented channel on [psm] (read by [BmapPsmReader]), for
+         * headphones the phone reaches over LE Audio only. Same frames as RFCOMM. The Bose app opens
+         * it insecure, and on API 36+ through socket settings that require encryption (the LE Audio
+         * link is bonded and encrypted already); the secure variant is the last try. [onClose] runs
+         * when the socket closes, or right away if nothing opens.
+         */
+        @SuppressLint("MissingPermission")
+        suspend fun connectLeCoc(device: BluetoothDevice, psm: Int, onClose: () -> Unit): RfcommTransport {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                onClose()
+                throw RfcommConnectException("Controlling headphones over LE Audio needs Android 10 or newer", looksBusy = false)
+            }
+            val name = "LE CoC psm 0x%02x".format(psm)
+            val strategies = buildList {
+                if (Build.VERSION.SDK_INT >= 36) {
+                    add(Strategy("$name (encrypted)", checkGreeting = false) { d ->
+                        d.createUsingSocketSettings(
+                            BluetoothSocketSettings.Builder()
+                                .setSocketType(BluetoothSocket.TYPE_LE)
+                                .setL2capPsm(psm)
+                                .setEncryptionRequired(true)
+                                .setAuthenticationRequired(false)
+                                .build(),
+                        )
+                    })
+                }
+                add(Strategy(name, checkGreeting = false) { it.createInsecureL2capChannel(psm) })
+                add(Strategy("$name (secure)", checkGreeting = false) { it.createL2capChannel(psm) })
+            }
+            return try {
+                open(device, strategies, onClose)
+            } catch (t: Throwable) {
+                onClose()
+                throw t
+            }
+        }
 
         /**
          * Open an RFCOMM socket to a service by UUID (channel resolved by SDP), as the Skullcandy
@@ -222,7 +268,7 @@ class RfcommTransport private constructor(
         )
 
         @SuppressLint("MissingPermission")
-        private suspend fun open(device: BluetoothDevice, strategies: List<Strategy>): RfcommTransport {
+        private suspend fun open(device: BluetoothDevice, strategies: List<Strategy>, onClose: (() -> Unit)? = null): RfcommTransport {
             // No cancelDiscovery() here: on API 31+ it (and isDiscovering) needs BLUETOOTH_SCAN,
             // which Earshot does not request; we never start discovery ourselves anyway.
             val failures = ArrayList<String>()
@@ -248,7 +294,7 @@ class RfcommTransport private constructor(
                         if (!socket.isConnected) throw e
                         BtLog.w("${strategy.name}: SecurityException after connect, socket is up; continuing")
                     }
-                    val transport = RfcommTransport(socket, strategy.name, strategy.channel)
+                    val transport = RfcommTransport(socket, strategy.name, strategy.channel, onClose)
                     val greeting = if (strategy.drainGreeting) transport.drainGreeting() else null
                     if (strategy.checkGreeting && greeting != null && !looksLikeBmap(greeting)) {
                         // SDP sent us to another channel: channel 14 beacons `ff55...`, channel 22

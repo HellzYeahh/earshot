@@ -61,6 +61,7 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
         return bonded
             .map { it.toCandidate(saved) }
             .filter { it.looksLikeBose || it.isAudioDevice || it.isSaved }
+            .let(::mergeLeTwins)
             .sortedWith(compareByDescending<DeviceCandidate> { it.isSaved }
                 .thenByDescending { it.looksLikeBose }
                 .thenByDescending { it.isAudioDevice }
@@ -87,6 +88,20 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
         return FindResult.Found(device, pick)
     }
 
+    /**
+     * One entry per pair of headphones: an "LE-Bose …" identity is dropped when its classic twin
+     * is listed too (the link factory reaches the LE side through the twin), unless the LE one is
+     * the saved device. The user never sees the same earbuds twice in the picker.
+     */
+    private fun mergeLeTwins(list: List<DeviceCandidate>): List<DeviceCandidate> {
+        val names = list.associate { it.address to it.name }
+        return list.filter { c ->
+            if (!LeAudioTwins.isLeName(c.name) || c.isSaved) return@filter true
+            // Keep the LE identity only when its classic twin is not in the list.
+            LeAudioTwins.twinsOf(c.address, names).none { twin -> list.any { it.address.equals(twin, ignoreCase = true) } }
+        }
+    }
+
     /** The bonded device with [address], or null if it is not bonded (any more). */
     @SuppressLint("MissingPermission")
     fun deviceFor(address: String): BluetoothDevice? {
@@ -100,31 +115,71 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
     }
 
     /**
-     * Is the headset currently connected to the phone for audio (A2DP or HFP)? Used to decide
-     * whether a failed RFCOMM connect is worth retrying: if the headphones are not even linked,
-     * retrying is pointless and we wait for ACL_CONNECTED instead. Returns null when the profile
-     * proxy could not be queried in time (treat as unknown, i.e. keep trying).
+     * Is the headset currently connected to the phone for audio (A2DP, HFP or LE Audio, on this
+     * address or its LE / classic twin)? Used to decide whether a failed connect is worth
+     * retrying: if the headphones are not even linked, retrying is pointless and we wait for
+     * ACL_CONNECTED instead. Returns null when no profile proxy could be queried in time (treat
+     * as unknown, i.e. keep trying).
+     *
+     * LE Audio counts since 0.4.0: earbuds on LE Audio only have no A2DP/HFP link, so they were
+     * reported as "not connected" and the loop parked for good.
      */
     @SuppressLint("MissingPermission")
     suspend fun isAudioConnected(address: String): Boolean? {
         if (!hasConnectPermission()) return null
         val adapter = adapter ?: return false
         if (!adapter.isEnabled) return false
-        val a2dp = connectedViaProfile(adapter, BluetoothProfile.A2DP, address)
-        if (a2dp == true) return true
-        val hfp = connectedViaProfile(adapter, BluetoothProfile.HEADSET, address)
-        if (hfp == true) return true
-        return if (a2dp == null && hfp == null) null else false
+        val addresses = setOf(address.uppercase()) + twinsOf(address).map { it.address.uppercase() }
+        val profiles = audioProfiles()
+        var unknown = 0
+        for (profile in profiles) {
+            when (connectedViaProfile(adapter, profile, addresses)) {
+                true -> return true
+                null -> unknown++
+                false -> Unit
+            }
+        }
+        return if (unknown == profiles.size) null else false
+    }
+
+    /** True when the phone is on LE Audio with [address] or its twin right now: the LE channel is then tried first. */
+    @SuppressLint("MissingPermission")
+    suspend fun isLeAudioConnected(address: String): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !hasConnectPermission()) return false
+        val adapter = adapter ?: return false
+        val addresses = setOf(address.uppercase()) + twinsOf(address).map { it.address.uppercase() }
+        return connectedViaProfile(adapter, LE_AUDIO_PROFILE, addresses) == true
+    }
+
+    /** The other half of an LE Audio / classic pair for [address] among the bonded devices (see [LeAudioTwins]). */
+    @SuppressLint("MissingPermission")
+    fun twinsOf(address: String): List<BluetoothDevice> {
+        val adapter = adapter ?: return emptyList()
+        if (!hasConnectPermission()) return emptyList()
+        val bonded = try { adapter.bondedDevices.orEmpty() } catch (e: SecurityException) { return emptyList() }
+        val names = bonded.associate { it.address to (try { it.name } catch (e: SecurityException) { null }) }
+        val twins = LeAudioTwins.twinsOf(address, names)
+        return bonded.filter { d -> twins.any { it.equals(d.address, ignoreCase = true) } }
+    }
+
+    /** `BluetoothDevice.getType()`, or UNKNOWN when it cannot be read. */
+    @SuppressLint("MissingPermission")
+    fun typeOf(device: BluetoothDevice): Int = try { device.type } catch (e: SecurityException) { BluetoothDevice.DEVICE_TYPE_UNKNOWN }
+
+    private fun audioProfiles(): List<Int> = buildList {
+        add(BluetoothProfile.A2DP)
+        add(BluetoothProfile.HEADSET)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(LE_AUDIO_PROFILE)
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun connectedViaProfile(adapter: BluetoothAdapter, profile: Int, address: String): Boolean? =
+    private suspend fun connectedViaProfile(adapter: BluetoothAdapter, profile: Int, addresses: Set<String>): Boolean? =
         withTimeoutOrNull(PROFILE_PROXY_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->
                 val listener = object : BluetoothProfile.ServiceListener {
                     override fun onServiceConnected(p: Int, proxy: BluetoothProfile) {
                         val result = try {
-                            proxy.connectedDevices.any { it.address.equals(address, ignoreCase = true) }
+                            proxy.connectedDevices.any { it.address.uppercase() in addresses }
                         } catch (e: SecurityException) {
                             null
                         }
@@ -160,6 +215,12 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
 
     companion object {
         private const val PROFILE_PROXY_TIMEOUT_MS = 1_500L
+
+        /** `BluetoothProfile.LE_AUDIO` (API 33); a literal so the constant is not inlined from a newer SDK unguarded. */
+        private const val LE_AUDIO_PROFILE = 22
+
+        /** `BluetoothLeAudio.ACTION_LE_AUDIO_CONNECTION_STATE_CHANGED` (API 33). */
+        const val ACTION_LE_AUDIO_CONNECTION_STATE_CHANGED = "android.bluetooth.action.LE_AUDIO_CONNECTION_STATE_CHANGED"
 
         /**
          * The headphones advertise as "Bose QC Ultra Headphones" unless renamed in the Bose app; the

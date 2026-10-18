@@ -35,6 +35,7 @@ import dev.earshot.protocol.qcultra2.ButtonId
 import dev.earshot.protocol.qcultra2.Buttons
 import dev.earshot.protocol.qcultra2.ChargerDetect
 import dev.earshot.protocol.qcultra2.Cnc
+import dev.earshot.protocol.qcultra2.CncState
 import dev.earshot.protocol.qcultra2.CurrentMode
 import dev.earshot.protocol.qcultra2.CustomName
 import dev.earshot.protocol.qcultra2.DeviceExtendedInfoQuery
@@ -53,6 +54,7 @@ import dev.earshot.protocol.qcultra2.ModeConfigs
 import dev.earshot.protocol.qcultra2.ModeLayout
 import dev.earshot.protocol.qcultra2.ModePrompt
 import dev.earshot.protocol.qcultra2.ModeReset
+import dev.earshot.protocol.qcultra2.ModesCapabilities
 import dev.earshot.protocol.qcultra2.Multipoint
 import dev.earshot.protocol.qcultra2.Notifications
 import dev.earshot.protocol.qcultra2.PairedDeviceList
@@ -63,6 +65,7 @@ import dev.earshot.protocol.qcultra2.ProductInfo
 import dev.earshot.protocol.qcultra2.QcUltra2
 import dev.earshot.protocol.qcultra2.Replies
 import dev.earshot.protocol.qcultra2.Routing
+import dev.earshot.protocol.qcultra2.StandbyTimer
 import dev.earshot.protocol.qcultra2.Toggle
 import dev.earshot.protocol.qcultra2.TouchControls
 import dev.earshot.protocol.qcultra2.Volume
@@ -109,17 +112,26 @@ class QcUltra2Protocol(
     private val clock: () -> Long = System::currentTimeMillis,
 ) : HeadphoneProtocol {
 
-    /** The connected model; QC Ultra 2 until `[0.3]` says otherwise. One connection at a time. */
+    /**
+     * What this connection learned: the catalogue entry (QC Ultra 2 until `[0.3]` says otherwise)
+     * corrected by `[31.2]`, the `[31.6]` STATUS length, `[31.8]` and `[1.5]`. One connection at a time.
+     */
     @Volatile
-    private var model: BoseModel = BoseModel.DEFAULT
+    private var facts = ConnectionFacts()
 
-    /** Mode slot total: `[31.8]` byte 0 when read, else the model's default. */
-    @Volatile
-    private var slotCount: Int = BoseModel.DEFAULT.slotCount
+    /** The connected model's catalogue entry. */
+    private val model: BoseModel get() = facts.model
 
-    /** `[31.6]` layout of the last dump; beats the model's (a guess on unverified models). */
+    /** `[31.2]` was asked on this connection (it does not change while connected). */
     @Volatile
-    private var seenLayout: ModeLayout? = null
+    private var modesCapabilitiesRead = false
+
+    /** `[1.5]` SET_GET was refused on this connection: the level is read-only (or goes through the slots). */
+    @Volatile
+    private var directCncRefused = false
+
+    /** The last full STATUS per slot, so a rewrite keeps the slot's own prompt and name bytes. */
+    private val slotConfigs = ConcurrentHashMap<Int, ModeConfig>()
 
     /** True once [detectModel] ran on this connection; the product id cannot change mid-session. */
     @Volatile
@@ -146,10 +158,41 @@ class QcUltra2Protocol(
     private val modesAvailable: Boolean get() = blockAvailable(AUDIO_MODES_BLOCK)
 
     /** `[31.10]` can be read and written on this connection. */
-    private val liveAudio: Boolean get() = model.hasLiveAudioSettings && !audioSettingsAbsent && modesAvailable
+    private val liveAudio: Boolean
+        get() = model.hasLiveAudioSettings && !audioSettingsAbsent && modesAvailable && !model.isUnsupported
+
+    /**
+     * `[1.5]` SET_GET is the way to change the level (docs/bose-models.md §E2): a model catalogued
+     * for it (QC Earbuds 2020, NC 700) or any unit without listening modes, as long as `[1.5]` gave
+     * a usable step count and the write has not been refused on this connection.
+     */
+    private val directCncUsable: Boolean
+        get() = model.hasNoiseCancelling && !directCncRefused && facts.cnc?.isValid == true &&
+            (!modesAvailable || model.directCnc)
+
+    /** How noise edits reach the headphones on this connection (see [NoisePath]). */
+    private val noisePath: NoisePath
+        get() = when {
+            model.isUnsupported -> NoisePath.NONE
+            liveAudio -> NoisePath.LIVE
+            directCncUsable -> NoisePath.DIRECT
+            modesAvailable -> NoisePath.SLOTS
+            model.hasNoiseCancelling -> NoisePath.READ_ONLY
+            else -> NoisePath.NONE
+        }
+
+    /** `[1.5]` is worth reading: the direct path may apply, or it is the only place the level shows. */
+    private val wantsCnc: Boolean
+        get() = !liveAudio && model.hasNoiseCancelling && !model.isUnsupported &&
+            (!modesAvailable || (model.directCnc && !directCncRefused))
 
     /** What the UI may offer, from the catalogue corrected by what this connection showed. */
-    private fun capabilities() = model.toCapabilities(layout = writeLayout(), liveNoise = liveAudio, modes = modesAvailable)
+    private fun capabilities() = facts.capabilities(noisePath, modesAvailable)
+
+    /** Recognised-but-unsupported products (QC35, the 2024 QC Earbuds) are read, never written. */
+    private fun requireDriven() {
+        if (model.isUnsupported) throw HeadphoneCommandException(model.supportNote ?: UNSUPPORTED_MESSAGE)
+    }
 
     private fun markAudioSettingsAbsent(why: String) {
         if (!model.hasLiveAudioSettings || audioSettingsAbsent) return
@@ -178,9 +221,10 @@ class QcUltra2Protocol(
     private val silentReads: MutableSet<Pair<FunctionAddress, BmapOperator>> = ConcurrentHashMap.newKeySet()
 
     private fun startSession() {
-        model = BoseModel.DEFAULT
-        slotCount = model.slotCount
-        seenLayout = null
+        facts = ConnectionFacts()
+        modesCapabilitiesRead = false
+        directCncRefused = false
+        slotConfigs.clear()
         identified = false
         presentBlocks = null
         refusedReads.clear()
@@ -201,6 +245,9 @@ class QcUltra2Protocol(
         startSession()
         val r = TolerantReader(c)
         val known = detectModel(r, current)
+        // QC35 and the like: recognised, not driven. No subscription (their [9.2] is untested);
+        // the repository polls the battery instead.
+        if (model.isUnsupported) return known.copy(livePushEnabled = false)
         var blocks: Set<Int>? = null
         r.get(QcUltra2.ALL_FUNCTION_BLOCKS) { blocks = ProductInfo.parseAllFunctionBlocks(it.payload) }
         presentBlocks = blocks
@@ -224,13 +271,14 @@ class QcUltra2Protocol(
     /** `[2.2]` only; the repository calls it every 60 s while [HeadphoneState.livePushEnabled] is false. */
     override suspend fun pollBattery(c: BmapRequester, current: HeadphoneState): HeadphoneState {
         var s = current
-        TolerantReader(c).get(QcUltra2.BATTERY) { Battery.parse(it.payload).percent?.let { p -> s = s.copy(batteryPercent = p) } }
+        TolerantReader(c).get(QcUltra2.BATTERY) { s = s.withBattery(Battery.parse(it.payload)) }
         return s
     }
 
     /**
-     * `[0.3]` product id → [model]; for an id Earshot has no profile for (e.g. the Ultra Open
-     * Earbuds 2nd Gen), `[0.15]` OriginalProductName decides; else the QC Ultra 2 defaults stay.
+     * `[0.3]` product id → [model]; for an id Earshot has no profile for, `[0.15]`
+     * OriginalProductName decides; else the QC Ultra 2 defaults stay (with the family taken from
+     * the name, so the header still says what it is). docs/bose-models.md §E1.
      */
     private suspend fun detectModel(r: TolerantReader, current: HeadphoneState): HeadphoneState {
         var info = current.info ?: DeviceInfo()
@@ -240,14 +288,16 @@ class QcUltra2Protocol(
             r.get(QcUltra2.PRODUCT_NAME) { info = info.copy(productName = ProductInfo.parseString(it.payload).ifBlank { null }) }
             detected = BoseModel.fromName(info.productName)
         }
-        if (detected != null && detected != model) {
-            model = detected
-            slotCount = detected.slotCount
-        }
+        facts = facts.copy(
+            model = detected ?: BoseModel.DEFAULT,
+            catalogued = detected != null,
+            unknownProductName = if (detected == null) info.productName else null,
+        )
         identified = true
-        ProtocolLog.i("model ${model.name} (product id ${info.productId?.let { "0x%04x".format(it) } ?: "unknown"}, ${if (model.verified) "verified" else "unverified"} layout)")
+        ProtocolLog.i("model ${model.name} (product id ${info.productId?.let { "0x%04x".format(it) } ?: "unknown"}, " +
+            "${if (detected == null) "not catalogued" else if (model.verified) "verified" else "unverified"} layout, ${model.tier})")
         return current.copy(
-            info = info.copy(modelName = detected?.displayName ?: info.modelName),
+            info = info.copy(modelName = detected?.displayName ?: info.modelName, family = facts.family, generation = facts.generation),
             capabilities = capabilities(),
         )
     }
@@ -260,27 +310,33 @@ class QcUltra2Protocol(
      * The whole refresh only fails when the link is gone or the headphones stop answering
      * altogether ([MAX_CONSECUTIVE_TIMEOUTS] silent reads in a row).
      *
-     * Order: battery `[2.2]`, charger `[2.5]`, mic mute `[2.21]`, operation mode `[2.16]`,
-     * product id `[0.3]`, firmware `[0.5]`, serial `[0.7]`, product name `[0.15]`, MAC `[0.6]`,
-     * BMAP version `[0.1]`, LE Audio support `[0.23]`, custom name `[1.2]`, EQ `[1.7]`, sidetone
-     * `[1.11]`, multipoint `[1.10]`, auto play/pause `[1.24]`, auto answer `[1.27]`, voice prompts
-     * `[1.3]`, shortcut button `[1.9]`, touch `[1.34]`, LE Audio `[1.37]`, noise `[31.10]`, current
-     * mode `[31.3]`, mode dump `[31.6]` START (fallback `[31.1]` START), favourites `[31.8]`,
-     * devices (`[4.4]`, `[4.9]`, `[4.5]` per unnamed MAC, `[4.6]` per MAC, `[5.1]`), `[4.18]`,
-     * transport `[5.3]`, play state `[5.4]`, volume `[5.5]`, latency `[5.7]`.
+     * Order: battery `[2.2]`, product id `[0.3]` (once per connection), charger `[2.5]`, mic mute
+     * `[2.21]`, operation mode `[2.16]`, firmware `[0.5]`, serial `[0.7]`, product name `[0.15]`,
+     * MAC `[0.6]`, BMAP version `[0.1]`, LE Audio support `[0.23]`, custom name `[1.2]`, EQ `[1.7]`,
+     * auto-off `[1.4]`, sidetone `[1.11]`, multipoint `[1.10]`, auto play/pause `[1.24]`, auto
+     * answer `[1.27]`, voice prompts `[1.3]`, shortcut button `[1.9]`, touch `[1.34]`, LE Audio
+     * `[1.37]`, noise `[31.10]`, mode capabilities `[31.2]` (once), current mode `[31.3]`, mode dump
+     * `[31.6]` START (fallback `[31.1]` START), favourites `[31.8]`, CNC `[1.5]` (without
+     * `[31.10]`), devices (`[4.4]`, `[4.9]`, `[4.5]` per unnamed MAC, `[4.6]` per MAC, `[5.1]`),
+     * `[4.18]`, transport `[5.3]`, play state `[5.4]`, volume `[5.5]`, latency `[5.7]`.
+     *
+     * An unsupported product (QC35, docs/bose-models.md §B) stops after the battery and the
+     * product info.
      */
     override suspend fun refresh(c: BmapRequester, current: HeadphoneState): HeadphoneState {
         val r = TolerantReader(c)
         var s = current
 
         // Status block. [2.3] is AuxCableDetection, not charging: charging is [2.5] ChargerDetect.
-        r.get(QcUltra2.BATTERY) { s = s.copy(batteryPercent = Battery.parse(it.payload).percent) }
+        r.get(QcUltra2.BATTERY) { s = s.withBattery(Battery.parse(it.payload)) }
+        // Product id once per connection: the model drives everything below.
+        if (!identified) s = detectModel(r, s)
+        if (model.isUnsupported) return refreshUnsupported(r, s)
         r.get(QcUltra2.CHARGER_DETECT) { s = s.copy(isCharging = ChargerDetect.parse(it.payload)) }
         r.get(QcUltra2.MIC_MUTE) { s = s.copy(micMuted = MicMute.parse(it.payload)) }
         r.get(QcUltra2.OPERATION_MODE) { s = s.copy(operationMode = OperationModeCodec.parse(it.payload)?.toOperationMode()) }
 
-        // Product info ([0.3] once per connection: the model drives everything below)
-        if (!identified) s = detectModel(r, s)
+        // Product info
         var info = s.info ?: DeviceInfo()
         r.get(QcUltra2.FIRMWARE_VERSION) { info = info.copy(firmwareVersion = ProductInfo.parseFirmwareVersion(it.payload).ifBlank { null }) }
         r.get(QcUltra2.SERIAL_NUMBER) { info = info.copy(serialNumber = ProductInfo.parseString(it.payload).ifBlank { null }) }
@@ -292,7 +348,9 @@ class QcUltra2Protocol(
         s = s.copy(info = info)
 
         // Settings block
-        r.get(QcUltra2.EQ) { Eq.parse(it.payload).toHeadphoneEq()?.let { eq -> s = s.copy(eq = eq) } }
+        r.get(QcUltra2.EQ) { s = s.withEq(Eq.parse(it.payload)) }
+        // [1.4] auto-off: FuncNotSupp on wolverine fw 10.12, so the setting stays hidden there.
+        r.get(QcUltra2.STANDBY_TIMER) { StandbyTimer.parse(it.payload)?.let { m -> s = s.copy(autoOffMinutes = m) } }
         r.get(QcUltra2.SIDETONE) {
             SidetoneCodec.parse(it.payload)?.let { st -> s = s.copy(sidetone = st.toSidetone(), sidetonePersistent = st.persist) }
         }
@@ -314,6 +372,17 @@ class QcUltra2Protocol(
                 outcome == Outcome.REFUSED && r.lastError.meansAbsent() -> markAudioSettingsAbsent("${r.lastError}")
             }
         }
+        // [31.2] once per connection: preset and custom counts and the feature flags, which beat
+        // the catalogue (docs/bose-models.md §E3). Older firmware may lack it; the catalogue stays.
+        if (modesAvailable && !modesCapabilitiesRead) {
+            modesCapabilitiesRead = true
+            r.get(QcUltra2.MODES_CAPABILITIES) { reply ->
+                ModesCapabilities.parse(reply.payload)?.let { caps ->
+                    facts = facts.copy(modes = caps)
+                    ProtocolLog.i("[31.2] ${caps.boseModes} built-in + ${caps.userModes} custom modes, $caps")
+                }
+            }
+        }
         if (modesAvailable) r.get(QcUltra2.CURRENT_MODE) { s = s.copy(currentModeIndex = CurrentMode.parse(it.payload)) }
         if (modesAvailable) {
             val configs = readModeConfigs(r)
@@ -322,20 +391,21 @@ class QcUltra2Protocol(
                 FavoritesCodec.parse(reply.payload)?.let { f ->
                     favorites = f.indices
                     // Byte 0 is the firmware's own slot total: trust it over the model default.
-                    if (f.totalModes in 1..QcUltra2.MODE_SLOT_COUNT) slotCount = f.totalModes
+                    if (f.totalModes in 1..QcUltra2.MODE_SLOT_COUNT) facts = facts.copy(favoritesTotal = f.totalModes)
                 }
             }
-            s = s.copy(modes = buildModeList(configs, favorites, s.modes, model, slotCount))
+            s = s.copy(modes = buildModeList(configs, favorites, s.modes, facts))
         }
-        if (!modesAvailable) {
-            // No modes on this firmware (bosectl #44). A pushed [31.3] index may still be in the
-            // state; the list stays empty and the UI hides the carousel. [1.5] CNC answered GET
-            // there, so the cancelling level is at least shown (read-only).
-            s = s.copy(modes = emptyList())
-            r.get(QcUltra2.CNC) { reply -> Cnc.parse(reply.payload)?.toNoiseSettings()?.let { s = s.copy(noise = it) } }
-        } else if (!liveAudio) {
-            // Without [31.10] the live settings are the active slot's.
-            s = s.copy(noise = s.currentMode?.settings ?: s.noise)
+        // No modes on this firmware (bosectl #44): a pushed [31.3] index may still be in the state;
+        // the list stays empty and the UI hides the carousel.
+        if (!modesAvailable) s = s.copy(modes = emptyList())
+        // Without [31.10]: [1.5] where the direct path may apply or nothing else shows the level.
+        if (wantsCnc) r.get(QcUltra2.CNC) { reply -> Cnc.parse(reply.payload)?.takeIf { it.isValid }?.let { facts = facts.copy(cnc = it) } }
+        s = when (noisePath) {
+            NoisePath.DIRECT, NoisePath.READ_ONLY -> facts.cnc?.toNoiseSettings()?.let { s.copy(noise = it) } ?: s
+            // The live settings are the active slot's.
+            NoisePath.SLOTS -> s.copy(noise = s.currentMode?.settings ?: s.noise)
+            NoisePath.LIVE, NoisePath.NONE -> s
         }
         s = s.copy(capabilities = capabilities())
 
@@ -358,6 +428,20 @@ class QcUltra2Protocol(
     }
 
     /**
+     * A recognised but unsupported product (QC35 / QC35 II: Bose Connect era, not in the Bose app's
+     * BMAP whitelist, docs/bose-models.md §B): the battery is already read; add the product info
+     * for the device card and stop. Nothing else is asked, so firmware that answers oddly to the
+     * newer functions cannot trip the connection.
+     */
+    private suspend fun refreshUnsupported(r: TolerantReader, current: HeadphoneState): HeadphoneState {
+        var info = current.info ?: DeviceInfo()
+        r.get(QcUltra2.FIRMWARE_VERSION) { info = info.copy(firmwareVersion = ProductInfo.parseFirmwareVersion(it.payload).ifBlank { null }) }
+        r.get(QcUltra2.PRODUCT_NAME) { info = info.copy(productName = ProductInfo.parseString(it.payload).ifBlank { null }) }
+        r.get(QcUltra2.MAC_ADDRESS) { info = info.copy(bluetoothAddress = ProductInfo.parseMac(it.payload)) }
+        return current.copy(info = info, modes = emptyList(), noise = null, capabilities = capabilities())
+    }
+
+    /**
      * `[31.6]` START with no payload dumps every slot as 48-byte STATUS frames (the notes:
      * "Returns all mode configs as STATUS messages"); MULTI collects them across reads. `[31.1]`
      * GetAll answers PROCESSING and then streams the same frames among other block-31 state, so
@@ -374,8 +458,8 @@ class QcUltra2Protocol(
             if (configs.isNotEmpty()) break
             ProtocolLog.w("$address dump returned no mode slots")
         }
-        if (configs.size < slotCount) ProtocolLog.w("mode dump covered ${configs.size}/$slotCount slots")
-        configs.values.firstOrNull { it.editable != null }?.let(::noteLayout)
+        if (configs.size < facts.slotCount) ProtocolLog.w("mode dump covered ${configs.size}/${facts.slotCount} slots")
+        configs.values.forEach(::noteLayout)
         return configs
     }
 
@@ -451,6 +535,7 @@ class QcUltra2Protocol(
      * shows the mode's settings.
      */
     override suspend fun setMode(c: BmapRequester, current: HeadphoneState, index: Int): HeadphoneState {
+        requireDriven()
         requireModes()
         if (!CurrentMode.isSavedSlot(index)) throw HeadphoneCommandException("There is no listening mode in slot $index")
         val slot = current.modes.firstOrNull { it.index == index }
@@ -470,6 +555,11 @@ class QcUltra2Protocol(
             if (now != index) throw HeadphoneCommandException("The headphones did not switch to ${slot?.name ?: "mode $index"}")
         }
         var s = current.copy(currentModeIndex = index)
+        if (noisePath == NoisePath.DIRECT) {
+            // The level is [1.5]'s on the direct path; a mode switch changes it on the device.
+            val cnc = rereadCnc(c)
+            return s.copy(noise = cnc?.toNoiseSettings() ?: slot?.settings ?: s.noise, capabilities = capabilities())
+        }
         val noise = if (!liveAudio) null else try {
             AudioSettings.parse(c.get(QcUltra2.AUDIO_SETTINGS).payload)?.toNoiseSettings()
         } catch (e: HeadphoneCommandException) {
@@ -486,67 +576,72 @@ class QcUltra2Protocol(
     }
 
     /**
-     * `[31.6]` SET_GET with the 40-byte payload. Only slots 4..10 take it: presets 0-3 answer
-     * Runtime error 8, so they are refused here with a readable message. The device echoes a
-     * STATUS; if it parses it updates the slot, otherwise the slot list is re-dumped.
+     * `[31.6]` SET_GET in the slot layout seen (40 bytes on the QC Ultra 2, 39 on the QC45, 37 on
+     * the QC Earbuds 2020, untested there). Only custom slots take it: presets answer Runtime
+     * error 8, so they are refused here with a readable message. The device echoes a STATUS; if it
+     * parses it updates the slot, otherwise the slot list is re-dumped.
      */
     override suspend fun saveCustomMode(
         c: BmapRequester, current: HeadphoneState, index: Int, name: String, settings: NoiseSettings,
     ): HeadphoneState {
+        requireDriven()
         requireModes()
-        if (!model.canEditModes) throw HeadphoneCommandException(MODES_READ_ONLY_MESSAGE)
+        if (!facts.canEditModes) throw HeadphoneCommandException(MODES_READ_ONLY_MESSAGE)
         val slot = current.modes.firstOrNull { it.index == index }
-        if (index in model.presetSlots || slot?.isPreset == true) {
-            val preset = slot?.name?.ifBlank { null } ?: model.presetNames.getOrNull(index) ?: "slot $index"
+        if (index in facts.presetSlots || slot?.isPreset == true) {
+            val preset = slot?.name?.ifBlank { null } ?: facts.presetNames.getOrNull(index) ?: "slot $index"
             throw HeadphoneCommandException("$preset is a built-in mode and cannot be changed; save to a custom slot instead")
         }
-        if (index !in model.editableSlots && slot?.isEditable != true) throw HeadphoneCommandException("There is no custom slot $index")
+        if (index !in facts.editableSlots && slot?.isEditable != true) throw HeadphoneCommandException("There is no custom slot $index")
         val cleanName = ModeConfigs.truncateName(name.trim())
         if (cleanName.isBlank()) throw HeadphoneCommandException("Give the mode a name")
         val wire = settings.toAudioSettings()
+        val base = slotConfigs[index]
         val payload = ModeConfigWrite(
             index = index,
             name = cleanName,
-            cncWire = wire.cncWire,
+            // Open-ear: no level of their own; keep what the slot holds.
+            cncWire = if (model.hasNoiseCancelling) wire.cncWire else base?.cncWire ?: wire.cncWire,
             spatialCode = wire.spatialCode,
             windBlock = wire.windBlock,
             ancEnabled = wire.ancEnabled,
+            // The user typed the name, so no prompt: the app would otherwise show the prompt's name (§C2).
             promptBytes = 0 to ModePrompt.NONE.code,
-        ).build(writeLayout(), editableRange(index))
+        ).build(facts.writeLayout, editableRange(index))
         return writeSlot(c, current, index, payload)
     }
 
     /**
-     * The `[31.6]` write layout: what the slots actually arrived in (47-byte STATUS → 39-byte
-     * write, 48 → 40), else the model's guess. A wrong length is refused with ERROR Length, so
-     * the observed frames beat the catalogue (unverified on the QC Ultra 1st Gen).
+     * Only full STATUS frames (they carry the `editable` byte) say which layout the firmware uses
+     * (44 → 37-byte write, 45 → 39, 47 → 39, 48 → 40); an echo may be either. A wrong length is
+     * refused with ERROR Length, so the observed frames beat the catalogue.
      */
-    private fun writeLayout(): ModeLayout = seenLayout ?: model.modeLayout
-
-    /** Only full STATUS frames (they carry the `editable` byte) say which layout the firmware uses; an echo may be either. */
     private fun noteLayout(config: ModeConfig) {
-        if (config.editable != null) seenLayout = config.layout
+        if (config.editable == null) return
+        slotConfigs[config.index] = config
+        if (facts.seenLayout != config.layout) facts = facts.copy(seenLayout = config.layout)
     }
 
     /** The builder's slot check, widened to [index] when the STATUS said the slot is editable. */
     private fun editableRange(index: Int): IntRange =
-        if (index in model.editableSlots) model.editableSlots else index..index
+        if (index in facts.editableSlots) facts.editableSlots else index..index
 
     /** SET_GET a built `[31.6]` payload and fold the echo (or a re-dump) into the mode list. */
     private suspend fun writeSlot(c: BmapRequester, current: HeadphoneState, index: Int, payload: ByteArray): HeadphoneState {
+        if (payload.size == ModeLayout.BASIC.writeSize) ProtocolLog.i("[31.6] 37-byte write to slot $index (untested on hardware)")
         val echo = c.setGet(QcUltra2.MODE_CONFIG, payload)
         val parsedEcho = parsed(QcUltra2.MODE_CONFIG) { ModeConfigs.parse(echo.payload) }
         parsedEcho?.let(::noteLayout)
         if (parsedEcho != null && parsedEcho.index == index) {
-            return current.copy(modes = current.modes.ifEmpty { emptyModeList() }.withSlot(parsedEcho, model))
+            return current.copy(modes = current.modes.ifEmpty { emptyModeList() }.withSlot(parsedEcho, facts))
         }
         ProtocolLog.w("[31.6] echo did not describe slot $index (${echo}); re-reading the slot list")
         val r = TolerantReader(c)
         val configs = readModeConfigs(r)
-        return current.copy(modes = buildModeList(configs, null, current.modes, model, slotCount))
+        return current.copy(modes = buildModeList(configs, null, current.modes, facts))
     }
 
-    private fun emptyModeList() = buildModeList(emptyMap(), null, emptyList(), model, slotCount)
+    private fun emptyModeList() = buildModeList(emptyMap(), null, emptyList(), facts)
 
     /**
      * `[31.9]` START `[index]` (Bose app `AudioModesResetStartPacket`), then `[31.6]` GET `[index]`
@@ -554,10 +649,12 @@ class QcUltra2Protocol(
      * the firmware does to a preset is unknown. **Untested on hardware.**
      */
     override suspend fun resetCustomMode(c: BmapRequester, current: HeadphoneState, index: Int): HeadphoneState {
+        requireDriven()
         requireModes()
-        if (!model.canEditModes) throw HeadphoneCommandException(MODES_READ_ONLY_MESSAGE)
-        if (index !in model.editableSlots) {
-            throw HeadphoneCommandException("Only custom slots (${model.editableSlots.first + 1}-${model.editableSlots.last + 1}) can be reset")
+        if (!facts.canEditModes) throw HeadphoneCommandException(MODES_READ_ONLY_MESSAGE)
+        val custom = facts.editableSlots
+        if (index !in custom) {
+            throw HeadphoneCommandException("Only custom slots (${custom.first + 1}-${custom.last + 1}) can be reset")
         }
         ProtocolLog.i("[31.9] reset slot $index (untested on hardware)")
         val reply = c.request(BmapPacket.start(QcUltra2.MODES_RESET, ModeReset.startPayload(index))).firstOrNull()
@@ -574,9 +671,9 @@ class QcUltra2Protocol(
             null
         }
         slot?.let(::noteLayout)
-        if (slot != null && slot.index == index) return current.copy(modes = modes.withSlot(slot, model))
+        if (slot != null && slot.index == index) return current.copy(modes = modes.withSlot(slot, facts))
         val configs = readModeConfigs(TolerantReader(c))
-        return current.copy(modes = buildModeList(configs, null, modes, model, slotCount))
+        return current.copy(modes = buildModeList(configs, null, modes, facts))
     }
 
     /**
@@ -584,11 +681,14 @@ class QcUltra2Protocol(
      * 8-10 are representable (their bits sit in the first mask byte; untested on hardware).
      */
     override suspend fun setFavorites(c: BmapRequester, current: HeadphoneState, indices: Set<Int>): HeadphoneState {
+        requireDriven()
         requireModes()
+        // [31.2] bit 4: the app hides favourites where the firmware has none.
+        if (facts.modes?.favorites == false) throw HeadphoneCommandException(NO_FAVORITES_MESSAGE)
         val bad = indices.filter { !CurrentMode.isSavedSlot(it) }
         if (bad.isNotEmpty()) throw HeadphoneCommandException("No such mode slot: ${bad.joinToString()}")
         val payload = try {
-            FavoritesCodec.build(indices, slotCount)
+            FavoritesCodec.build(indices, facts.slotCount)
         } catch (e: IllegalArgumentException) {
             throw HeadphoneCommandException("Those slots can't be marked as favourites", e)
         }
@@ -612,10 +712,28 @@ class QcUltra2Protocol(
      * does not, when the applied settings differ from the active slot's saved ones the index
      * is set to [QcUltra2.NO_SAVED_MODE] here as well; otherwise the UI keeps a preset highlighted
      * whose settings are no longer in effect.
+     *
+     * Without `[31.10]` the change goes through `[1.5]` ([NoisePath.DIRECT]) or the active custom
+     * slot ([NoisePath.SLOTS]); see [noisePath].
      */
     override suspend fun setNoise(c: BmapRequester, current: HeadphoneState, settings: NoiseSettings): HeadphoneState {
-        requireModes()
-        if (!liveAudio) return setNoiseViaMode(c, current, settings)
+        requireDriven()
+        return when (noisePath) {
+            NoisePath.LIVE -> setNoiseLive(c, current, settings)
+            else -> setNoiseWithoutLive(c, current, settings)
+        }
+    }
+
+    /** The paths that do not use `[31.10]`, also taken when `[31.10]` turns out missing mid-command. */
+    private suspend fun setNoiseWithoutLive(c: BmapRequester, current: HeadphoneState, settings: NoiseSettings): HeadphoneState =
+        when (noisePath) {
+            NoisePath.DIRECT -> setNoiseDirect(c, current, settings)
+            NoisePath.SLOTS -> setNoiseViaMode(c, current, settings)
+            NoisePath.READ_ONLY, NoisePath.NONE, NoisePath.LIVE ->
+                throw HeadphoneCommandException(if (modesAvailable || !model.hasNoiseCancelling) MODES_UNAVAILABLE_MESSAGE else NOISE_READ_ONLY_MESSAGE)
+        }
+
+    private suspend fun setNoiseLive(c: BmapRequester, current: HeadphoneState, settings: NoiseSettings): HeadphoneState {
         val seed = try {
             AudioSettings.parse(c.get(QcUltra2.AUDIO_SETTINGS).payload)
         } catch (e: HeadphoneCommandException) {
@@ -626,13 +744,13 @@ class QcUltra2Protocol(
             // not push the QC Ultra 2 onto slot writes (which refuse the built-in modes).
             if (!model.verified) {
                 markAudioSettingsAbsent("no reply")
-                return setNoiseViaMode(c, current, settings)
+                return setNoiseWithoutLive(c, current, settings)
             }
             null
         } catch (e: BmapException) {
             if (e.error.meansAbsent()) {
                 markAudioSettingsAbsent("${e.error}")
-                return setNoiseViaMode(c, current, settings)
+                return setNoiseWithoutLive(c, current, settings)
             }
             null
         } ?: current.noise?.toAudioSettings()
@@ -652,8 +770,50 @@ class QcUltra2Protocol(
             // Readable but not writable on this firmware: the slot write is the other way in.
             if (!e.error.meansAbsent()) throw e
             markAudioSettingsAbsent("SET_GET ${e.error}")
-            setNoiseViaMode(c, current, settings)
+            setNoiseWithoutLive(c, current, settings)
         }
+    }
+
+    /**
+     * `[1.5]` SET_GET `[step, enabled]` (Bose `SettingsCncSetGetPacket`; bosectl-verified on the QC
+     * Earbuds 2020, docs/bose-models.md §A10): the UI level maps onto the unit's own step count,
+     * step 0 = most cancelling (§C3). ANC on/off is only sent where `[1.5]` says the user may
+     * toggle it (flags bit 1 = 0); otherwise the unit's state goes back unchanged. Wind and spatial
+     * are not part of this path.
+     *
+     * A refusal (FuncNotSupp / OpNotSupp, as wolverine and the QC45 answer) ends the direct path for
+     * the connection: with modes the active slot is rewritten instead, without them the level is
+     * read-only (the 0.3.1 behaviour) and the command fails with a message saying so.
+     */
+    private suspend fun setNoiseDirect(c: BmapRequester, current: HeadphoneState, settings: NoiseSettings): HeadphoneState {
+        val cnc = facts.cnc?.takeIf { it.isValid } ?: throw HeadphoneCommandException("Noise settings not loaded yet")
+        val step = cnc.stepForLevel(settings.cancellingLevel)
+        val enabled = if (cnc.userCanToggle) settings.ancEnabled else cnc.enabled
+        val written = Cnc.build(step, enabled)
+        val echo = try {
+            c.setGet(QcUltra2.CNC, written)
+        } catch (e: BmapException) {
+            if (!e.error.meansAbsent()) throw e
+            directCncRefused = true
+            ProtocolLog.i("[1.5] SET_GET refused (${e.error}): ${if (modesAvailable) "noise edits go through the active custom mode" else "the noise level is read-only"} on this connection")
+            if (modesAvailable) return setNoiseViaMode(c, current, settings)
+            throw HeadphoneCommandException(NOISE_READ_ONLY_MESSAGE, e)
+        }
+        // The reply should be the 3-byte GET form; an echo of the two written bytes says only that it took.
+        val applied = parsed(QcUltra2.CNC) { Cnc.parse(echo.payload) }?.takeIf { it.isValid }
+            ?: cnc.copy(step = step, flags = (cnc.flags and 0x01.inv()) or (if (enabled) 0x01 else 0))
+        facts = facts.copy(cnc = applied)
+        return current.copy(noise = applied.toNoiseSettings() ?: settings, capabilities = capabilities())
+    }
+
+    /** `[1.5]` GET after a mode switch on the direct path; null when it did not answer. */
+    private suspend fun rereadCnc(c: BmapRequester): CncState? = try {
+        Cnc.parse(c.get(QcUltra2.CNC).payload)?.takeIf { it.isValid }?.also { facts = facts.copy(cnc = it) }
+    } catch (e: HeadphoneCommandException) {
+        if (!c.isOpen) throw e
+        null
+    } catch (e: BmapException) {
+        null
     }
 
     /** `[31.10]` SET_GET [wire] and fold the echo into the state (see [setNoise]). */
@@ -674,7 +834,8 @@ class QcUltra2Protocol(
      * slot with the `[31.6]` SET_GET (bosectl's `_update_current_mode_config`) in the layout the
      * slots arrived in. Built-in modes cannot be changed there, so the user has to be on a custom
      * mode. On the QC45 wind block forces the level to 0; the echo shows that. The 40-byte
-     * (STANDARD) write carries the ANC toggle; the 39-byte one has no such byte.
+     * (STANDARD) write carries the ANC toggle; the 39-byte one has no such byte, the 37-byte one
+     * (QC Earbuds 2020, untested) only the level. The slot keeps its own prompt and name bytes.
      */
     private suspend fun setNoiseViaMode(c: BmapRequester, current: HeadphoneState, settings: NoiseSettings): HeadphoneState {
         val slot = current.currentMode
@@ -684,26 +845,34 @@ class QcUltra2Protocol(
             )
         }
         val wire = settings.toAudioSettings()
+        val base = slotConfigs[slot.index]
+        val spatial = facts.modes?.spatial ?: model.hasSpatialAudio
         val payload = ModeConfigWrite(
             index = slot.index,
-            name = ModeConfigs.truncateName(slot.name),
-            cncWire = wire.cncWire,
-            spatialCode = if (model.hasSpatialAudio) wire.spatialCode else 0,
+            name = ModeConfigs.truncateName(base?.name?.trim()?.ifBlank { null } ?: slot.name),
+            cncWire = if (model.hasNoiseCancelling) wire.cncWire else base?.cncWire ?: wire.cncWire,
+            spatialCode = if (spatial) wire.spatialCode else base?.spatialCode ?: 0,
             windBlock = wire.windBlock,
             ancEnabled = wire.ancEnabled, // the 39-byte builder has no ANC byte and ignores it
-            promptBytes = 0 to ModePrompt.NONE.code,
-        ).build(writeLayout(), editableRange(slot.index))
+            promptBytes = base?.promptBytes ?: (0 to ModePrompt.NONE.code),
+        ).build(facts.writeLayout, editableRange(slot.index))
         val s = writeSlot(c, current, slot.index, payload)
         return s.copy(noise = s.currentMode?.settings ?: settings, capabilities = capabilities())
     }
 
     // ── Settings block ───────────────────────────────────────────────────────────────────
 
-    /** `[1.7]` SET_GET `[value, band]`, one request per band that differs from [HeadphoneState.eq]. */
+    /**
+     * `[1.7]` SET_GET `[value, band]`, one request per band that differs from [HeadphoneState.eq].
+     * Values are clamped to the range the headphones reported ([HeadphoneState.eqRange]; ±10 on
+     * every model seen so far).
+     */
     override suspend fun setEq(c: BmapRequester, current: HeadphoneState, eq: HeadphoneEq): HeadphoneState {
+        requireDriven()
         val before = current.eq
+        val range = current.eqRange ?: QcUltra2.EQ_MIN..QcUltra2.EQ_MAX
         val changes = listOf(
-            EqBandId.BASS to eq.bass, EqBandId.MID to eq.mid, EqBandId.TREBLE to eq.treble,
+            EqBandId.BASS to eq.bass.coerceIn(range), EqBandId.MID to eq.mid.coerceIn(range), EqBandId.TREBLE to eq.treble.coerceIn(range),
         ).filter { (band, value) ->
             when (band) {
                 EqBandId.BASS -> before?.bass != value
@@ -715,14 +884,36 @@ class QcUltra2Protocol(
         var lastEcho: BmapPacket? = null
         for ((band, value) in changes) lastEcho = c.setGet(QcUltra2.EQ, Eq.buildBand(value, band))
         // The SET_GET reply is the full 12-byte GET form; fall back to a GET if it was not.
-        val applied = lastEcho?.let { parsed(QcUltra2.EQ) { Eq.parse(it.payload).toHeadphoneEq() } }
-            ?: parsed(QcUltra2.EQ) { Eq.parse(c.get(QcUltra2.EQ).payload).toHeadphoneEq() }
-            ?: eq.also { ProtocolLog.w("[1.7] echo incomplete; assuming the requested EQ applied") }
-        return current.copy(eq = applied)
+        val bands = lastEcho?.let { parsed(QcUltra2.EQ) { Eq.parse(it.payload) } }?.takeIf { it.toHeadphoneEq() != null }
+            ?: parsed(QcUltra2.EQ) { Eq.parse(c.get(QcUltra2.EQ).payload) }
+        if (bands.toHeadphoneEq() == null) {
+            ProtocolLog.w("[1.7] echo incomplete; assuming the requested EQ applied")
+            return current.copy(eq = HeadphoneEq(eq.bass.coerceIn(range), eq.mid.coerceIn(range), eq.treble.coerceIn(range)))
+        }
+        return current.withEq(bands)
+    }
+
+    /**
+     * `[1.4]` StandbyTimer SET_GET: minutes ≤ 255 as one byte, else two bytes little-endian (Bose
+     * `SettingsStandbyTimerSetGetPacket`); 0 = never. The Bose app offers [AutoOffOptions.MINUTES].
+     * Only offered where the GET answered ([HeadphoneState.autoOffMinutes] non-null). Untested on
+     * hardware: wolverine fw 10.12 has no `[1.4]`.
+     */
+    override suspend fun setAutoOff(c: BmapRequester, current: HeadphoneState, minutes: Int): HeadphoneState {
+        requireDriven()
+        if (minutes !in 0..StandbyTimer.MAX_MINUTES) throw HeadphoneCommandException("Auto-off must be 0 to ${StandbyTimer.MAX_MINUTES} minutes")
+        ProtocolLog.i("[1.4] auto-off -> $minutes min (untested on hardware)")
+        val written = StandbyTimer.build(minutes)
+        val echo = c.setGet(QcUltra2.STANDBY_TIMER, written)
+        // A bare echo of a two-byte write would read as its low byte; only a GET-form reply is parsed.
+        val applied = if (echo.payload.contentEquals(written)) minutes else StandbyTimer.parse(echo.payload) ?: minutes
+        if (applied != minutes) ProtocolLog.i("[1.4] headphones report $applied min after asking for $minutes")
+        return current.copy(autoOffMinutes = applied)
     }
 
     /** `[1.11]` SET_GET `[persist, level]`; level order on the wire is 0 off, 1 high, 2 medium, 3 low. */
     override suspend fun setSidetone(c: BmapRequester, current: HeadphoneState, level: Sidetone, persistent: Boolean): HeadphoneState {
+        requireDriven()
         val echo = c.setGet(QcUltra2.SIDETONE, SidetoneCodec.build(level.wire, persistent))
         val state = parsed(QcUltra2.SIDETONE) { SidetoneCodec.parse(echo.payload) }
         return if (state != null) current.copy(sidetone = state.toSidetone(), sidetonePersistent = state.persist)
@@ -736,12 +927,14 @@ class QcUltra2Protocol(
         current.copy(autoAnswer = setToggle(c, QcUltra2.AUTO_ANSWER, enabled))
 
     private suspend fun setToggle(c: BmapRequester, address: FunctionAddress, enabled: Boolean): Boolean {
+        requireDriven()
         val echo = c.setGet(address, Toggle.build(enabled))
         return parsed(address) { Toggle.parse(echo.payload) } ?: enabled
     }
 
     /** `[1.34]` DisableCaptouch SET_GET; the wire bit is the inverse of [enabled]. */
     override suspend fun setTouchControls(c: BmapRequester, current: HeadphoneState, enabled: Boolean): HeadphoneState {
+        requireDriven()
         val echo = c.setGet(QcUltra2.DISABLE_CAPTOUCH, TouchControls.build(enabled))
         return current.copy(touchControlsEnabled = parsed(QcUltra2.DISABLE_CAPTOUCH) { TouchControls.parseEnabled(echo.payload) } ?: enabled)
     }
@@ -754,6 +947,7 @@ class QcUltra2Protocol(
      * reads the real value back. An ERROR reply (e.g. 5 = not supported) still fails the command.
      */
     override suspend fun setMultipoint(c: BmapRequester, current: HeadphoneState, enabled: Boolean): HeadphoneState {
+        requireDriven()
         setGetToleratingDrop(c, QcUltra2.MULTIPOINT, Multipoint.build(enabled), "the link renegotiates")
         return current.copy(multipointEnabled = enabled)
     }
@@ -764,9 +958,25 @@ class QcUltra2Protocol(
      * an ERROR reply fails. The returned state already says [enabled]; the reconnect's refresh
      * reads the real value.
      */
+    /**
+     * `[1.37]` SET_GET. Offered even when `[0.23]` says "not supported" or `[1.37]` did not answer
+     * its GET (the user is warned first): some firmware may still take it. Firmware without the
+     * function refuses with FuncNotSupp / FblockNotSupp, which gets a message of its own: an app
+     * cannot add LE Audio, only a Bose firmware update can.
+     */
     override suspend fun setLeAudioEnabled(c: BmapRequester, current: HeadphoneState, enabled: Boolean): HeadphoneState {
-        ProtocolLog.i("[1.37] LE Audio -> $enabled; the headphones restart now")
-        setGetToleratingDrop(c, QcUltra2.LE_AUDIO_CONTROL, LeAudioControl.build(enabled), "the headphones restart")
+        requireDriven()
+        ProtocolLog.i("[1.37] LE Audio -> $enabled (reported support: ${current.leAudioSupported}); the headphones restart now")
+        try {
+            setGetToleratingDrop(c, QcUltra2.LE_AUDIO_CONTROL, LeAudioControl.build(enabled), "the headphones restart")
+        } catch (e: BmapException) {
+            // Error 5 (OpNotSupp) is different: the switch exists but this firmware won't let it be
+            // changed; it keeps the generic "firmware doesn't support changing this" path.
+            if (e.error == BmapError.FUNC_NOT_SUPPORTED || e.error == BmapError.FBLOCK_NOT_SUPPORTED) {
+                throw HeadphoneCommandException(LE_AUDIO_ABSENT_MESSAGE, e)
+            }
+            throw e
+        }
         return current.copy(leAudioEnabled = enabled)
     }
 
@@ -781,6 +991,7 @@ class QcUltra2Protocol(
 
     /** `[1.3]` SET_GET one byte `(enabled << 5) | language`. */
     override suspend fun setVoicePrompts(c: BmapRequester, current: HeadphoneState, prompts: VoicePrompts): HeadphoneState {
+        requireDriven()
         val payload = try {
             VoicePromptsCodec.build(prompts.enabled, prompts.languageId)
         } catch (e: IllegalArgumentException) {
@@ -798,6 +1009,7 @@ class QcUltra2Protocol(
      * it. The echo is checked so the second case is reported, not hidden.
      */
     override suspend fun setShortcutButton(c: BmapRequester, current: HeadphoneState, action: ButtonAction): HeadphoneState {
+        requireDriven()
         if (action == ButtonAction.UNKNOWN) throw HeadphoneCommandException("That button action is not known to the headphones")
         val buttonId = current.shortcutButton?.buttonId ?: ButtonId.SHORTCUT.code
         val eventType = current.shortcutButton?.eventType ?: ButtonEvent.LONG_PRESS.code
@@ -817,6 +1029,7 @@ class QcUltra2Protocol(
      * captured, so the name is read back with a GET rather than guessed from the echo.
      */
     override suspend fun setDeviceName(c: BmapRequester, current: HeadphoneState, name: String): HeadphoneState {
+        requireDriven()
         val payload = try {
             CustomName.build(name)
         } catch (e: IllegalArgumentException) {
@@ -838,6 +1051,7 @@ class QcUltra2Protocol(
 
     /** `[5.5]` SET_GET `[level]`; the echo `[max][current]` is applied. Untested on hardware. */
     override suspend fun setVolume(c: BmapRequester, current: HeadphoneState, level: Int): HeadphoneState {
+        requireDriven()
         val max = current.volumeMax ?: QcUltra2.VOLUME_MAX_FW_10_12
         if (level !in 0..max) throw HeadphoneCommandException("Volume must be 0 to $max")
         ProtocolLog.i("[5.5] volume -> $level/$max (untested on hardware)")
@@ -852,6 +1066,7 @@ class QcUltra2Protocol(
      * visible as the value snapping back.
      */
     override suspend fun setLatencyMs(c: BmapRequester, current: HeadphoneState, ms: Int): HeadphoneState {
+        requireDriven()
         current.latencyRangeMs?.let { range ->
             if (ms !in range) throw HeadphoneCommandException("Latency must be ${range.first} to ${range.last} ms")
         }
@@ -874,6 +1089,7 @@ class QcUltra2Protocol(
      * and corrected by the `[5.4]` push. Untested on hardware (bosectl's error 5 was plain SET).
      */
     override suspend fun transport(c: BmapRequester, current: HeadphoneState, control: TransportControl): HeadphoneState {
+        requireDriven()
         ProtocolLog.i("[5.3] transport $control (untested on hardware)")
         val reply = c.request(BmapPacket.start(QcUltra2.AUDIO_CONTROL, AudioControl.startPayload(control.toWire()))).firstOrNull()
         if (reply != null && reply.isError) throw BmapException.from(reply)
@@ -896,6 +1112,7 @@ class QcUltra2Protocol(
      * FuncNotSupp; the START has not been tried there yet.
      */
     override suspend fun switchToDevice(c: BmapRequester, current: HeadphoneState, address: String): HeadphoneState {
+        requireDriven()
         if (!Mac.isValid(address)) throw HeadphoneCommandException("Not a Bluetooth address: $address")
         val packet = BmapPacket.start(QcUltra2.ROUTING, Routing.startPayload(address))
         repeat(Routing.RETRY_ATTEMPTS) { attempt ->
@@ -918,12 +1135,14 @@ class QcUltra2Protocol(
 
     /** `[4.8]` START `[1]`, fire-and-forget: the link usually drops and the manager reconnects. */
     override suspend fun enterPairingMode(c: BmapRequester, current: HeadphoneState): HeadphoneState {
+        requireDriven()
         c.send(BmapPacket.start(QcUltra2.PAIRING_MODE, PairingMode.startPayload(true)))
         return current
     }
 
     /** `[7.4]` START `[0]`, fire-and-forget: the socket closes immediately. */
     override suspend fun powerOff(c: BmapRequester, current: HeadphoneState): HeadphoneState {
+        requireDriven()
         c.send(BmapPacket.start(QcUltra2.POWER, Power.startPayload(false)))
         return current
     }
@@ -970,7 +1189,7 @@ class QcUltra2Protocol(
         if (frame.operator != BmapOperator.STATUS) return null
         return try {
             when (frame.address) {
-                QcUltra2.BATTERY -> Battery.parse(p).percent?.let { current.copy(batteryPercent = it) }
+                QcUltra2.BATTERY -> Battery.parse(p).takeIf { it.percent != null || it.readings.isNotEmpty() }?.let { current.withBattery(it) }
                 QcUltra2.CHARGER_DETECT -> ChargerDetect.parse(p)?.let { current.copy(isCharging = it) }
                 QcUltra2.MIC_MUTE -> MicMute.parse(p)?.let { current.copy(micMuted = it) }
                 QcUltra2.OPERATION_MODE -> OperationModeCodec.parse(p)?.let { current.copy(operationMode = it.toOperationMode()) }
@@ -979,10 +1198,18 @@ class QcUltra2Protocol(
                 // the index, while the mode list stays empty there.
                 QcUltra2.CURRENT_MODE -> CurrentMode.parse(p)?.let { index ->
                     val s = current.copy(currentModeIndex = index)
-                    if (liveAudio) s else s.copy(noise = s.currentMode?.settings ?: s.noise)
+                    if (noisePath != NoisePath.SLOTS) s else s.copy(noise = s.currentMode?.settings ?: s.noise)
                 }
                 QcUltra2.AUDIO_SETTINGS -> AudioSettings.parse(p)?.let { current.copy(noise = it.toNoiseSettings()) }
-                QcUltra2.EQ -> Eq.parse(p).toHeadphoneEq()?.let { current.copy(eq = it) }
+                // [1.5] is the level on the direct (and read-only) path; elsewhere it only mirrors it.
+                QcUltra2.CNC -> Cnc.parse(p)?.takeIf { it.isValid }?.let { cnc ->
+                    facts = facts.copy(cnc = cnc)
+                    val path = noisePath
+                    if (path != NoisePath.DIRECT && path != NoisePath.READ_ONLY) null
+                    else cnc.toNoiseSettings()?.let { current.copy(noise = it) }
+                }
+                QcUltra2.STANDBY_TIMER -> StandbyTimer.parse(p)?.let { current.copy(autoOffMinutes = it) }
+                QcUltra2.EQ -> Eq.parse(p).takeIf { it.toHeadphoneEq() != null }?.let { current.withEq(it) }
                 QcUltra2.SIDETONE -> SidetoneCodec.parse(p)?.let { current.copy(sidetone = it.toSidetone(), sidetonePersistent = it.persist) }
                 QcUltra2.AUTO_PLAY_PAUSE -> Toggle.parse(p)?.let { current.copy(autoPlayPause = it) }
                 QcUltra2.AUTO_ANSWER -> Toggle.parse(p)?.let { current.copy(autoAnswer = it) }
@@ -996,8 +1223,8 @@ class QcUltra2Protocol(
                 QcUltra2.CUSTOM_NAME -> CustomName.parse(p)?.let { current.copy(info = (current.info ?: DeviceInfo()).copy(customName = it.ifBlank { null })) }
                 QcUltra2.MODE_CONFIG -> if (!modesAvailable) null else ModeConfigs.parse(p)?.let { config ->
                     noteLayout(config)
-                    val s = current.copy(modes = current.modes.withSlot(config, model))
-                    if (liveAudio || config.index != s.currentModeIndex) s
+                    val s = current.copy(modes = current.modes.withSlot(config, facts))
+                    if (noisePath != NoisePath.SLOTS || config.index != s.currentModeIndex) s
                     else s.copy(noise = s.currentMode?.settings ?: s.noise)
                 }
                 QcUltra2.FAVORITES -> if (!modesAvailable) null else FavoritesCodec.parse(p)?.let { current.copy(modes = current.modes.withFavorites(it.indices)) }
@@ -1171,10 +1398,16 @@ class QcUltra2Protocol(
         const val CONFIRM_TIMEOUT_MS = 1_500L
         private const val AUDIO_MODES_BLOCK = 31
         const val MODES_UNAVAILABLE_MESSAGE = "This firmware doesn't expose listening modes to other apps"
+        const val LE_AUDIO_ABSENT_MESSAGE =
+            "These headphones' firmware has no LE Audio switch. LE Audio can only come with a Bose firmware update."
         /** `[4.4]` can list more than the two multipoint links; the UI shows a handful at most. */
         const val MAX_PAIRED_DEVICES = 8
         /** Battery re-read cadence while `[9.2]` pushes are off. */
         const val BATTERY_POLL_MS = 60_000L
         const val MODES_READ_ONLY_MESSAGE = "These headphones' modes can be switched here but not edited"
+        /** `[1.5]` SET_GET refused and no listening modes to fall back on. */
+        const val NOISE_READ_ONLY_MESSAGE = "These headphones' firmware doesn't let other apps change the noise cancelling level"
+        const val NO_FAVORITES_MESSAGE = "These headphones don't have favourite modes"
+        const val UNSUPPORTED_MESSAGE = "Earshot can't control these headphones"
     }
 }

@@ -58,8 +58,8 @@ object QcUltra2 {
     val SETTINGS_FBLOCK_INFO = FunctionAddress(1, 0)
     val CUSTOM_NAME = FunctionAddress(1, 2)                // ProductName. GET: [flag, utf8...]; SET_GET: utf8 only
     val VOICE_PROMPTS = FunctionAddress(1, 3)
-    val STANDBY_TIMER = FunctionAddress(1, 4)              // absent on fw 10.12
-    val CNC = FunctionAddress(1, 5)                        // GET only here (SET_GET → error 5); write via [31.10]
+    val STANDBY_TIMER = FunctionAddress(1, 4)              // auto-off minutes; absent on fw 10.12
+    val CNC = FunctionAddress(1, 5)                        // [steps, step, flags]; SET_GET [step, enabled] on lando, error 5 here
     val EQ = FunctionAddress(1, 7)                         // RangeControl
     val BUTTONS = FunctionAddress(1, 9)
     val MULTIPOINT = FunctionAddress(1, 10)

@@ -108,24 +108,58 @@ enum class ModeField(val bit: Int) {
 }
 
 /**
- * How a model lays out `[31.6]`. Detected from the payload length, so parsing never needs to know
- * the model up front; writes take it from [BoseModel.modeLayout] or from a slot already read.
+ * How a model lays out `[31.6]`. Detected from the STATUS length (docs/bose-models.md §C2: the Bose
+ * app's `AudioModesModeConfigResponse` reads spatial when the payload is at least 45 bytes, wind at
+ * 47, the ANC toggle at 48), so parsing never needs to know the model up front; writes take the
+ * layout of the frames actually seen, else [BoseModel.modeLayout]. Every layout is a prefix of
+ * [STANDARD], and the write is the Bose app's `createAudioModesConfigSetGetPayload` for it.
  */
-enum class ModeLayout(val statusSize: Int, val writeSize: Int, val hasAncToggle: Boolean) {
-    /** wolverine family (QC Ultra 2, QC Headphones 2): 48-byte STATUS, 40-byte SET_GET ending in the ANC toggle. */
-    STANDARD(48, 40, true),
+enum class ModeLayout(
+    val statusSize: Int,
+    val writeSize: Int,
+    /** The slot carries a spatial byte (STATUS 44, write 37). */
+    val hasSpatial: Boolean,
+    /** The slot carries a wind byte (STATUS 46, write 38). */
+    val hasWind: Boolean,
+    /** The slot carries an ANC on/off byte (STATUS 47, write 39). */
+    val hasAncToggle: Boolean,
+) {
+    /**
+     * 44-byte STATUS, 37-byte write `[idx, prompt, name32, cnc, autoCnc]`: QC Earbuds 2020 (lando,
+     * bosectl-verified STATUS). The 37-byte write is **untested** on hardware: bosectl echoed the
+     * 44 bytes back and got ERROR Length, which says nothing about the app's shorter form.
+     */
+    BASIC(44, 37, hasSpatial = false, hasWind = false, hasAncToggle = false),
+
+    /** 45-byte STATUS (spatial, no wind/ANC), 39-byte write with a 0 wind pad. Never seen on hardware. */
+    SPATIAL(45, 39, hasSpatial = true, hasWind = false, hasAncToggle = false),
 
     /**
      * prince / duran (QC Headphones, QC SC, QC45, QC SE), hardware-verified by bosectl: 47-byte
      * STATUS, 39-byte SET_GET, no ANC toggle byte (ANC is always on; the level is the control).
-     * A 40-byte write is refused with ERROR Length.
+     * A 40-byte write is refused with ERROR Length. Byte 44 exists but carries no feature there.
      */
-    COMPACT(47, 39, false);
+    COMPACT(47, 39, hasSpatial = true, hasWind = true, hasAncToggle = false),
+
+    /** wolverine family (QC Ultra 2, QC Headphones 2): 48-byte STATUS, 40-byte SET_GET ending in the ANC toggle. */
+    STANDARD(48, 40, hasSpatial = true, hasWind = true, hasAncToggle = true);
 
     companion object {
-        fun ofPayload(size: Int): ModeLayout? = when (size) {
-            COMPACT.statusSize, COMPACT.writeSize -> COMPACT
-            in STANDARD.writeSize..Int.MAX_VALUE -> STANDARD
+        /** Layout of a STATUS frame (44 / 45 / 47 / 48 bytes); null for anything shorter. */
+        fun ofStatus(size: Int): ModeLayout? = when {
+            size >= STANDARD.statusSize -> STANDARD
+            size == COMPACT.statusSize -> COMPACT
+            // 46 is not a known length; the app reads it like 45 (spatial yes, wind no).
+            size >= SPATIAL.statusSize -> SPATIAL
+            size == BASIC.statusSize -> BASIC
+            else -> null
+        }
+
+        /** STATUS lengths first, then the write / echo lengths (39 is ambiguous; COMPACT is the one seen). */
+        fun ofPayload(size: Int): ModeLayout? = ofStatus(size) ?: when (size) {
+            in STANDARD.writeSize until BASIC.statusSize -> STANDARD
+            COMPACT.writeSize -> COMPACT
+            in BASIC.writeSize until COMPACT.writeSize -> BASIC
             else -> null
         }
     }
@@ -224,6 +258,11 @@ object ModeConfigs {
     /** [ModeLayout.COMPACT] sizes (QC45 / QC Headphones). */
     const val COMPACT_STATUS_SIZE = 47
     const val COMPACT_WRITE_SIZE = 39
+    /** [ModeLayout.BASIC] sizes (QC Earbuds 2020). */
+    const val BASIC_STATUS_SIZE = 44
+    const val BASIC_WRITE_SIZE = 37
+    /** [ModeLayout.SPATIAL] STATUS size. */
+    const val SPATIAL_STATUS_SIZE = 45
 
     /** STATUS byte offsets. */
     const val CHANGEABLE_FLAGS_OFFSET = 41
@@ -231,14 +270,14 @@ object ModeConfigs {
     const val WIND_OFFSET = 46
 
     /**
-     * 47 must be tested before the `>= 40` echo case: a compact STATUS read as an echo puts the
-     * name at byte 3 and every setting in the wrong place.
+     * Any STATUS (44 bytes and up) or SET_GET echo (37..43 bytes). Fields are read by length as
+     * the Bose app does (spatial from 45, wind from 47, ANC from 48); a field the layout lacks reads
+     * as off (spatial, wind) or on (ANC: no toggle means always on). Until 0.4.0 the 44- and
+     * 45-byte frames were misread as 40-byte echoes, which put the name at byte 3 (docs/bose-models.md §D4).
      */
     fun parse(payload: ByteArray): ModeConfig? = when {
-        payload.size >= STATUS_SIZE -> parseStatus(payload, hasAnc = true)
-        payload.size == COMPACT_STATUS_SIZE -> parseStatus(payload, hasAnc = false)
-        payload.size >= WRITE_SIZE -> parseEcho(payload, hasAnc = true)
-        payload.size == COMPACT_WRITE_SIZE -> parseEcho(payload, hasAnc = false)
+        payload.size >= BASIC_STATUS_SIZE -> parseStatus(payload)
+        payload.size >= BASIC_WRITE_SIZE -> parseEcho(payload)
         else -> null
     }
 
@@ -248,35 +287,36 @@ object ModeConfigs {
         return byteArrayOf(index.toByte())
     }
 
-    private fun parseStatus(p: ByteArray, hasAnc: Boolean) = ModeConfig(
+    private fun parseStatus(p: ByteArray) = ModeConfig(
         index = p.u8(0),
         promptBytes = p.u8(1) to p.u8(2),
         name = p.utf8Until(6, 38),
         cncWire = p.u8(42),
         autoCnc = p[43] != 0.toByte(),
-        spatialCode = p.u8(44),
-        windBlock = p[WIND_OFFSET] != 0.toByte(),
-        // Compact layout has no toggle: ANC is always on there.
-        ancEnabled = !hasAnc || p[47] != 0.toByte(),
+        spatialCode = if (p.size >= SPATIAL_STATUS_SIZE) p.u8(44) else SpatialMode.OFF.code,
+        windBlock = p.size >= COMPACT_STATUS_SIZE && p[WIND_OFFSET] != 0.toByte(),
+        // No toggle byte (44 / 45 / 47 bytes): ANC is always on there.
+        ancEnabled = p.size < STATUS_SIZE || p[47] != 0.toByte(),
         editable = p[3] != 0.toByte(),
         configured = p[4] != 0.toByte(),
         flagByte5 = p.u8(5),
         unknownWord38 = p.u16be(38),
         unknownWord40 = p.u16be(40),
         changeableFlags = p.u8(CHANGEABLE_FLAGS_OFFSET),
-        flags45 = p.u8(FLAGS45_OFFSET),
+        flags45 = if (p.size > FLAGS45_OFFSET) p.u8(FLAGS45_OFFSET) else null,
         raw = p.copyOf(),
     )
 
-    private fun parseEcho(p: ByteArray, hasAnc: Boolean) = ModeConfig(
+    /** The SET_GET shape `[idx, prompt, name32, cnc, autoCnc, spatial?, wind?, anc?]`, 37 to 40 bytes. */
+    private fun parseEcho(p: ByteArray) = ModeConfig(
         index = p.u8(0),
         promptBytes = p.u8(1) to p.u8(2),
         name = p.utf8Until(3, 35),
         cncWire = p.u8(35),
         autoCnc = p[36] != 0.toByte(),
-        spatialCode = p.u8(37),
-        windBlock = p[38] != 0.toByte(),
-        ancEnabled = !hasAnc || p[39] != 0.toByte(),
+        spatialCode = if (p.size > 37) p.u8(37) else SpatialMode.OFF.code,
+        windBlock = p.size > 38 && p[38] != 0.toByte(),
+        ancEnabled = p.size <= 39 || p[39] != 0.toByte(),
         editable = null, configured = null, flagByte5 = null,
         unknownWord38 = null, unknownWord40 = null, changeableFlags = null, flags45 = null,
         raw = p.copyOf(),
@@ -301,11 +341,10 @@ object ModeConfigs {
 }
 
 /**
- * The 40-byte `[31.6]` SET_GET payload: `[index, prompt b1, prompt b2, name(32), cnc, autoCnc=0,
- * spatial, wind, anc]` (offsets 35-39). This matches the Bose app's builder
- * (`createAudioModesConfigSetGetPayload`), which writes the same order but may stop early when a
- * field is unknown (spatial forced to 0 when only wind is given); Earshot always knows all five,
- * so the payload is always the full 40 bytes. The STATUS form has two extra bytes in its tail
+ * The `[31.6]` SET_GET payload: `[index, prompt b1, prompt b2, name(32), cnc, autoCnc=0,
+ * spatial, wind, anc]` (offsets 35-39), cut to the slot's layout ([ModeLayout.writeSize]). This
+ * matches the Bose app's builder (`createAudioModesConfigSetGetPayload`), which stops after the
+ * last field the slot has (and writes spatial 0 when only wind is known). The STATUS form has two extra bytes in its tail
  * (41 flags, 45 flag), which is why wind sits at 46 there but at 38 here.
  * Only custom slots take it: presets 0-3 answer Runtime error 8. The device replies with STATUS
  * frames (bosectl treats "no STATUS in the reply" as failure). Writing name "None" with
@@ -326,7 +365,8 @@ data class ModeConfigWrite(
     )
 
     /**
-     * [layout] picks 40 or 39 bytes. On [ModeLayout.COMPACT] (QC45, per bosectl) wind block and CNC
+     * [layout] picks the length (docs/bose-models.md §C2: STATUS 44 → 37 bytes, 45 → 39 with a 0
+     * wind pad, 47 → 39, 48 → 40). On [ModeLayout.COMPACT] (QC45, per bosectl) wind block and CNC
      * are exclusive: with wind on the firmware stores CNC 0 whatever was sent.
      */
     fun build(
@@ -342,8 +382,8 @@ data class ModeConfigWrite(
         ModeConfigs.encodeName(name).copyInto(out, 3)
         out[35] = cncWire.toByte()
         out[36] = 0 // autoCnc: firmware rejects 1 (Runtime 8)
-        out[37] = spatialCode.toByte()
-        out[38] = windBlock.toByteValue()
+        if (layout.hasSpatial) out[37] = spatialCode.toByte()
+        if (layout.hasWind) out[38] = windBlock.toByteValue() // SPATIAL: byte 38 stays the app's 0 pad
         if (layout.hasAncToggle) out[39] = ancEnabled.toByteValue()
         return out
     }

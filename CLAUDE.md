@@ -72,8 +72,19 @@ own module. Never edit another area's files, the Gradle files, the version catal
   `liveNoiseControl` off for the connection, noise edits rewrite the active custom slot; the
   `[31.6]` write uses the layout of the STATUS frames seen (47 → 39 B, 48 → 40 B); FblockNotSupp
   anywhere in block 31 → the block is skipped, `capabilities.listeningModes = false` (UI hides
-  carousel/editor), mode/noise commands throw, `[1.5]` CNC is shown read-only (step 0 taken as
-  most cancelling, unverified). FblockNotSupp on any block skips the whole block per connection.
+  carousel/editor), mode commands throw and the level goes through `[1.5]` (below). FblockNotSupp
+  on any block skips the whole block per connection. All of this lives in `service/ConnectionFacts.kt`
+  (catalogue entry + `[31.2]` + seen `[31.6]` layout + `[31.8]` total + `[1.5]` steps → slot plan
+  and capabilities) and `NoisePath` (LIVE `[31.10]` / DIRECT `[1.5]` / SLOTS / READ_ONLY / NONE).
+- **`[31.2]` Capabilities** (read once per connection, beats the catalogue): byte 0 built-in modes
+  (slots `0 until n`), byte 1 custom modes (the slots after them; 0 = none, some QC45 firmware),
+  byte 5 flags bit0 cnc, bit1 autoCnc, bit2 spatial, bit3 wind, **bit4 favourites, bit5 ANC toggle**,
+  byte 6 minimum favourites (only if 7 bytes). fw 10.12: `04 07 00 00 00 7f 02`.
+- **`[1.5]` CNC** `[steps, step, flags]`: step 0 = **most** cancelling (Bose app `worldVolumeStep`,
+  confirmed, docs/bose-models.md §C3); flags bit0 enabled, bit1 = 0 → user may switch ANC off.
+  SET_GET `[step, enabled]` is the noise path of the QC Earbuds 2020 (bosectl-verified), the NC 700
+  (guess) and any unit without block 31; wolverine and the QC45 answer error 5. A refusal → slot
+  rewrites (with modes) or read-only for the connection.
 - No handshake; the device may send a greeting burst on connect — drain it.
 - Operators: GET works everywhere; every write the Bose app makes is SET_GET or START. Plain SET →
   error 5, which means "operator not implemented for this function" — **not** an auth gate (there
@@ -91,10 +102,22 @@ own module. Never edit another area's files, the Gradle files, the version catal
   arrive across several reads); GET `[index]` reads one; SET_GET 40-byte payload writes custom slots
   4..10 only. In the 48-byte STATUS **wind is byte 46** (45 is a flag, 1 on user slots; 41 = changeable
   flags); in the 40-byte write wind is byte 38. `[31.9]` START `[index]` resets one slot.
+- **`[31.6]` lengths by model** (Bose app: spatial if ≥ 45 bytes, wind if ≥ 47, ANC if 48): STATUS
+  44 → write 37 (lando, level only; the 37-byte write is **untested**), 45 → 39 (spatial, 0 wind pad),
+  47 → 39 (prince / duran), 48 → 40. `ModeLayout.ofStatus`; the write follows the frames seen.
+- Mode names come from the prompt (`ModeNames`, as the Bose app does), then the UTF-8 name, then "Mode N".
+  Rewriting a slot keeps its prompt and name bytes; a name the user types is written with prompt 0.
 - `[31.8]` favourites `[totalModes][big-endian bitset]` (2 bytes for 11 slots: `0b 00 37` = {0,1,2,4,5}).
-- `[1.7]` EQ: GET → 3×4 bytes `[min,max,current,band]`; SET_GET `[value, band]` per band.
+- `[1.7]` EQ: GET → 3×4 bytes `[min,max,current,band]`; SET_GET `[value, band]` per band. The
+  min..max (within ±10) is `HeadphoneState.eqRange`; writes are clamped to it.
+- `[1.4]` auto-off (StandbyTimer): GET < 3 bytes → `[m]`, ≥ 3 → `(b2 << 8) | b0`; SET_GET `[m]` if
+  ≤ 255 else `[lo, hi]` little-endian; 0 = never. App options `AutoOffOptions.MINUTES` = 5, 20, 40, 60,
+  180, 1440, 0. FuncNotSupp on wolverine fw 10.12 (the setting is then hidden).
 - `[1.11]` sidetone `[persist, level]` with level 0=off 1=high 2=med 3=low (note the order).
-- `[2.2]` battery: byte 0 is percent (0xFF = unknown). Charging is `[2.5]` ChargerDetect; `[2.3]` is AuxCableDetection.
+- `[2.2]` battery: 4-byte records `[percent (0xFF unknown), minutes u16 BE (0xFFFF unknown), id]`; ids
+  0 single, 1 right, 2 left, 3 case, 4 combined buds (bosectl only; overall when there is no 0).
+  1-3 bytes = one record. `HeadphoneState.battery` per part; the headline `batteryPercent` is
+  `Battery.aggregate`. Charging is `[2.5]` ChargerDetect; `[2.3]` is AuxCableDetection.
 - `[1.37]` LE Audio SET_GET restarts the headphones (link drops; tolerate it). `[5.7]` latency
   `[min,max,cur]` s16 BE (0..520, 210); its SET_GET is unused by the Bose app (experimental).
 - Error 24 (not in the Bose app) on blocks 8, 22–26: guessed "needs a secure/debug session".
@@ -102,16 +125,24 @@ own module. Never edit another area's files, the Gradle files, the version catal
   payload), `[4.9]` AppAddress = this phone, `[5.1]` active source, `[4.12]` START `[0x82 + mac]` to
   route (retry: routing table fills only while the target streams; its GET is FuncNotSupp on 10.12).
 - Only one app can hold the BMAP channel: the Bose app must be closed while Earshot is connected.
-- Other models: `protocol/.../qcultra2/BoseModel.kt` is the catalogue (QC Ultra 1/2, QC Ultra
-  Earbuds 1st "scotty" 0x4072 / 2nd "edith" 0x4062, QC Headphones 1st/2nd Gen + QC SC, QC45 + QC SE,
-  Ultra Open Earbuds), detected from `[0.3]` (`[0.15]` name for unknown ids; "QC Ultra Earbuds"
-  never matches the headphones). QC45/QC Headphones: channel 8 first guess (prince seen on 9 too),
-  47/39-byte `[31.6]` (`ModeLayout.COMPACT`, no ANC byte), no `[31.10]` (noise edits rewrite the
-  active custom slot), QC45 needs GET `[0.1]` first (the liveness probe sends it), prince answers
-  `[31.3]` START with PROCESSING and a late STATUS (a timeout is verified with a GET).
-  Only the QC Ultra 2 is tested on our hardware; the others follow bosectl or are best guesses
-  that the runtime checks above correct. `VirtualQcUltra2` can emulate the quirks
-  (`silentFunctions`, `refuseAudioModesBlock`, `withoutAudioSettings`, `productId`).
+- Other models: `protocol/.../qcultra2/BoseModel.kt` is the catalogue, only for names, family /
+  generation ("2nd Gen" only on 0x4082, 0x4062, 0x4083, 0x4089), form factor, first-guess channel,
+  layout and presets (per-model facts: `docs/bose-models.md`). Entries: QC Ultra Headphones 2nd Gen
+  (wolverine) / 1st (lonestarr), QC Headphones 2nd Gen (**mariah** 0x4083) / 1st (prince, + QC SC),
+  QC45 (+ QC SE), NC 700 (goodyear 0x4024, BASIC: no block 31, `[1.5]` noise), QC Ultra Earbuds 2nd
+  (edith 0x4062) / 1st (scotty 0x4072), QC Earbuds II (smalls 0x4064), QC Earbuds 2020 (lando 0x402F,
+  BASIC: ch 8, 44-byte modes, `[1.5]` noise), Ultra Open Earbuds 1st (serena) / 2nd (aubrey 0x4089),
+  and UNSUPPORTED QC35 0x400C / QC35 II 0x4020 (Bose Connect era; battery and product info only,
+  every command throws the `supportNote`) and the 2024 QC Earbuds (brussels 0x0023, Bragi, never
+  BMAP). Detected from `[0.3]`; `[0.15]` name for unknown ids (`fromName`, the app's originalNames),
+  else QC Ultra 2 defaults with the family taken from the name. QC45/QC Headphones: channel 8 first
+  guess (prince seen on 9 too), 47/39-byte `[31.6]`, no `[31.10]` (noise edits rewrite the active
+  custom slot), QC45 needs GET `[0.1]` first (the liveness probe sends it), prince answers `[31.3]`
+  START with PROCESSING and a late STATUS (a timeout is verified with a GET). Only the QC Ultra 2 is
+  tested on our hardware; the others follow bosectl or are best guesses that the runtime checks
+  correct. `VirtualQcUltra2(profile = VirtualProfile.X)` emulates each model (demo devices in
+  `DemoDevice`); the quirk switches (`silentFunctions`, `refuseAudioModesBlock`,
+  `withoutAudioSettings`, `productId`) still work on any profile.
 - **Never write to block 3 (FirmwareUpdate) or 18 (Authentication).** bosectl's "[3.2] NC state"
   START is really FirmwareUpdate Init: it opens an update session; Run applies an image and
   reboots; Reset erases a staged image. Safe GETs: `[3.0] [3.1] [3.4] [3.6] [3.16]`. `[7.5]`

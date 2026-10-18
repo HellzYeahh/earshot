@@ -1,5 +1,6 @@
 package dev.earshot.service
 
+import dev.earshot.core.FormFactor
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.NoiseSettings
@@ -13,6 +14,7 @@ import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** [QcUltra2Protocol] on the models added after the QC Ultra 2 (layouts from bosectl). */
@@ -118,7 +120,11 @@ class MultiModelProtocolTest {
         fake.status(QcUltra2.PRODUCT_NAME, "426f736520556c747261204f70656e20322045420000") // "Bose Ultra Open 2 EB"
         val s = protocol.refresh(fake, HeadphoneState())
 
-        assertEquals("Ultra Open Earbuds", s.info?.modelName)
+        // 0.4.0: "Ultra Open 2" names the 2nd Gen (aubrey), which has its own entry now.
+        assertEquals("Ultra Open Earbuds (2nd Gen)", s.info?.modelName)
+        assertEquals("Ultra Open Earbuds", s.info?.family)
+        assertEquals("2nd Gen", s.info?.generation)
+        assertEquals(FormFactor.OPEN_EARBUDS, s.capabilities.formFactor)
         assertFalse(s.capabilities.noiseCancelling)
         assertFalse(s.capabilities.editableModes)
         assertFalse(s.capabilities.verified)
@@ -233,20 +239,31 @@ class MultiModelProtocolTest {
         assertEquals(39, fake.requestsTo(QcUltra2.MODE_CONFIG).single { it.operator == BmapOperator.SET_GET }.payload.size)
     }
 
-    @Test
-    fun `firmware that refuses all of block 31 hides the modes and shows the 1_5 level read-only`() = runTest {
-        fake.status(QcUltra2.PRODUCT_ID_VARIANT, "402401") // NC700 "goodyear" (bosectl #44): no profile
-        for (f in listOf(QcUltra2.AUDIO_SETTINGS, QcUltra2.CURRENT_MODE, QcUltra2.MODE_CONFIG, QcUltra2.MODES_GET_ALL, QcUltra2.FAVORITES)) {
+    /** A unit (bosectl #44's id is goodyear's, 0x4024) that refuses every block-31 request; [1.5] at step 3. */
+    private fun scriptRefusedBlock31(productIdHex: String) {
+        fake.status(QcUltra2.PRODUCT_ID_VARIANT, productIdHex)
+        for (f in listOf(QcUltra2.AUDIO_SETTINGS, QcUltra2.MODES_CAPABILITIES, QcUltra2.CURRENT_MODE, QcUltra2.MODE_CONFIG,
+            QcUltra2.MODES_GET_ALL, QcUltra2.FAVORITES)) {
             fake.error(f, BmapError.FBLOCK_NOT_SUPPORTED)
         }
-        fake.status(QcUltra2.CNC, "0b0303") // 11 steps, step 3, enabled
+        fake.status(QcUltra2.CNC, "0b0303") // 11 steps, step 3, enabled, the user may not switch it off
+    }
+
+    @Test
+    fun `firmware that refuses all of block 31 hides the modes and tries the 1_5 write`() = runTest {
+        // Changed in 0.4.0: without modes the level goes through [1.5] SET_GET (docs/bose-models.md
+        // §E2); only when that is refused too does it become read-only, the 0.3.1 behaviour.
+        scriptRefusedBlock31("40ab01") // not in the catalogue: QC Ultra 2 defaults
         protocol.onConnected(fake, HeadphoneState())
         // The unit still pushes [31.3] on connect.
         var s = protocol.onUnsolicited(FakeRequester.statusFrame(QcUltra2.CURRENT_MODE, "01"), HeadphoneState())!!
         s = protocol.refresh(fake, s)
 
         assertFalse(s.capabilities.listeningModes)
-        assertFalse(s.capabilities.liveNoiseControl)
+        assertTrue(s.capabilities.liveNoiseControl, "[1.5] write not tried yet")
+        assertFalse(s.capabilities.windBlock)
+        assertFalse(s.capabilities.spatialAudio)
+        assertFalse(s.capabilities.ancToggle, "[1.5] flags bit 1 set")
         assertFalse(s.capabilities.editableModes)
         assertTrue(s.modes.isEmpty())
         assertEquals(1, s.currentModeIndex)
@@ -257,13 +274,72 @@ class MultiModelProtocolTest {
         assertEquals(1, fake.sent.count { it.address.block == 31 }, "not asked again on this connection")
         for (command in listOf<suspend () -> Unit>(
             { protocol.setMode(fake, s, 0) },
-            { protocol.setNoise(fake, s, NoiseSettings(cancellingLevel = 3)) },
             { protocol.saveCustomMode(fake, s, 4, "Mine", NoiseSettings()) },
             { protocol.setFavorites(fake, s, setOf(0)) },
         )) {
             val e = assertFailsWith<HeadphoneCommandException> { command() }
             assertEquals(QcUltra2Protocol.MODES_UNAVAILABLE_MESSAGE, e.message)
         }
+        // [1.5] SET_GET is unscripted here: FuncNotSupp. The level is read-only from now on.
+        val e = assertFailsWith<HeadphoneCommandException> { protocol.setNoise(fake, s, NoiseSettings(cancellingLevel = 3)) }
+        assertEquals(QcUltra2Protocol.NOISE_READ_ONLY_MESSAGE, e.message)
+        s = protocol.refresh(fake, s)
+        assertFalse(s.capabilities.liveNoiseControl)
+        assertEquals(7, s.noise?.cancellingLevel, "still shown")
+        assertFailsWith<HeadphoneCommandException> { protocol.setNoise(fake, s, NoiseSettings(cancellingLevel = 3)) }
+        assertEquals(1, fake.requestsTo(QcUltra2.CNC).count { it.operator == BmapOperator.SET_GET }, "not retried")
         assertEquals(1, fake.sent.count { it.address.block == 31 })
+    }
+
+    @Test
+    fun `pushes keep the battery detail, the 1_5 level and auto-off current`() = runTest {
+        scriptRefusedBlock31("402401") // NC 700: direct path
+        fake.status(QcUltra2.STANDBY_TIMER, "14")
+        var s = protocol.refresh(fake, protocol.onConnected(fake, HeadphoneState()))
+        assertEquals(20, s.autoOffMinutes)
+
+        s = protocol.onUnsolicited(FakeRequester.statusFrame(QcUltra2.CNC, "0b0a03"), s)!!
+        assertEquals(0, s.noise?.cancellingLevel, "step 10 = least cancelling")
+        s = protocol.onUnsolicited(FakeRequester.statusFrame(QcUltra2.STANDBY_TIMER, "a00005"), s)!!
+        assertEquals(1440, s.autoOffMinutes)
+        s = protocol.onUnsolicited(FakeRequester.statusFrame(QcUltra2.BATTERY, "3c00b401 3affff02 50ffff03"), s)!!
+        assertEquals(58, s.batteryPercent, "no combined record: the lower bud")
+        assertEquals(180, s.battery?.right?.minutesLeft)
+        assertEquals(80, s.battery?.case?.percent)
+        assertNull(s.battery?.overall)
+    }
+
+    @Test
+    fun `a pid-less unit with an unknown name keeps the defaults and is named from 0_15`() = runTest {
+        fake.status(QcUltra2.PRODUCT_ID_VARIANT, "40ab01")
+        fake.status(QcUltra2.PRODUCT_NAME, "426f736520466f6f2045617262756473") // "Bose Foo Earbuds"
+        val s = protocol.refresh(fake, protocol.onConnected(fake, HeadphoneState()))
+        assertNull(s.info?.modelName)
+        assertEquals("Foo Earbuds", s.info?.family)
+        assertNull(s.info?.generation)
+        assertEquals(FormFactor.EARBUDS, s.capabilities.formFactor)
+        assertNull(s.capabilities.supportNote)
+        assertEquals(QcUltra2.MODE_SLOT_COUNT, s.modes.size, "QC Ultra 2 defaults")
+    }
+
+    @Test
+    fun `the NC 700 writes the level with 1_5 SET_GET and is marked basic`() = runTest {
+        scriptRefusedBlock31("402401")
+        fake.status(QcUltra2.CNC, "0b0301") // the user may switch noise cancelling off
+        fake.on(QcUltra2.CNC, BmapOperator.SET_GET) { listOf(FakeRequester.statusFrame(QcUltra2.CNC, "0b%02x%02x".format(it.payload[0], it.payload[1]))) }
+        var s = protocol.refresh(fake, protocol.onConnected(fake, HeadphoneState()))
+
+        assertEquals("Noise Cancelling Headphones 700", s.info?.modelName)
+        assertEquals(FormFactor.HEADPHONES, s.capabilities.formFactor)
+        assertTrue(s.capabilities.supportNote.orEmpty().startsWith("Basic support"))
+        assertTrue(s.capabilities.liveNoiseControl)
+        assertTrue(s.capabilities.ancToggle)
+        assertTrue(fake.requestsTo(QcUltra2.AUDIO_SETTINGS).isEmpty(), "goodyear has no [31.10]")
+
+        s = protocol.setNoise(fake, s, NoiseSettings(cancellingLevel = 8, ancEnabled = false))
+        val write = fake.requestsTo(QcUltra2.CNC).single { it.operator == BmapOperator.SET_GET }
+        assertEquals("0200", write.payload.joinToString("") { "%02x".format(it) }) // level 8 → step 2, ANC off
+        assertEquals(8, s.noise?.cancellingLevel)
+        assertFalse(s.noise!!.ancEnabled)
     }
 }

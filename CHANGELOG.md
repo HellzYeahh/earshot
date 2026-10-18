@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.4.0 — 2026-10-18
+
+**Earshot adapts to your Bose model.** Like the Bose app, it now takes most of what it shows from
+what the headphones or earbuds report, so each model gets its own modes, controls and settings, and
+the header says which product and generation is connected.
+
+### New
+- **Model-aware screens.** The header shows your name for the headphones, the model and generation
+  (for example "QuietComfort Ultra Earbuds · 2nd Gen") and a headphones or earbuds icon. Home,
+  Modes and Settings show only what the model has; settings a model lacks are hidden instead of
+  greyed out. Built-in mode names (Quiet, Aware, Immersion, Cinema, Stereo) come from the headphones.
+- **More models:** QC Headphones (2nd Gen), QC Earbuds II, Ultra Open Earbuds (2nd Gen); basic
+  support (battery, EQ, settings, noise level) for the QC Earbuds (2020) and Noise Cancelling
+  Headphones 700. The QuietComfort 35 / 35 II and the 2024 QuietComfort Earbuds are recognised and
+  explained as unsupported instead of failing.
+- **Earbuds battery:** left, right and case (last known) on Home, in the widget and the
+  notification; the low-battery alert watches the lower bud. **Listening time left** when the
+  firmware estimates it.
+- **Quick switcher:** tap the name on Home to switch between your paired Bose products.
+- **Auto-off timer** in More (5, 20, 40 min, 1 h, 3 h, 24 h or never), on firmware that offers it.
+- **LE Audio switch for every model:** it can be tried on headphones that report no support, after a
+  warning that lists why it may not work (including whether this phone supports LE Audio). After the
+  restart Earshot checks and tells you whether the change took.
+- **Cleaner disconnected screen:** no stale controls; Connect, Choose headphones, tips and a
+  one-tap connection report.
+- **What's new** sheet after updating; **demo mode** can emulate QC Ultra Earbuds, QC Earbuds II,
+  QC Earbuds, QC45, NC 700, Ultra Open and QC35 II.
+- Noise-cancelling level on models without live noise control is written directly where the
+  headphones allow it (QC Earbuds 2020, NC 700).
+
+### Fixed
+- **Earbuds on LE Audio (QC Ultra Earbuds, user report): "waits for the headphones to be
+  connected".** With LE Audio on, Android lists the earbuds a second time as "LE-Bose …" with no
+  classic Bluetooth link. Earshot now counts an LE Audio link as connected, treats the two entries as
+  one product (one entry in the picker) and controls the earbuds over an LE channel, as the Bose app
+  does. Switching LE Audio on no longer loses the headphones when the phone moves to LE Audio.
+- The persistent notification no longer shows another model's mode names, or an "ANC off" button on
+  headphones that can't switch it off.
+- Custom modes are read and written in the exact record length each model uses (44, 45, 47 or 48
+  bytes); mode names follow the headphones' own prompt ids.
+- The "Noise cancelling" switch no longer wraps letter by letter beside Wind Block on narrow phones.
+
 ## 0.3.1 — 2026-10-17
 
 Earshot is only tested on the QC Ultra Headphones (2nd Gen). Everything it assumed about the other

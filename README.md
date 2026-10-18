@@ -1,8 +1,10 @@
 # Earshot
 
-**A faster, more capable, account-free Android app for Bose QuietComfort headphones**, built
-around the QC Ultra Headphones (2nd Gen) and also supporting the QC Ultra (1st Gen), QC Headphones,
-QC SC, QC45, QC SE, Ultra Open Earbuds and, experimentally, the Skullcandy Crusher 1080 ANC
+**A faster, more capable, account-free Android app for Bose QuietComfort and Ultra headphones and
+earbuds.** Built around the QC Ultra Headphones (2nd Gen), it adapts to whichever model you connect:
+QC Ultra Headphones and Earbuds (1st and 2nd Gen), QC Headphones (1st and 2nd Gen), QC SC, QC45,
+QC SE, QC Earbuds II, Ultra Open Earbuds (1st and 2nd Gen), basic support for the QC Earbuds (2020)
+and Noise Cancelling Headphones 700, and, experimentally, the Skullcandy Crusher 1080 ANC
 ([see what works on each](#supported-headphones)).
 
 Earshot talks to the headphones directly over Bluetooth using Bose's own control protocol (BMAP),
@@ -27,6 +29,18 @@ calls, a Quick Settings tile, a widget and automations.
   <img src="docs/screenshots/08-more-dark.png" width="23%" alt="Dark theme">
 </p>
 
+### New in 0.4.0: it adapts to your Bose model
+
+<p align="center">
+  <img src="docs/screenshots/09-earbuds.png" width="23%" alt="QC Ultra Earbuds: model and generation, left, right and case battery, the earbuds' own modes">
+  <img src="docs/screenshots/10-basic-model.png" width="23%" alt="Noise Cancelling Headphones 700: basic support, no modes, noise level slider">
+  <img src="docs/screenshots/11-whats-new.png" width="23%" alt="What's new in 0.4.0">
+</p>
+
+The header shows your headphones' name, model and generation; earbuds get left, right and case
+battery with listening time left; Home, Modes and Settings show only what your model has; tap the
+name to switch between your Bose products. LE Audio earbuds now connect too.
+
 ## Why it's better than the stock Bose app
 
 | | Bose app | Earshot |
@@ -38,45 +52,59 @@ calls, a Quick Settings tile, a widget and automations.
 | Volume | Phone limits | **Volume boost** up to +12 dB with a brick-wall limiter and hearing-safety guard |
 | Calls | Often too quiet on Android | **Automatic in-call volume boost**, call-codec readout (CVSD / mSBC / LC3) |
 | Codec | Hidden in Developer options | Live codec panel; **switch AAC ↔ SBC** from the app (via Shizuku, no root) |
-| LE Audio | Buried per-device toggle | LE Audio on/off with status, per-device LE vs Classic view |
+| LE Audio | Buried per-device toggle | LE Audio on/off with status, phone support check, a "try anyway" option and a result check; per-device LE vs Classic view. Earbuds on LE Audio are controlled over LE |
+| Several Bose products | Pick from a list each time | **Quick switcher**: tap the name on Home |
+| Earbuds battery | Per bud in a sub-screen | Left, right and case on Home, plus **listening time left** |
 | Latency | Not shown | Reported latency, low-latency tips, experimental latency control |
 | Per-app sound | No | Different EQ per app (e.g. music vs. video) |
 | Quick access | Open the app | **Quick Settings tile**, **home-screen widget**, persistent notification with mode buttons |
 | Automation | No | Mode or EQ by **Wi-Fi network, app in front, schedule, or on connect**; low-battery alert |
 | Transparency | Hidden | Read-only **Lab** explorer and full protocol documentation in this repo |
 
-Everything the Bose app does for daily use is here too: listening modes (Quiet / Aware /
-Immersion / Cinema + 7 custom slots, favourites), noise-cancelling level, Wind Block, Immersive
-Audio, Self Voice (sidetone), auto play/pause, auto-answer, voice prompts, multipoint and device
-switching, pairing mode, shortcut-button action, touch controls, battery, power off.
+Everything the Bose app does for daily use is here too: your model's listening modes (for example
+Quiet / Aware / Immersion / Cinema + 7 custom slots on the QC Ultra 2, favourites), noise-cancelling
+level, Wind Block, Immersive Audio, Self Voice (sidetone), auto play/pause, auto-answer, auto-off
+timer, voice prompts, multipoint and device switching, pairing mode, shortcut-button action, touch
+controls, battery, power off.
 
 **What stays with the Bose app, on purpose:** firmware updates (not worth the risk of a bad flash
-from a third-party app). Things the firmware doesn't allow third parties to write (auto-off timer,
-renaming, editing the four built-in modes) are shown as such instead of silently failing.
+from a third-party app). Things a model's firmware doesn't allow third parties to write (renaming,
+editing the built-in modes, the auto-off timer on some firmware) are shown as such instead of
+silently failing.
 
 ## Supported headphones
 
-Earshot reads the model from the headphones when it connects and shows only the controls that model
-has.
+Earshot reads the model from the headphones when it connects and, like the Bose app, takes most of
+what it shows from what the headphones report: how many built-in and custom modes they have, which
+of Wind Block, Immersive Audio and the ANC switch exist, the noise-level steps, the batteries and
+which settings answer. A product table only supplies names, form factor and first guesses. Per-model
+research: [docs/bose-models.md](docs/bose-models.md).
 
 | Model | Status | Noise control | Notes |
 |---|---|---|---|
 | QC Ultra Headphones (2nd Gen) | **Tested** on our hardware | Live | Everything above |
-| QC Ultra Headphones (1st Gen) | Best guess, checked while connecting | Live, or via the active custom mode if the headphones lack it | Starts from the 2nd Gen layout; since 0.3.1 the channel, noise control and mode format are detected on connect. Built-in modes Quiet / Aware / Immersion |
-| QC Ultra Earbuds (2nd Gen) | Layout verified by bosectl | Live | Same feature layout as the QC Ultra Headphones (2nd Gen) |
-| QC Ultra Earbuds (1st Gen) | Best guess, checked while connecting | Live, or via the active custom mode | Treated like the QC Ultra Headphones (1st Gen) |
-| QC Headphones (2nd Gen) | Best guess, unverified | Live | Same layout as the QC Ultra (2nd Gen), per bosectl |
-| QC Headphones (1st Gen), QC SC | Layout verified by [bosectl](https://github.com/aaronsb/bosectl) | Via the active custom mode | No ANC on/off, no Immersive Audio; built-in Quiet / Aware. The control channel is 8 on some units and 9 on others: both are tried |
+| QC Ultra Headphones (1st Gen) | Reported working by a user (0.3.1) | Live | Built-in Quiet / Aware / Immersion, Wind Block, up to 7 custom modes |
+| QC Ultra Earbuds (2nd Gen) | Layout verified by bosectl | Live | Left / right / case battery; Quiet / Aware / Immersion / Cinema |
+| QC Ultra Earbuds (1st Gen) | Best guess, checked while connecting | Live, or via the active custom mode | LE Audio connection fixed in 0.4.0 (user report) |
+| QC Headphones (2nd Gen) | Best guess, checked while connecting | Live | Quiet / Aware / Immersion / Cinema, Wind Block, ANC off |
+| QC Headphones (1st Gen), QC SC | Layout verified by [bosectl](https://github.com/aaronsb/bosectl) | Via the active custom mode | No ANC on/off, no Immersive Audio; built-in Quiet / Aware. Control channel 8 or 9: both are tried |
 | QC45, QC SE | Layout verified by bosectl | Via the active custom mode | No ANC on/off, no Immersive Audio; Wind Block sets the level to 0 |
-| Ultra Open Earbuds (1st and 2nd Gen) | Partial, unverified | None (open-ear) | Battery, EQ, settings, mode switching, Immersive Audio; modes can't be edited |
+| QC Earbuds II | Best guess, checked while connecting | Via the active custom mode | Quiet / Aware + 2 custom modes; left / right / case battery |
+| Ultra Open Earbuds (1st and 2nd Gen) | Partial, unverified | None (open-ear) | Stereo / Immersion (+ Cinema on the 2nd Gen); battery, EQ, settings |
+| QC Earbuds (2020) | **Basic**, layout verified by bosectl | Direct level (0–10) | Battery, EQ, settings, noise level, mode switching; saving custom modes untested |
+| Noise Cancelling Headphones 700 | **Basic**, best guess | Direct level (0–10) | Battery, EQ, settings and noise level; no listening modes |
 | **Skullcandy Crusher 1080 ANC** | **Experimental, never run on real headphones** | Quiet / Aware / Off, with a gain slider | A different protocol (Bragi BOS-RPC, not Bose BMAP): Immersive Audio (Still / Motion), sidetone and the **Crusher bass** card. See [docs/crusher-1080.md](docs/crusher-1080.md) |
 
-**Noise control, "via the active custom mode":** the older headphones have no live noise setting,
-so Earshot saves the slider and Wind Block into the custom mode you are using (as the Bose app
-does). On the built-in Quiet / Aware modes, switch to a custom mode first.
+**Not supported:** QuietComfort 35 and 35 II (Bose Connect era; Earshot recognises them and shows
+the battery only) and the 2024 QuietComfort Earbuds (a different protocol and a separate Bose app).
+
+**Noise control, "via the active custom mode":** some headphones have no live noise setting, so
+Earshot saves the slider and Wind Block into the custom mode you are using (as the Bose app does).
+On the built-in Quiet / Aware modes, switch to a custom mode first.
 
 Reports from owners of the unverified models are very welcome: open an issue with what works and
-what doesn't (Tools, Lab, **Copy connection report** helps most).
+what doesn't (Tools, Lab, **Copy connection report** helps most). Demo mode can show how each model
+looks without the headphones (App preferences, Demo mode).
 
 ## Requirements
 
@@ -84,7 +112,7 @@ what doesn't (Tools, Lab, **Copy connection report** helps most).
 |---|---|
 | Android | **9.0 (API 28) or newer**. Developed and tested on Android 17 / One UI 9 (a Samsung Galaxy); also exercised on Android 16–17 emulators. |
 | CPU | Any: arm64-v8a, armeabi-v7a, x86_64. The APK contains no native code, so one ~5 MB file fits every phone. |
-| Bluetooth | Classic Bluetooth (RFCOMM) for control; LE Audio features need a phone with LE Audio support (Android 13+). |
+| Bluetooth | Classic Bluetooth (RFCOMM) for control, or an LE channel when the phone is on LE Audio (Android 10+). LE Audio features need a phone with LE Audio support (Android 13+). |
 | Headphones | One of the [supported models](#supported-headphones), paired in Android's Bluetooth settings. QC Ultra (2nd Gen) firmware 10.x tested. |
 | Bose app | **Closed or disabled** while Earshot is in use: only one app can hold the headphones' control channel and the Bose app grabs it in the background. Keep it for firmware updates. |
 | Optional | [Shizuku](https://shizuku.rikka.app/) (free, no root; start it via Wireless debugging on Android 11+) unlocks codec switching and the absolute-volume option. Everything else works without it. |
@@ -106,15 +134,18 @@ cd earshot
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-No headphones at hand? Tap **Try demo mode** on the welcome screen: a virtual QC Ultra built into
-the app answers the real protocol, so every screen works.
+No headphones at hand? Tap **Try demo mode** on the welcome screen: virtual Bose headphones and
+earbuds built into the app answer the real protocol, so every screen works. Pick the model in App
+preferences (QC Ultra, QC Ultra Earbuds, QC Earbuds II, QC Earbuds, QC45, NC 700, Ultra Open,
+QC35 II, Crusher).
 
 ## How it works
 
 - `protocol/` — pure-Kotlin implementation of BMAP (framing, the QC Ultra 2 function catalogue,
   parsers/builders), unit-tested against captured frames from real headphones. `BoseModel.kt` holds
-  the per-model differences (control channel, mode record layout, built-in modes, missing features).
-- `app/` — Kotlin + Jetpack Compose. Bluetooth RFCOMM transport with auto-reconnect, a foreground
+  the product table (names, form factor, first-guess channel and layout); the rest is read from the
+  headphones at connect time.
+- `app/` — Kotlin + Jetpack Compose. Bluetooth RFCOMM and LE L2CAP transports with auto-reconnect, a foreground
   service, the sound engine (`DynamicsProcessing`), codec control through a Shizuku user service,
   call audio, widgets, tile, automations.
 - `docs/bmap-from-bose-app-13.3.4.md` — the full BMAP function table and payload layouts, derived

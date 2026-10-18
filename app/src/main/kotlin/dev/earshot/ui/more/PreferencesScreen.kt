@@ -160,7 +160,7 @@ fun PreferencesContent(
                                 val next = if (selected) prefs.tileCycleModes - mode.index else prefs.tileCycleModes + mode.index
                                 onChange(prefs.copy(tileCycleModes = next.sorted()))
                             },
-                            label = { Text(mode.name) },
+                            label = { Text(mode.name.ifBlank { stringResource(R.string.mode_slot_number, mode.index) }) },
                         )
                     }
                 }
@@ -195,10 +195,21 @@ fun PreferencesContent(
                     onCheckedChange = onDemoChange,
                 )
                 if (demoEnabled) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-                        FilterChip(selected = demoDevice == DemoDevice.QC_ULTRA, onClick = { onDemoDeviceChange(DemoDevice.QC_ULTRA) }, label = { Text(stringResource(R.string.prefs_demo_qc_ultra)) })
-                        FilterChip(selected = demoDevice == DemoDevice.CRUSHER, onClick = { onDemoDeviceChange(DemoDevice.CRUSHER) }, label = { Text(stringResource(R.string.prefs_demo_crusher)) })
-                        FilterChip(selected = demoDevice == DemoDevice.CRUSHER_SECURE, onClick = { onDemoDeviceChange(DemoDevice.CRUSHER_SECURE) }, label = { Text(stringResource(R.string.prefs_demo_crusher_secure)) })
+                    Text(
+                        stringResource(R.string.prefs_demo_device),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                    )
+                    // Built from the enum so every virtual model the protocol side adds shows up here.
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DemoDevice.entries.forEach { device ->
+                            FilterChip(
+                                selected = demoDevice == device,
+                                onClick = { onDemoDeviceChange(device) },
+                                label = { Text(device.displayName) },
+                            )
+                        }
                     }
                 }
             }
@@ -209,5 +220,5 @@ fun PreferencesContent(
 @LightDarkPreview
 @Composable
 private fun PreferencesPreview() {
-    EarshotPreview { PreferencesContent(AppPreferences(tileCycleModes = listOf(0, 1)), FakeHeadphoneRepository.connectedState().modes, {}, {}) }
+    EarshotPreview { PreferencesContent(AppPreferences(tileCycleModes = listOf(0, 1)), FakeHeadphoneRepository.connectedState().modes, {}, {}, demoEnabled = true) }
 }

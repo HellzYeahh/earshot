@@ -73,6 +73,8 @@ class ServiceHeadphoneRepository(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     /** Demo mode hook, see [ConnectionManager]. Null = real Bluetooth. */
     demoTransport: () -> (() -> ByteTransport)? = { null },
+    /** The demo connection's name, so each virtual model is called by its own name. */
+    demoName: () -> String = { ConnectionManager.DEMO_NAME },
 ) : HeadphoneRepository {
 
     private val appContext = context.applicationContext
@@ -80,9 +82,10 @@ class ServiceHeadphoneRepository(
     val devicePrefs = DevicePrefs(appContext)
     val deviceFinder = DeviceFinder(appContext, devicePrefs)
     val connectionManager = ConnectionManager(
-        appContext, deviceFinder, devicePrefs, scope, BoseLinkFactory(),
+        appContext, deviceFinder, devicePrefs, scope, BoseLinkFactory(appContext, deviceFinder),
         autoConnect = ::autoConnectEnabled,
         demoTransport = demoTransport,
+        demoName = demoName,
     )
 
     private val _state = MutableStateFlow(HeadphoneState())
@@ -243,6 +246,7 @@ class ServiceHeadphoneRepository(
     override suspend fun setLeAudioEnabled(enabled: Boolean) = command("setLeAudioEnabled") { c, s -> protocol.setLeAudioEnabled(c, s, enabled) }
     override suspend fun setLatencyMs(ms: Int) = command("setLatencyMs") { c, s -> protocol.setLatencyMs(c, s, ms) }
     override suspend fun setTouchControls(enabled: Boolean) = command("setTouchControls") { c, s -> protocol.setTouchControls(c, s, enabled) }
+    override suspend fun setAutoOff(minutes: Int) = command("setAutoOff") { c, s -> protocol.setAutoOff(c, s, minutes) }
     override suspend fun setVolume(level: Int) = command("setVolume") { c, s -> protocol.setVolume(c, s, level) }
     override suspend fun transport(control: TransportControl) = command("transport") { c, s -> protocol.transport(c, s, control) }
 

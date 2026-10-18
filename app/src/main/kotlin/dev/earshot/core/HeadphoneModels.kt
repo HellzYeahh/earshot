@@ -164,6 +164,28 @@ data class DeviceInfo(
     val bmapVersion: String? = null,
     /** Marketing name derived from [productId], e.g. "QuietComfort 45 / QC SE". Null for an unknown id. */
     val modelName: String? = null,
+    /** The product line without the generation, e.g. "QuietComfort Ultra Earbuds". Null for an unknown id. */
+    val family: String? = null,
+    /** "1st Gen" / "2nd Gen" when the product line has generations; null otherwise or when unknown. */
+    val generation: String? = null,
+)
+
+/** Over-ear headphones, in-ear earbuds or open-ear earbuds: picks the icon, battery layout and wording. */
+enum class FormFactor { HEADPHONES, EARBUDS, OPEN_EARBUDS }
+
+/** One battery in the set: a level and, when the firmware estimates it, the listening time left. */
+data class BatteryLevel(val percent: Int?, val minutesLeft: Int? = null)
+
+/**
+ * The batteries behind [HeadphoneState.batteryPercent], from the `[2.2]` records: headphones
+ * report one ([overall]); earbuds report each bud and the case (ids 1 right, 2 left, 3 case,
+ * 4 combined). Any part the firmware does not report is null.
+ */
+data class BatteryDetail(
+    val overall: BatteryLevel? = null,
+    val left: BatteryLevel? = null,
+    val right: BatteryLevel? = null,
+    val case: BatteryLevel? = null,
 )
 
 /** Whether the headphones need an encrypted session for protected controls, and how that went. */
@@ -242,6 +264,14 @@ data class HeadphoneCapabilities(
     val listeningModes: Boolean = true,
     /** False while the model's layout is a best guess rather than confirmed on hardware. */
     val verified: Boolean = true,
+    /** What kind of product this is (icon, battery layout, wording). */
+    val formFactor: FormFactor = FormFactor.HEADPHONES,
+    /**
+     * User-visible note for products Earshot can only partly drive, shown on Home: a "basic"
+     * model (NC 700, QC Earbuds 2020: battery, EQ, settings and noise level, no modes) or an
+     * unsupported one (QuietComfort 35 / 35 II, the 2024 QC Earbuds). Null for fully supported models.
+     */
+    val supportNote: String? = null,
 )
 
 enum class ButtonAction(val wire: Int, val label: String) {
@@ -348,6 +378,18 @@ data class HeadphoneState(
     val secureSession: SecureSession = SecureSession(),
     /** A pairing waiting for the user's answer, or null. See [HeadphoneRepository.answerPairing]. */
     val pairing: PairingRequest? = null,
+
+    // ---- Added for 0.4.0 (model-aware UI) ----
+
+    /** Per-part batteries and time left; null until read. [batteryPercent] stays the headline figure. */
+    val battery: BatteryDetail? = null,
+    /**
+     * `[1.4]` auto-off (standby) timer in minutes, 0 = never; null when the headphones do not
+     * report one. See [HeadphoneRepository.setAutoOff].
+     */
+    val autoOffMinutes: Int? = null,
+    /** `[1.7]` band range the headphones report (min..max per band); null = the usual -10..10. */
+    val eqRange: IntRange? = null,
 ) {
     val isConnected: Boolean get() = connection.status == ConnectionStatus.CONNECTED
     val currentMode: ListeningMode? get() = currentModeIndex?.let { i -> modes.firstOrNull { it.index == i } }

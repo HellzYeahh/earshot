@@ -41,6 +41,8 @@ internal class BmapChannelSearch(
         open: suspend (BmapCandidate) -> ByteTransport,
     ): Found {
         val start = clock()
+        // The LE channel needs a GATT lookup before its socket: give the walk room for it.
+        val budget = if (BmapCandidate.LeCoc in candidates) budgetMs + LE_EXTRA_MS else budgetMs
         val failures = ArrayList<String>()
         var openedButMute = 0
         var dropped: Throwable? = null
@@ -49,7 +51,7 @@ internal class BmapChannelSearch(
         var onlySecurity = true
 
         for ((i, candidate) in candidates.withIndex()) {
-            if (i > 0 && clock() - start >= budgetMs) {
+            if (i > 0 && clock() - start >= budget) {
                 failures += "time budget spent, skipped ${candidates.drop(i).joinToString()}"
                 break
             }
@@ -106,13 +108,17 @@ internal class BmapChannelSearch(
 
     private suspend fun openOne(candidate: BmapCandidate, open: suspend (BmapCandidate) -> ByteTransport): Outcome = try {
         // RfcommTransport closes the socket when this times out (connectCancellable).
-        withTimeoutOrNull(connectTimeoutMs) { open(candidate) }?.let(::Opened)
-            ?: Failed(RfcommConnectException("connect timed out after ${connectTimeoutMs}ms", looksBusy = false))
+        withTimeoutOrNull(timeoutFor(candidate)) { open(candidate) }?.let(::Opened)
+            ?: Failed(RfcommConnectException("connect timed out after ${timeoutFor(candidate)}ms", looksBusy = false))
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         Failed(e)
     }
+
+    /** GATT connect + discovery + PSM read come before the LE socket opens. */
+    private fun timeoutFor(candidate: BmapCandidate): Long =
+        if (candidate == BmapCandidate.LeCoc) connectTimeoutMs + LE_EXTRA_MS else connectTimeoutMs
 
     private fun Throwable.describe(): String = "${this::class.simpleName}: ${message ?: "no message"}"
 
@@ -122,5 +128,8 @@ internal class BmapChannelSearch(
 
         /** No new candidate after this long; a full walk is normally a few seconds. */
         const val BUDGET_MS = 20_000L
+
+        /** Extra time for the LE channel's GATT lookup ([BmapPsmReader.TIMEOUT_MS]). */
+        const val LE_EXTRA_MS = BmapPsmReader.TIMEOUT_MS
     }
 }

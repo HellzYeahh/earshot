@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +36,8 @@ import dev.earshot.core.HeadphoneState
 import dev.earshot.core.Sidetone
 import dev.earshot.core.VoicePrompts
 import dev.earshot.core.fake.FakeHeadphoneRepository
+import dev.earshot.extras.HeadphoneLabels
+import dev.earshot.ui.common.rememberSettingsLoaded
 import dev.earshot.ui.common.ConfirmDialog
 import dev.earshot.ui.common.DropdownField
 import dev.earshot.ui.common.EarshotPreview
@@ -65,6 +68,7 @@ fun MoreScreen(
             onAutoAnswer = vm::setAutoAnswer,
             onMultipoint = vm::setMultipoint,
             onTouchControls = vm::setTouchControls,
+            onAutoOff = vm::setAutoOff,
             onVoicePrompts = vm::setVoicePrompts,
             onShortcutButton = vm::setShortcutButton,
             onRename = vm::rename,
@@ -83,6 +87,7 @@ data class SettingsCallbacks(
     val onAutoAnswer: (Boolean) -> Unit = {},
     val onMultipoint: (Boolean) -> Unit = {},
     val onTouchControls: (Boolean) -> Unit = {},
+    val onAutoOff: (Int) -> Unit = {},
     val onVoicePrompts: (VoicePrompts) -> Unit = {},
     val onShortcutButton: (ButtonAction) -> Unit = {},
     val onRename: (String) -> Unit = {},
@@ -102,6 +107,12 @@ fun MoreContent(
     val enabled = state.isConnected && !state.isBusy
     var showRename by rememberSaveable { mutableStateOf(false) }
     var showPowerOff by rememberSaveable { mutableStateOf(false) }
+    var showAutoOff by rememberSaveable { mutableStateOf(false) }
+    val buds = HeadphoneLabels.isEarbuds(HeadphoneLabels.formFactor(state))
+    // Once the refresh has landed, null means "this model doesn't have it": hide the row rather
+    // than leave a switch that can never be used. While loading, rows stay (disabled) so nothing jumps.
+    val loaded = rememberSettingsLoaded(state)
+    fun has(value: Any?) = !loaded || value != null
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -111,101 +122,121 @@ fun MoreContent(
 
         if (!state.isConnected) InfoBanner(stringResource(R.string.settings_not_connected))
 
-        SectionCard(title = stringResource(R.string.settings_headphones)) {
-            // Sidetone: wire order is 0=off 1=high 2=med 3=low; the enum handles it, we just show labels.
-            Text(stringResource(R.string.settings_sidetone), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
-            SegmentedChoice(
-                options = listOf(Sidetone.OFF, Sidetone.LOW, Sidetone.MEDIUM, Sidetone.HIGH),
-                selected = state.sidetone ?: Sidetone.OFF,
-                onSelect = { callbacks.onSidetone(it, state.sidetonePersistent ?: true) },
-                label = { it.label },
-                enabled = enabled && state.sidetone != null,
-            )
-            SwitchRow(
-                title = stringResource(R.string.settings_sidetone_persistent),
-                subtitle = stringResource(R.string.settings_sidetone_persistent_subtitle),
-                checked = state.sidetonePersistent ?: true,
-                enabled = enabled && state.sidetone != null,
-                onCheckedChange = { callbacks.onSidetone(state.sidetone ?: Sidetone.OFF, it) },
-            )
-            HorizontalDivider()
-            SwitchRow(stringResource(R.string.settings_auto_play_pause), state.autoPlayPause ?: false, callbacks.onAutoPlayPause, subtitle = stringResource(R.string.settings_auto_play_pause_subtitle), enabled = enabled && state.autoPlayPause != null)
-            SwitchRow(stringResource(R.string.settings_auto_answer), state.autoAnswer ?: false, callbacks.onAutoAnswer, subtitle = stringResource(R.string.settings_auto_answer_subtitle), enabled = enabled && state.autoAnswer != null)
-            SwitchRow(stringResource(R.string.settings_multipoint), state.multipointEnabled ?: false, callbacks.onMultipoint, subtitle = stringResource(R.string.settings_multipoint_subtitle), enabled = enabled && state.multipointEnabled != null)
-            // [1.34] is "disable captouch" on the wire; the state already presents it the right way up.
-            SwitchRow(stringResource(R.string.settings_touch_controls), state.touchControlsEnabled ?: true, callbacks.onTouchControls, subtitle = stringResource(R.string.settings_touch_controls_subtitle), enabled = enabled && state.touchControlsEnabled != null)
-            NavRow(
-                title = stringResource(R.string.settings_devices),
-                value = state.pairedDevices.firstOrNull { it.isActiveSource }?.name,
-                icon = Icons.Default.Devices,
-                onClick = onOpenDevices,
-            )
-            HorizontalDivider()
+        SectionCard(title = stringResource(if (buds) R.string.settings_earbuds else R.string.settings_headphones)) {
+            // Four groups; the general one (with Devices) always shows, so dividers sit around it.
             val prompts = state.voicePrompts
-            SwitchRow(
-                title = stringResource(R.string.settings_voice_prompts),
-                checked = prompts?.enabled ?: false,
-                enabled = enabled && prompts != null,
-                onCheckedChange = { callbacks.onVoicePrompts(VoicePrompts(it, prompts?.languageId ?: 1)) },
-            )
-            DropdownField(
-                label = stringResource(R.string.settings_voice_language),
-                options = VOICE_PROMPT_LANGUAGES,
-                selected = VOICE_PROMPT_LANGUAGES.firstOrNull { it.first == prompts?.languageId },
-                onSelect = { callbacks.onVoicePrompts(VoicePrompts(prompts?.enabled ?: true, it.first)) },
-                optionLabel = { it.second },
-                enabled = enabled && prompts != null,
-                modifier = Modifier.padding(vertical = 6.dp),
-            )
             val button = state.shortcutButton
-            DropdownField(
-                label = stringResource(R.string.settings_shortcut_button),
-                // The current action and Disabled are always offered, even when the firmware's
-                // supported list omits them, so the user can never get stuck on a choice.
-                options = (button?.supportedActions.orEmpty() + listOfNotNull(button?.action) + ButtonAction.DISABLED).distinct(),
-                selected = button?.action,
-                onSelect = callbacks.onShortcutButton,
-                optionLabel = { it.label },
-                enabled = enabled && button != null,
-                modifier = Modifier.padding(vertical = 6.dp),
-            )
+            if (has(state.sidetone)) {
+                // Sidetone: wire order is 0=off 1=high 2=med 3=low; the enum handles it, we just show labels.
+                Text(stringResource(R.string.settings_sidetone), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
+                SegmentedChoice(
+                    options = listOf(Sidetone.OFF, Sidetone.LOW, Sidetone.MEDIUM, Sidetone.HIGH),
+                    selected = state.sidetone ?: Sidetone.OFF,
+                    onSelect = { callbacks.onSidetone(it, state.sidetonePersistent ?: true) },
+                    label = { it.label },
+                    enabled = enabled && state.sidetone != null,
+                )
+                SwitchRow(
+                    title = stringResource(R.string.settings_sidetone_persistent),
+                    subtitle = stringResource(R.string.settings_sidetone_persistent_subtitle),
+                    checked = state.sidetonePersistent ?: true,
+                    enabled = enabled && state.sidetone != null,
+                    onCheckedChange = { callbacks.onSidetone(state.sidetone ?: Sidetone.OFF, it) },
+                )
+                HorizontalDivider()
+            }
+            run {
+                if (has(state.autoPlayPause)) SwitchRow(stringResource(R.string.settings_auto_play_pause), state.autoPlayPause ?: false, callbacks.onAutoPlayPause, subtitle = stringResource(R.string.settings_auto_play_pause_subtitle), enabled = enabled && state.autoPlayPause != null)
+                if (has(state.autoAnswer)) SwitchRow(stringResource(R.string.settings_auto_answer), state.autoAnswer ?: false, callbacks.onAutoAnswer, subtitle = stringResource(R.string.settings_auto_answer_subtitle), enabled = enabled && state.autoAnswer != null)
+                if (has(state.multipointEnabled)) SwitchRow(stringResource(R.string.settings_multipoint), state.multipointEnabled ?: false, callbacks.onMultipoint, subtitle = stringResource(R.string.settings_multipoint_subtitle), enabled = enabled && state.multipointEnabled != null)
+                // [1.34] is "disable captouch" on the wire; the state already presents it the right way up.
+                if (has(state.touchControlsEnabled)) SwitchRow(
+                    stringResource(R.string.settings_touch_controls),
+                    state.touchControlsEnabled ?: true,
+                    callbacks.onTouchControls,
+                    subtitle = stringResource(if (buds) R.string.settings_touch_controls_subtitle_buds else R.string.settings_touch_controls_subtitle),
+                    enabled = enabled && state.touchControlsEnabled != null,
+                )
+                if (has(state.autoOffMinutes)) NavRow(
+                    title = stringResource(R.string.settings_auto_off),
+                    subtitle = stringResource(R.string.settings_auto_off_subtitle),
+                    value = state.autoOffMinutes?.let { autoOffLabel(it) },
+                    icon = Icons.Default.Timer,
+                    onClick = { showAutoOff = true },
+                    enabled = enabled && state.autoOffMinutes != null,
+                )
+                NavRow(
+                    title = stringResource(R.string.settings_devices),
+                    value = state.pairedDevices.firstOrNull { it.isActiveSource }?.name,
+                    icon = Icons.Default.Devices,
+                    onClick = onOpenDevices,
+                )
+            }
+            if (has(prompts) || has(button)) {
+                HorizontalDivider()
+                if (has(prompts)) {
+                    SwitchRow(
+                        title = stringResource(R.string.settings_voice_prompts),
+                        checked = prompts?.enabled ?: false,
+                        enabled = enabled && prompts != null,
+                        onCheckedChange = { callbacks.onVoicePrompts(VoicePrompts(it, prompts?.languageId ?: 1)) },
+                    )
+                    DropdownField(
+                        label = stringResource(R.string.settings_voice_language),
+                        options = VOICE_PROMPT_LANGUAGES,
+                        selected = VOICE_PROMPT_LANGUAGES.firstOrNull { it.first == prompts?.languageId },
+                        onSelect = { callbacks.onVoicePrompts(VoicePrompts(prompts?.enabled ?: true, it.first)) },
+                        optionLabel = { it.second },
+                        enabled = enabled && prompts != null,
+                        modifier = Modifier.padding(vertical = 6.dp),
+                    )
+                }
+                if (has(button)) DropdownField(
+                    label = stringResource(R.string.settings_shortcut_button),
+                    // The current action and Disabled are always offered, even when the firmware's
+                    // supported list omits them, so the user can never get stuck on a choice.
+                    options = (button?.supportedActions.orEmpty() + listOfNotNull(button?.action) + ButtonAction.DISABLED).distinct(),
+                    selected = button?.action,
+                    onSelect = callbacks.onShortcutButton,
+                    optionLabel = { it.label },
+                    enabled = enabled && button != null,
+                    modifier = Modifier.padding(vertical = 6.dp),
+                )
+            }
             HorizontalDivider()
-            NavRow(
-                title = stringResource(R.string.settings_rename),
-                value = state.info?.customName ?: state.connection.deviceName,
-                subtitle = stringResource(R.string.settings_rename_subtitle),
-                onClick = { showRename = true },
-                enabled = enabled,
-            )
-            NavRow(title = stringResource(R.string.settings_power_off), icon = Icons.Default.PowerSettingsNew, onClick = { showPowerOff = true }, enabled = enabled)
+            run {
+                NavRow(
+                    title = stringResource(if (buds) R.string.settings_rename_buds else R.string.settings_rename),
+                    value = HeadphoneLabels.displayName(state),
+                    subtitle = stringResource(R.string.settings_rename_subtitle),
+                    onClick = { showRename = true },
+                    enabled = enabled,
+                )
+                NavRow(title = stringResource(R.string.settings_power_off), icon = Icons.Default.PowerSettingsNew, onClick = { showPowerOff = true }, enabled = enabled)
+            }
         }
+
+        DeviceInfoCard(state)
 
         SectionCard(title = stringResource(R.string.settings_app)) {
             NavRow(title = stringResource(R.string.settings_automations), subtitle = stringResource(R.string.settings_automations_subtitle), icon = Icons.Default.AutoAwesome, onClick = onOpenAutomations)
             NavRow(title = stringResource(R.string.settings_preferences), subtitle = stringResource(R.string.settings_preferences_subtitle), icon = Icons.Default.Tune, onClick = onOpenPreferences)
             NavRow(title = stringResource(R.string.settings_about), icon = Icons.Default.Info, onClick = onOpenAbout)
         }
-
-        val info = state.info
-        if (info != null) {
-            Text(
-                listOfNotNull(
-                    info.modelName ?: info.productName,
-                    info.firmwareVersion?.let { "FW $it" },
-                    info.serialNumber?.let { "SN $it" },
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
     }
 
+    if (showAutoOff) {
+        AutoOffDialog(
+            current = state.autoOffMinutes,
+            onPick = { minutes -> showAutoOff = false; callbacks.onAutoOff(minutes) },
+            onDismiss = { showAutoOff = false },
+        )
+    }
     if (showRename) {
-        var name by rememberSaveable { mutableStateOf(state.info?.customName ?: state.connection.deviceName.orEmpty()) }
+        var name by rememberSaveable { mutableStateOf(HeadphoneLabels.displayName(state).orEmpty()) }
         AlertDialog(
             onDismissRequest = { showRename = false },
-            title = { Text(stringResource(R.string.settings_rename)) },
+            title = { Text(stringResource(if (buds) R.string.settings_rename_buds else R.string.settings_rename)) },
             text = {
                 Column {
                     OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -219,7 +250,7 @@ fun MoreContent(
     if (showPowerOff) {
         ConfirmDialog(
             title = stringResource(R.string.settings_power_off),
-            text = stringResource(R.string.settings_power_off_confirm),
+            text = stringResource(if (buds) R.string.settings_power_off_confirm_buds else R.string.settings_power_off_confirm),
             confirmLabel = stringResource(R.string.settings_power_off),
             destructive = true,
             onConfirm = callbacks.onPowerOff,
@@ -233,5 +264,23 @@ fun MoreContent(
 private fun MorePreview() {
     EarshotPreview {
         MoreContent(FakeHeadphoneRepository.connectedState(), PaddingValues(0.dp), SettingsCallbacks(), {}, {}, {}, {})
+    }
+}
+
+/** Earbuds: only the rows the model has, earbud wording, the device info card. */
+@LightDarkPreview
+@Composable
+private fun MoreEarbudsPreview() {
+    EarshotPreview {
+        MoreContent(FakeHeadphoneRepository.connectedEarbudsState(), PaddingValues(0.dp), SettingsCallbacks(), {}, {}, {}, {})
+    }
+}
+
+/** A basic-tier model whose layout is a best guess: the unverified note under the device info. */
+@LightDarkPreview
+@Composable
+private fun MoreBasicTierPreview() {
+    EarshotPreview {
+        MoreContent(FakeHeadphoneRepository.basicTierState(), PaddingValues(0.dp), SettingsCallbacks(), {}, {}, {}, {})
     }
 }

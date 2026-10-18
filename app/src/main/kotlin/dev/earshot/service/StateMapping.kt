@@ -1,5 +1,7 @@
 package dev.earshot.service
 
+import dev.earshot.core.BatteryDetail
+import dev.earshot.core.BatteryLevel
 import dev.earshot.core.BluetoothProfile
 import dev.earshot.core.ButtonAction
 import dev.earshot.core.ButtonAssignment
@@ -24,7 +26,11 @@ import dev.earshot.core.VoicePrompts
 import dev.earshot.protocol.BmapException
 import dev.earshot.protocol.qcultra2.AudioSettings
 import dev.earshot.protocol.qcultra2.AudioStatus
+import dev.earshot.protocol.qcultra2.BatteryComponent
+import dev.earshot.protocol.qcultra2.BatteryStatus
 import dev.earshot.protocol.qcultra2.BoseModel
+import dev.earshot.protocol.qcultra2.ModeNames
+import dev.earshot.protocol.qcultra2.ModeSlotPlan
 import dev.earshot.protocol.qcultra2.ButtonConfig
 import dev.earshot.protocol.qcultra2.ClassicProfile
 import dev.earshot.protocol.qcultra2.CncState
@@ -72,59 +78,82 @@ internal fun NoiseSettings.toAudioSettings(): AudioSettings = AudioSettings(
 // ── Model ────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The catalogue entry corrected by what the connection showed: [layout] is the `[31.6]` layout
- * of the STATUS frames actually received, [liveNoise] whether `[31.10]` answered, [modes] whether
- * block 31 exists at all. The defaults are the catalogue's own guesses.
+ * The catalogue entry corrected by what the connection showed, for callers that have no
+ * [ConnectionFacts]: [layout] is the `[31.6]` layout of the STATUS frames actually received,
+ * [liveNoise] whether `[31.10]` answered, [modes] whether block 31 exists at all. The defaults
+ * are the catalogue's own guesses. The protocol itself uses [ConnectionFacts.capabilities].
  */
 internal fun BoseModel.toCapabilities(
     layout: ModeLayout = modeLayout,
     liveNoise: Boolean = hasLiveAudioSettings,
     modes: Boolean = true,
-): HeadphoneCapabilities = HeadphoneCapabilities(
-    spatialAudio = hasSpatialAudio,
-    ancToggle = hasNoiseCancelling && layout.hasAncToggle,
-    liveNoiseControl = liveNoise && modes,
-    windExcludesCancelling = layout == ModeLayout.COMPACT,
-    noiseCancelling = hasNoiseCancelling,
-    ancAlwaysOn = hasNoiseCancelling && !layout.hasAncToggle,
-    editableModes = canEditModes && modes,
-    favoriteModes = modes,
-    listeningModes = modes,
-    verified = verified,
+): HeadphoneCapabilities = ConnectionFacts(model = this, seenLayout = layout).capabilities(
+    path = when {
+        isUnsupported -> NoisePath.NONE
+        liveNoise && modes -> NoisePath.LIVE
+        modes -> NoisePath.SLOTS
+        else -> NoisePath.READ_ONLY
+    },
+    modesAvailable = modes,
 )
 
 /**
- * `[1.5]` CNC `[numSteps, currentStep, flags]` as read-only noise settings, for firmware without
- * listening modes. Direction: Earshot's fw 10.12 capture reads step 0 in Quiet, and the virtual
- * unit mirrors the inverted `[31.10]` byte, so step 0 is taken as *most* cancelling (bosectl's
- * notes say the opposite for their unit; unverified either way). Null for a malformed reply.
+ * `[1.5]` CNC `[numSteps, currentStep, flags]` as noise settings (the direct path, or read-only
+ * where it cannot be written). Step 0 is the *most* cancelling step: the Bose app names the field
+ * `worldVolumeStep` and maps it with `abs(cnc − (steps − 1))`, and the wolverine scan read step 10
+ * in Aware (docs/bose-models.md §C3). Wind and spatial are not part of `[1.5]`. Null for a
+ * malformed reply.
  */
 internal fun CncState.toNoiseSettings(): NoiseSettings? {
-    if (steps < 2 || step !in 0..maxStep) return null
-    val level = ((maxStep - step) * 10 + maxStep / 2) / maxStep
+    val level = cancellingLevel ?: return null
     return NoiseSettings(cancellingLevel = level, ancEnabled = enabled, windBlock = false, spatialAudio = SpatialAudio.OFF)
 }
+
+// ── Battery [2.2] ────────────────────────────────────────────────────────────────────────
+
+/**
+ * `[2.2]` records by component id (docs/bose-models.md §C1): 0 single → [BatteryDetail.overall],
+ * 1 right, 2 left, 3 case, and 4 (bosectl's "combined buds", unknown to the Bose app) as the
+ * overall figure when there is no id 0. 0xFFFF minutes are already null. Null without records.
+ */
+internal fun BatteryStatus.toBatteryDetail(): BatteryDetail? {
+    if (readings.isEmpty()) return null
+    fun level(component: BatteryComponent) = reading(component)?.let { BatteryLevel(it.percent, it.remainingMinutes) }
+    return BatteryDetail(
+        overall = level(BatteryComponent.SINGLE) ?: level(BatteryComponent.COMBINED_BUDS),
+        left = level(BatteryComponent.LEFT),
+        right = level(BatteryComponent.RIGHT),
+        case = level(BatteryComponent.CASE),
+    )
+}
+
+/** Headline percentage ([Battery.aggregate]) and the per-part detail from one `[2.2]` payload. */
+internal fun HeadphoneState.withBattery(status: BatteryStatus): HeadphoneState =
+    copy(batteryPercent = status.percent ?: batteryPercent, battery = status.toBatteryDetail() ?: battery)
 
 // ── Listening modes [31.6] + [31.8] ──────────────────────────────────────────────────────
 
 /**
  * One `[31.6]` slot as a [ListeningMode]. Presets always count as configured; a custom slot is
  * configured unless its name is blank or the "None" sentinel (bosectl's free-slot rule — the
- * firmware's own `configured` bit is set on first write and never cleared, so it is useless
- * for that). An empty slot gets an empty name and no settings, which is what the UI expects.
+ * firmware's own `configured` bit is set on first write and never cleared, so it is useless for
+ * that; a prompt left behind in a freed slot must not bring it back). An empty slot gets an empty
+ * name and no settings, which is what the UI expects. The name is the Bose app's: the prompt's own
+ * name, else the UTF-8 field, else "Mode N" ([ModeNames], docs/bose-models.md §C2).
  */
-internal fun ModeConfig.toListeningMode(favorite: Boolean, model: BoseModel = BoseModel.DEFAULT): ListeningMode {
-    // A built-in slot the model does not name (Ultra Open) is only a mode if the firmware named it;
-    // otherwise an unused "None" slot would show up in the carousel as a blank built-in mode.
-    val preset = index in model.presetSlots && (index < model.presetNames.size || !isEmptySlot)
+internal fun ModeConfig.toListeningMode(favorite: Boolean, plan: ModeSlotPlan = BoseModel.DEFAULT): ListeningMode {
+    val promptName = ModeNames.forPrompt(prompt)
+    // A built-in slot the model does not name is only a mode if the firmware named it; otherwise
+    // an unused "None" slot would show up in the carousel as a blank built-in mode.
+    val preset = index in plan.presetSlots && (index < plan.presetNames.size || promptName != null || !isEmptySlot)
     val configured = preset || !isEmptySlot
     return ListeningMode(
         index = index,
-        name = if (configured) name.trim() else "",
+        name = if (configured) ModeNames.displayName(this) else "",
         isPreset = preset,
         // The SET_GET echo has no editable bit; fall back to the slot range. A model whose write
-        // layout is unknown (Ultra Open) never offers editing, whatever the byte says.
-        isEditable = model.canEditModes && (editable ?: (index in model.editableSlots)),
+        // layout is unknown never offers editing, whatever the byte says.
+        isEditable = plan.canEditModes && (editable ?: (index in plan.editableSlots)),
         isConfigured = configured,
         isFavorite = favorite,
         settings = if (configured) toAudioSettings().toNoiseSettings() else null,
@@ -142,18 +171,18 @@ internal fun ModeField.toModeSetting(): ModeSetting = when (this) {
 
 /** What to show for a slot the dump did not report: the previous entry, else a sensible blank. */
 internal fun placeholderMode(
-    index: Int, previous: ListeningMode?, favorite: Boolean, model: BoseModel = BoseModel.DEFAULT,
+    index: Int, previous: ListeningMode?, favorite: Boolean, plan: ModeSlotPlan = BoseModel.DEFAULT,
 ): ListeningMode {
     if (previous != null) return previous.copy(isFavorite = favorite)
-    val preset = index in model.presetSlots
-    val name = model.presetNames.getOrNull(index)
-    // A built-in slot whose name is unknown (Ultra Open) stays hidden until the dump names it.
+    val preset = index in plan.presetSlots
+    val name = plan.presetNames.getOrNull(index)
+    // A built-in slot whose name is unknown stays hidden until the dump names it.
     val known = preset && name != null
     return ListeningMode(
         index = index,
         name = name ?: "",
         isPreset = known,
-        isEditable = index in model.editableSlots,
+        isEditable = plan.canEditModes && index in plan.editableSlots,
         isConfigured = known,
         isFavorite = favorite,
         settings = null,
@@ -161,7 +190,7 @@ internal fun placeholderMode(
 }
 
 /**
- * All [QcUltra2.MODE_SLOT_COUNT] slots in order. Slots missing from [configs] keep their entry
+ * All [ModeSlotPlan.slotCount] slots in order. Slots missing from [configs] keep their entry
  * from [previous] (a partial dump must not wipe the list) or become placeholders. [favorites]
  * null means "not read": keep each slot's previous favourite flag.
  */
@@ -169,15 +198,15 @@ internal fun buildModeList(
     configs: Map<Int, ModeConfig>,
     favorites: Set<Int>?,
     previous: List<ListeningMode>,
-    model: BoseModel = BoseModel.DEFAULT,
-    slotCount: Int = model.slotCount,
+    plan: ModeSlotPlan = BoseModel.DEFAULT,
+    slotCount: Int = plan.slotCount,
 ): List<ListeningMode> {
     val before = previous.associateBy { it.index }
-    // A dump may report more slots than the model's default (e.g. an unverified model).
+    // A dump may report more slots than the plan (e.g. an unverified model).
     val count = maxOf(slotCount, (configs.keys.maxOrNull() ?: -1) + 1)
     return (0 until count).map { index ->
         val favorite = favorites?.contains(index) ?: (before[index]?.isFavorite ?: false)
-        configs[index]?.toListeningMode(favorite, model) ?: placeholderMode(index, before[index], favorite, model)
+        configs[index]?.toListeningMode(favorite, plan) ?: placeholderMode(index, before[index], favorite, plan)
     }
 }
 
@@ -185,14 +214,32 @@ internal fun List<ListeningMode>.withFavorites(favorites: Set<Int>): List<Listen
     map { it.copy(isFavorite = it.index in favorites) }
 
 /** Replace (or insert, keeping index order) one slot, preserving its favourite flag. */
-internal fun List<ListeningMode>.withSlot(config: ModeConfig, model: BoseModel = BoseModel.DEFAULT): List<ListeningMode> {
+internal fun List<ListeningMode>.withSlot(config: ModeConfig, plan: ModeSlotPlan = BoseModel.DEFAULT): List<ListeningMode> {
     val favorite = firstOrNull { it.index == config.index }?.isFavorite ?: false
-    val updated = config.toListeningMode(favorite, model)
+    val updated = config.toListeningMode(favorite, plan)
     return if (any { it.index == config.index }) map { if (it.index == config.index) updated else it }
     else (this + updated).sortedBy { it.index }
 }
 
 // ── Settings block ───────────────────────────────────────────────────────────────────────
+
+/**
+ * `[1.7]` band range for [HeadphoneState.eqRange]: the narrowest min..max over bass, mid and treble,
+ * limited to the ±10 that [HeadphoneEq] holds. Null when the bands are missing or the range is empty.
+ */
+internal fun List<EqBand>.eqRange(): IntRange? {
+    val main = filter { it.bandCode in EqBandId.BASS.code..EqBandId.TREBLE.code }
+    if (main.isEmpty()) return null
+    val lo = main.maxOf { it.min }.coerceAtLeast(QcUltra2.EQ_MIN)
+    val hi = main.minOf { it.max }.coerceAtMost(QcUltra2.EQ_MAX)
+    return if (lo < hi) lo..hi else null
+}
+
+/** `[1.7]` reply folded into the state: the values when all three bands are there, and their range. */
+internal fun HeadphoneState.withEq(bands: List<EqBand>): HeadphoneState {
+    val eq = bands.toHeadphoneEq() ?: return this
+    return copy(eq = eq, eqRange = bands.eqRange() ?: eqRange)
+}
 
 /** `[1.7]` bands → [HeadphoneEq]; null unless bass, mid and treble are all present. Values clamp to ±10. */
 internal fun List<EqBand>.toHeadphoneEq(): HeadphoneEq? {

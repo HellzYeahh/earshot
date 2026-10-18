@@ -100,7 +100,10 @@ class OlderFirmwareEndToEndTest {
     @Test
     fun `firmware without block 31 gives a usable state with the modes hidden`() = runTest {
         val device = VirtualQcUltra2().apply {
-            productId = 0x4024 // NC700 "goodyear" (bosectl #44): no profile, QC Ultra 2 defaults
+            // bosectl #44: a unit with goodyear's id (NC 700, catalogued since 0.4.0) whose [0.2] lists
+            // block 31 but refuses every request in it. The wolverine profile underneath also refuses
+            // the [1.5] write, so the level ends up read-only.
+            productId = 0x4024
             productName = "Bose NC 700 HP"
             refuseAudioModesBlock = true
         }
@@ -116,14 +119,17 @@ class OlderFirmwareEndToEndTest {
         assertEquals(0, s.currentModeIndex)
         assertEquals(72, s.batteryPercent)
         assertEquals(HeadphoneEq(bass = 0, mid = -2, treble = -6), s.eq)
-        assertEquals(10, s.noise?.cancellingLevel, "[1.5] read-only: Quiet = most cancelling")
+        assertEquals(10, s.noise?.cancellingLevel, "[1.5]: Quiet = most cancelling")
         assertEquals(1, device.requestsToBlock(31), "one FblockNotSupp, no error spam")
 
         s = protocol.refresh(r, s)
         assertEquals(1, device.requestsToBlock(31))
         val e = assertFailsWith<HeadphoneCommandException> { protocol.setMode(r, s, 1) }
         assertEquals(QcUltra2Protocol.MODES_UNAVAILABLE_MESSAGE, e.message)
-        assertFailsWith<HeadphoneCommandException> { protocol.setNoise(r, s, NoiseSettings(cancellingLevel = 2)) }
+        // The [1.5] write is tried once, refused (OpNotSupp), and the level is read-only after that.
+        val noise = assertFailsWith<HeadphoneCommandException> { protocol.setNoise(r, s, NoiseSettings(cancellingLevel = 2)) }
+        assertEquals(QcUltra2Protocol.NOISE_READ_ONLY_MESSAGE, noise.message)
+        assertFalse(protocol.refresh(r, s).capabilities.liveNoiseControl)
         assertEquals(1, device.requestsToBlock(31))
     }
 

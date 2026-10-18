@@ -301,24 +301,46 @@ object CustomName {
     }
 }
 
-// ── CNC [1.5] (read-only on this firmware) ───────────────────────────────────────────────
+// ── CNC [1.5] ────────────────────────────────────────────────────────────────────────────
 
 data class CncState(val steps: Int, val step: Int, val flags: Int) {
-    /** flags bit 0 per the notes. */
+    /** flags bit 0 (Bose `SettingsCncResponse`: isEnabled). */
     val enabled: Boolean get() = (flags and 0x01) != 0
-    /** flags bit 1 = "!userEnableDisable" per the notes, i.e. the user cannot toggle it. */
+    /** flags bit 1 = 0 means the user may switch it off (the app's `userEnableDisable`). */
     val userCanToggle: Boolean get() = (flags and 0x02) == 0
     val maxStep: Int get() = steps - 1
+
+    /** A usable reply: at least two steps and the current one inside them. */
+    val isValid: Boolean get() = steps >= 2 && step in 0..maxStep
+
+    /** UI level 0..10, 10 = most cancelling (step 0 is the most cancelling step). Null when [isValid] is false. */
+    val cancellingLevel: Int? get() = if (!isValid) null else ((maxStep - step) * 10 + maxStep / 2) / maxStep
+
+    /** The step for UI [level] (0..10), rounded to the nearest of this unit's steps. */
+    fun stepForLevel(level: Int): Int {
+        require(isValid) { "no usable step count ($steps)" }
+        val l = level.coerceIn(0, 10)
+        return maxStep - (l * maxStep + 5) / 10
+    }
 }
 
 /**
- * `[1.5]` GET → `[numSteps, currentStep, flags]`; capture `0b0003` = 11 steps, step 0, flags 3.
- * The slider capture moves it `0b0003 → 0b0703 → 0b0503 → 0b0103 → 0b0003`, so it does mirror
- * the Bose app's noise-cancelling slider. Whether its step runs in the same direction as the
- * inverted `[31.10]` byte is not established by the captures. SET_GET here answers error 5
- * (operator not implemented for this function): write through [AudioSettings] instead.
+ * `[1.5]` CNC: GET → `[numSteps, currentStep, flags]` (Bose `SettingsCncResponse`); fw 10.12
+ * capture `0b0003` = 11 steps, step 0, flags 3. The step is a **world-volume** scale: the Bose app
+ * stores it as `BmapCncLevelConfig.worldVolumeStep`, the mode editor maps it with
+ * `abs(cnc − (steps − 1))`, and the wolverine scan read step 10 while in Aware, so step 0 = most
+ * cancelling, the same direction as the `[31.10]` byte (docs/bose-models.md §C3).
+ *
+ * SET_GET `[step, enabled]` (Bose `SettingsCncSetGetPacket`) is how the QC Earbuds 2020 set the
+ * level (bosectl-verified) and probably the NC 700; wolverine and the QC45 answer error 5 to it
+ * (operator not implemented here) and write through `[31.10]` or the mode slots instead.
  */
 object Cnc {
     fun parse(payload: ByteArray): CncState? =
         if (payload.size < 3) null else CncState(payload.u8(0), payload.u8(1), payload.u8(2))
+
+    fun build(step: Int, enabled: Boolean): ByteArray {
+        require(step in 0..255) { "bad CNC step $step" }
+        return byteArrayOf(step.toByte(), enabled.toByteValue())
+    }
 }

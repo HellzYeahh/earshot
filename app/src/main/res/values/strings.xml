@@ -17,13 +17,11 @@
     <string name="prefs_type_auto">Automatic</string>
     <string name="prefs_type_bose">Bose</string>
     <string name="prefs_type_crusher">Skullcandy Crusher</string>
-    <string name="prefs_demo_qc_ultra">QC Ultra</string>
-    <string name="prefs_demo_crusher">Crusher 1080</string>
-    <string name="prefs_demo_crusher_secure">Crusher (pairing)</string>
     <string name="prefs_demo">Demo</string>
     <string name="prefs_demo_mode">Demo mode</string>
     <string name="onboarding_try_demo">Try demo mode — no headphones needed</string>
-    <string name="prefs_demo_mode_subtitle">Use a virtual QC Ultra built into the app instead of real headphones. Handy for trying the app or on a phone without the headphones.</string>
+    <string name="prefs_demo_mode_subtitle">Use virtual headphones or earbuds built into the app instead of real ones. Handy for trying the app, or for seeing how Earshot looks with another model.</string>
+    <string name="prefs_demo_device">Virtual device</string>
 
     <!-- Tabs -->
     <string name="tab_home">Home</string>
@@ -71,7 +69,7 @@
 
     <!-- Onboarding -->
     <string name="onboarding_title">Welcome to Earshot</string>
-    <string name="onboarding_body">A fast, account-free controller for your Bose QuietComfort headphones and Ultra Open Earbuds. Everything stays on this phone.</string>
+    <string name="onboarding_body">A fast, account-free controller for your Bose QuietComfort and Ultra headphones and earbuds. It adapts to the model you connect, and everything stays on this phone.</string>
     <string name="onboarding_permission_title">Bluetooth access</string>
     <string name="onboarding_permission_body">Earshot talks to the headphones directly over Bluetooth. Android needs your permission for nearby-device access first.</string>
     <string name="onboarding_permission_denied">Android won\'t ask again. Allow “Nearby devices” for Earshot in app settings.</string>
@@ -168,7 +166,6 @@
 
     <!-- Modes editor -->
     <string name="modes_title">Listening modes</string>
-    <string name="modes_intro">Four built-in modes and seven custom slots. The headphones keep them in this order; reordering isn\'t supported by the firmware.</string>
     <string name="modes_builtin">Built-in, can\'t be edited</string>
     <string name="modes_empty_slot">Empty slot</string>
     <string name="modes_tap_to_set_up">Tap to set up</string>
@@ -257,6 +254,21 @@
     <string name="conn_le_support_unknown">Support unknown (not read yet)</string>
     <string name="conn_le_enabled_switch">LE Audio on</string>
     <string name="conn_le_enabled_subtitle">Switching restarts the headphones</string>
+    <string name="conn_le_enabled_subtitle_risky">May not work on these headphones; you can still try (they restart)</string>
+    <string name="conn_le_phone_supported">This phone supports LE Audio</string>
+    <string name="conn_le_phone_not_supported">This phone doesn\'t support LE Audio</string>
+    <string name="conn_le_phone_unknown">This phone\'s LE Audio support is unknown (Android 13 and newer report it)</string>
+    <string name="conn_le_risky_title">LE Audio may not work here</string>
+    <string name="conn_le_risky_body">You can try anyway:\n%1$s\n\nThe headphones restart either way. If their firmware has no LE Audio, nothing changes, and Earshot checks the result after they reconnect. An app can\'t add LE Audio to headphones: it comes with Bose firmware updates, which the Bose app installs.</string>
+    <string name="conn_le_risky_action">Switch anyway</string>
+    <string name="conn_le_reason_headphones">The headphones report that their firmware doesn\'t support LE Audio.</string>
+    <string name="conn_le_reason_no_switch">The headphones didn\'t report an LE Audio switch.</string>
+    <string name="conn_le_reason_phone">This phone doesn\'t support LE Audio, so it will keep using Classic Bluetooth with these headphones.</string>
+    <string name="conn_le_result_on">LE Audio is on</string>
+    <string name="conn_le_result_off">LE Audio is off</string>
+    <string name="conn_le_result_unchanged">The headphones restarted but kept their LE Audio setting. Their firmware probably doesn\'t support switching it.</string>
+    <string name="conn_le_result_no_switch">The headphones don\'t report an LE Audio setting, so their firmware probably has no LE Audio.</string>
+    <string name="conn_le_result_unknown">Couldn\'t confirm the LE Audio setting after the restart. Check again once the headphones are connected.</string>
     <string name="conn_le_pref_preferred">Headphones prefer LE Audio for this phone</string>
     <string name="conn_le_pref_not_preferred">Headphones don\'t prefer LE Audio for this phone</string>
     <string name="conn_le_pref_prohibited">LE Audio prohibited for this connection</string>
@@ -487,4 +499,97 @@
     <string name="about_licence_body">Earshot is released under the MIT licence.</string>
     <string name="about_privacy">Privacy</string>
     <string name="about_privacy_body">Earshot has no internet permission. Settings, presets and automations are stored only on this phone.</string>
+
+    <!-- 0.4.0: header, battery, device switcher -->
+    <string name="device_generic_name_buds">Bose earbuds</string>
+    <string name="form_headphones">Headphones</string>
+    <string name="form_earbuds">Earbuds</string>
+    <string name="form_open_earbuds">Open earbuds</string>
+    <string name="header_switch_action">Switch headphones</string>
+    <string name="header_time_left_hours">≈ %1$d h left</string>
+    <string name="header_time_left_minutes">≈ %1$d min left</string>
+    <string name="battery_left_short">L</string>
+    <string name="battery_right_short">R</string>
+    <string name="battery_case_last_known">Case, last known</string>
+    <string name="battery_left_percent">Left earbud battery %1$d percent</string>
+    <string name="battery_right_percent">Right earbud battery %1$d percent</string>
+    <string name="battery_case_percent">Case battery, last known %1$d percent</string>
+    <string name="battery_left_unknown">Left earbud battery unknown</string>
+    <string name="battery_right_unknown">Right earbud battery unknown</string>
+    <string name="battery_case_unknown">Case battery unknown</string>
+    <string name="switcher_title">Your Bose products</string>
+    <string name="switcher_subtitle">Paired with this phone. Pick one to connect to it.</string>
+    <string name="switcher_current">Current</string>
+    <string name="switcher_empty">No paired Bose headphones or earbuds found.</string>
+    <string name="switcher_other_audio">Other audio devices</string>
+    <string name="switcher_pair_new">Pair new headphones</string>
+    <string name="switcher_pair_new_subtitle">Opens Android\'s Bluetooth settings</string>
+
+    <!-- 0.4.0: disconnected card -->
+    <string name="disconnected_title_buds">Earbuds not connected</string>
+    <string name="action_choose_headphones">Choose headphones</string>
+    <string name="disconnected_tips_title">If they don\'t connect</string>
+    <string name="tip_power_on">Turn the headphones on and keep them close to the phone.</string>
+    <string name="tip_power_on_buds">Take the earbuds out of the case and keep them close to the phone.</string>
+    <string name="tip_close_bose_app">Close the Bose app: only one app at a time can use the control channel.</string>
+    <string name="tip_le_audio">LE Audio earbuds: keep them connected in Android\'s Bluetooth settings.</string>
+    <string name="report_copied">Connection report copied</string>
+
+    <!-- 0.4.0: model-aware wording -->
+    <string name="home_modes_unavailable_buds">This firmware doesn\'t expose listening modes to other apps, so they can only be changed on the earbuds.</string>
+    <string name="noise_hint_mode_only_buds">On these earbuds noise settings belong to a mode. Switch to a custom mode to adjust them.</string>
+    <string name="settings_earbuds">Earbuds</string>
+    <string name="settings_touch_controls_subtitle_buds">Taps and swipes on the earbuds</string>
+    <string name="settings_rename_buds">Rename earbuds</string>
+    <string name="settings_power_off_confirm_buds">Turn the earbuds off? Put them back in the case, or press their button, to turn them on again.</string>
+    <string name="sound_headphone_eq_subtitle_buds">The three bands inside the earbuds. Applies to every source.</string>
+
+    <!-- 0.4.0: auto-off and device info -->
+    <string name="settings_auto_off">Auto-off</string>
+    <string name="settings_auto_off_subtitle">Turn off after this long without use</string>
+    <string name="auto_off_never">Never</string>
+    <string name="auto_off_minutes">%1$d min</string>
+    <string name="auto_off_hours">%1$d h</string>
+    <string name="settings_device_info">About these headphones</string>
+    <string name="settings_device_info_buds">About these earbuds</string>
+    <string name="info_model">Model</string>
+    <string name="info_generation">Generation</string>
+    <string name="info_firmware">Firmware</string>
+    <string name="info_serial">Serial number</string>
+    <string name="info_unverified">Earshot hasn\'t been tested on this model yet. If a control doesn\'t respond, a connection report (Tools › Lab) helps fix it.</string>
+
+    <!-- 0.4.0: modes screen -->
+    <plurals name="modes_builtin_count">
+        <item quantity="one">%1$d built-in mode</item>
+        <item quantity="other">%1$d built-in modes</item>
+    </plurals>
+    <plurals name="modes_custom_count">
+        <item quantity="one">%1$d custom slot</item>
+        <item quantity="other">%1$d custom slots</item>
+    </plurals>
+    <string name="modes_intro_counts">%1$s and %2$s. The headphones keep them in this order; reordering isn\'t supported by the firmware.</string>
+    <string name="modes_intro_counts_buds">%1$s and %2$s. The earbuds keep them in this order; reordering isn\'t supported by the firmware.</string>
+    <string name="modes_no_custom">These headphones have no custom modes. Switch between the built-in ones here, on Home, or with the button on the headphones.</string>
+    <string name="modes_no_custom_buds">These earbuds have no custom modes. Switch between the built-in ones here, on Home, or with a touch and hold on the earbuds.</string>
+    <string name="modes_not_editable">Earshot can\'t edit custom modes on this model yet. You can still switch to them.</string>
+
+    <!-- 0.4.0: what's new sheet -->
+    <string name="whats_new_title">What\'s new in Earshot 0.4.0</string>
+    <string name="whats_new_subtitle">A big update for every Bose model.</string>
+    <string name="whats_new_adapts">Adapts to your Bose model: headphones or earbuds, with its name and generation shown</string>
+    <string name="whats_new_models">More models supported</string>
+    <string name="whats_new_le_audio">LE Audio earbuds now connect</string>
+    <string name="whats_new_battery">Left, right and case battery, plus time left</string>
+    <string name="whats_new_switcher">Quick headphone switcher: tap the name on Home</string>
+    <string name="whats_new_auto_off">Auto-off timer in More</string>
+    <string name="whats_new_le_switch">The LE Audio switch can be tried on any model, with a warning</string>
+    <string name="whats_new_done">Got it</string>
+
+    <!-- 0.4.0: low-battery alert -->
+    <string name="alert_channel_name">Alerts</string>
+    <string name="alert_channel_description">Headphone battery warnings</string>
+    <string name="alert_low_title">%1$s battery low</string>
+    <string name="alert_low_text">%1$d%% left. Time to charge.</string>
+    <string name="alert_low_text_left">Left earbud at %1$d%%. Time to charge.</string>
+    <string name="alert_low_text_right">Right earbud at %1$d%%. Time to charge.</string>
 </resources>

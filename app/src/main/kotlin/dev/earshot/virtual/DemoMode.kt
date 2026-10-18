@@ -15,16 +15,27 @@ import kotlinx.coroutines.runBlocking
 // File-private delegate: exactly one DataStore for this file per process.
 private val Context.demoModeDataStore: DataStore<Preferences> by preferencesDataStore(name = "demo_mode")
 
-/** Which virtual headphones demo mode talks to. */
-enum class DemoDevice {
-    QC_ULTRA,
-    CRUSHER,
+/**
+ * Which virtual headphones demo mode talks to. [displayName] is what the Preferences chips show;
+ * the UI lists [entries], so a new entry appears there without UI changes. The Bose entries run
+ * a [VirtualQcUltra2] with the matching [VirtualProfile] ([virtualProfile]).
+ */
+enum class DemoDevice(val displayName: String, val isCrusher: Boolean = false) {
+    QC_ULTRA("QC Ultra Headphones (2nd Gen)"),
+    QC_ULTRA_EARBUDS_2("QC Ultra Earbuds (2nd Gen)"),
+    QC_EARBUDS_2("QC Earbuds II"),
+    QC_EARBUDS("QC Earbuds (2020)"),
+    QC45("QuietComfort 45"),
+    NC700("Noise Cancelling Headphones 700"),
+    ULTRA_OPEN("Ultra Open Earbuds"),
+
+    /** Recognised but unsupported: shows how the app explains that. */
+    QC35_II("QuietComfort 35 II"),
+    CRUSHER("Crusher 1080", isCrusher = true),
 
     /** A Crusher that asks for the one-time pairing, to try the pairing flow without the headphones. */
-    CRUSHER_SECURE,
+    CRUSHER_SECURE("Crusher (pairing)", isCrusher = true),
     ;
-
-    val isCrusher: Boolean get() = this != QC_ULTRA
 }
 
 /**

@@ -64,6 +64,7 @@ import dev.earshot.dsp.EqPreset
 import dev.earshot.dsp.Headroom
 import dev.earshot.dsp.ParametricBand
 import dev.earshot.dsp.TuningSettings
+import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.ui.common.AppEntry
 import dev.earshot.ui.common.AppPickerDialog
 import dev.earshot.ui.common.BannerTone
@@ -79,6 +80,7 @@ import dev.earshot.ui.common.SwitchRow
 import dev.earshot.ui.common.ValueSlider
 import dev.earshot.ui.common.earshotViewModel
 import dev.earshot.ui.common.rememberInstalledApps
+import dev.earshot.ui.common.rememberSettingsLoaded
 import kotlin.math.roundToInt
 
 @Composable
@@ -152,6 +154,7 @@ fun SoundContent(
     contentPadding: PaddingValues,
     callbacks: SoundCallbacks,
 ) {
+    val settingsLoaded = rememberSettingsLoaded(headphoneState)
     LazyColumn(
         contentPadding = PaddingValues(
             start = 16.dp, end = 16.dp,
@@ -161,7 +164,11 @@ fun SoundContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Text(stringResource(R.string.tab_sound), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)) }
-        item { HeadphoneEqSection(headphoneState, headphoneEq, callbacks.onHeadphoneEq) }
+        // The headphones' own EQ only where the model has one ([1.7] answered); the Pro EQ below is
+        // phone-side and works with any headphones, so it always stays.
+        if (!settingsLoaded || headphoneState.eq != null) item {
+            HeadphoneEqSection(headphoneState, headphoneEq, callbacks.onHeadphoneEq)
+        }
         item { ProEqSection(tuningState, bands, presets, callbacks) }
         item { BoostSection(tuningState.settings, bands, callbacks.onBoost, callbacks.onLimiter) }
         item { AppProfilesSection(profiles, presets, installedApps, callbacks.onSetProfile, callbacks.onRemoveProfile) }
@@ -174,33 +181,35 @@ fun SoundContent(
 private fun HeadphoneEqSection(state: HeadphoneState, eq: HeadphoneEq?, onChange: (HeadphoneEq) -> Unit) {
     val enabled = state.isConnected && eq != null
     val value = eq ?: HeadphoneEq()
+    val range = HeadphoneEqRange.of(state.eqRange)
+    val buds = HeadphoneLabels.isEarbuds(HeadphoneLabels.formFactor(state))
     SectionCard(title = stringResource(R.string.sound_headphone_eq)) {
         Text(
-            stringResource(R.string.sound_headphone_eq_subtitle),
+            stringResource(if (buds) R.string.sound_headphone_eq_subtitle_buds else R.string.sound_headphone_eq_subtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 4.dp),
         )
-        HeadphoneBandSlider(stringResource(R.string.sound_bass), value.bass, enabled) { onChange(value.copy(bass = it)) }
-        HeadphoneBandSlider(stringResource(R.string.sound_mid), value.mid, enabled) { onChange(value.copy(mid = it)) }
-        HeadphoneBandSlider(stringResource(R.string.sound_treble), value.treble, enabled) { onChange(value.copy(treble = it)) }
+        HeadphoneBandSlider(stringResource(R.string.sound_bass), value.bass, range, enabled) { onChange(value.copy(bass = it)) }
+        HeadphoneBandSlider(stringResource(R.string.sound_mid), value.mid, range, enabled) { onChange(value.copy(mid = it)) }
+        HeadphoneBandSlider(stringResource(R.string.sound_treble), value.treble, range, enabled) { onChange(value.copy(treble = it)) }
     }
 }
 
 @Composable
-private fun HeadphoneBandSlider(label: String, value: Int, enabled: Boolean, onChange: (Int) -> Unit) {
-    var drag by remember(value) { mutableFloatStateOf(value.toFloat()) }
+private fun HeadphoneBandSlider(label: String, value: Int, range: IntRange, enabled: Boolean, onChange: (Int) -> Unit) {
+    var drag by remember(value) { mutableFloatStateOf(value.coerceIn(range).toFloat()) }
     ValueSlider(
         label = label,
         value = drag,
-        valueRange = -10f..10f,
-        steps = 19,
+        valueRange = range.first.toFloat()..range.last.toFloat(),
+        steps = HeadphoneEqRange.steps(range),
         enabled = enabled,
         valueText = formatDb(drag.roundToInt().toDouble()),
         onValueChange = {
             drag = it
             // Live: the ViewModel debounces the actual write.
-            val rounded = it.roundToInt()
+            val rounded = it.roundToInt().coerceIn(range)
             if (rounded != value) onChange(rounded)
         },
     )

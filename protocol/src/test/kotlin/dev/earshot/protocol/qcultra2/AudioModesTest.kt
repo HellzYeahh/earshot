@@ -134,7 +134,8 @@ class AudioModesTest {
 
         assertEquals(SpatialMode.HEAD, ModeConfigs.parse(immersion)!!.spatial)
         assertEquals(SpatialMode.ROOM, ModeConfigs.parse(cinema)!!.spatial)
-        assertNull(ModeConfigs.parse(ByteArray(38))) // 39 is the QC45 / QC Headphones echo
+        // 37 bytes is the shortest echo (the QC Earbuds 2020 write, docs/bose-models.md §C2).
+        assertNull(ModeConfigs.parse(ByteArray(36)))
     }
 
     @Test

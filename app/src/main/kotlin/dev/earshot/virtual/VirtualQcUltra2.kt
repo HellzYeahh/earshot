@@ -9,12 +9,14 @@ import dev.earshot.protocol.qcultra2.Bitset
 import dev.earshot.protocol.qcultra2.FavoritesCodec
 import dev.earshot.protocol.qcultra2.Mac
 import dev.earshot.protocol.qcultra2.ModeConfigs
-import dev.earshot.protocol.qcultra2.ModePrompt
+import dev.earshot.protocol.qcultra2.ModeLayout
+import dev.earshot.protocol.qcultra2.ModesCapabilities
 import dev.earshot.protocol.qcultra2.Notifications
 import dev.earshot.protocol.qcultra2.PlaybackStatus
 import dev.earshot.protocol.qcultra2.QcUltra2
 import dev.earshot.protocol.qcultra2.SidetoneLevel
 import dev.earshot.protocol.qcultra2.SpatialMode
+import dev.earshot.protocol.qcultra2.StandbyTimer
 import dev.earshot.protocol.qcultra2.TransportControl
 
 /**
@@ -43,6 +45,10 @@ import dev.earshot.protocol.qcultra2.TransportControl
  * Thread-safety: every public method is synchronised, so the transport may call [handle] and
  * [tick] from different coroutines.
  *
+ * Other models: [profile] switches the identity, the `[0.2]` blocks, the mode slots and their
+ * `[31.6]` length, `[31.2]`, `[31.10]` / `[1.5]` behaviour, the battery records and `[1.4]`
+ * (see [VirtualProfile]); the default is the reference unit.
+ *
  * @param clock millisecond clock; tests pass a manual one so battery drain is deterministic.
  */
 class VirtualQcUltra2(
@@ -55,16 +61,32 @@ class VirtualQcUltra2(
     private val batteryPushIntervalMs: Long = 30_000L,
     /** How long after a `[31.3]` START / `[31.10]` write the follow-up push appears. */
     private val pushDelayMs: Long = 150L,
+    /** Which product this unit plays. */
+    val profile: VirtualProfile = VirtualProfile.QC_ULTRA_2,
 ) {
     // ── Identity (the reference unit, with a made-up tail where it was masked) ───────────
-    var firmwareVersion = "10.12.12+ga927c9a"
+    var firmwareVersion = profile.firmwareVersion
     var serialNumber = "085958T53330200AB"
-    var productName = "Bose QC Ultra 2 HP"
-    var customName = "Fargo"
+    var productName = profile.productName
+    var customName = profile.customName
     var macAddress = "68:F2:1F:12:34:56"
     /** `[0.3]`; tests set another model's id (0x4066 for the QC Ultra 1st Gen, 0x4024 for the NC700). */
-    var productId = QcUltra2.PRODUCT_ID
+    var productId = profile.productId
     val variant = QcUltra2.VARIANT
+
+    // ── Mode slots of this profile ───────────────────────────────────────────────────────
+    /** Slots `0 until slotCount`: the presets first, then the custom slots. */
+    val slotCount: Int = profile.slotCount
+    private val presetRange: IntRange = 0 until profile.presets.size
+    private val editableRange: IntRange = profile.presets.size until slotCount
+    private val layout = profile.layout
+
+    /** `[1.4]` auto-off minutes; null = absent on this firmware. */
+    var standbyMinutes: Int? = profile.standbyMinutes
+        private set
+
+    /** The case's last known charge (earbuds), not drained. */
+    var caseBatteryPercent: Int = 80
 
     // ── Older-firmware quirks (all off: the reference unit has none of them) ─────────────
     /**
@@ -84,7 +106,7 @@ class VirtualQcUltra2(
      * No `[31.10]` (FuncNotSupp) while the slots stay 48-byte: the noise settings live only in the
      * mode slots. The QC Ultra 1st Gen guess that the app must survive if it is wrong.
      */
-    var withoutAudioSettings = false
+    var withoutAudioSettings = !profile.liveAudioSettings
 
     private val requestCounts = HashMap<FunctionAddress, Int>()
 
@@ -168,8 +190,14 @@ class VirtualQcUltra2(
     var defaultMode: Int = 0
     /** `[31.8]` favourites Quiet and Aware; stored as a slot set, written as the 2-byte big-endian mask. */
     var favorites: Set<Int> = setOf(0, 1)
-    /** The 11 slots, each exactly the 48-byte STATUS layout the firmware dumps. */
-    val slots: Array<ByteArray> = Array(QcUltra2.MODE_SLOT_COUNT) { ByteArray(ModeConfigs.STATUS_SIZE) }
+    /**
+     * The slots, each kept in the full 48-byte STATUS layout; the wire gets the profile's prefix of
+     * it ([slotFrame]: 44 / 45 / 47 / 48 bytes, every shorter layout is a prefix of the longest).
+     */
+    val slots: Array<ByteArray> = Array(slotCount) { ByteArray(ModeConfigs.STATUS_SIZE) }
+
+    /** Slot [index] as this profile's firmware sends it. */
+    private fun slotFrame(index: Int): ByteArray = slots[index].copyOf(layout.statusSize)
 
     // ── Devices [4.x] / [5.x] ────────────────────────────────────────────────────────────
     data class Peer(val mac: String, val name: String)
@@ -198,16 +226,23 @@ class VirtualQcUltra2(
         resetSlots()
     }
 
-    /** Presets 0-3 locked, slot 4 "Home" user-created, 5-10 empty "None", as on the reference unit. */
+    /**
+     * The profile's presets locked, its saved custom modes, the other custom slots empty "None". On
+     * the reference unit: presets 0-3, slot 4 "Home" user-created, 5-10 empty.
+     */
     @Synchronized
     fun resetSlots() {
         // Flag byte 5 and word 40-41 are the notes' "?" fields; values are what the raw dump showed.
-        writeSlot(0, ModePrompt.QUIET.code, editable = false, configured = false, flag5 = 1, word40 = 0x0000, cnc = 0, spatial = 0, wind = false, anc = true, name = "Quiet")
-        writeSlot(1, ModePrompt.AWARE.code, editable = false, configured = false, flag5 = 1, word40 = 0x0002, cnc = 10, spatial = 0, wind = false, anc = true, name = "Aware")
-        writeSlot(2, ModePrompt.IMMERSION.code, editable = false, configured = false, flag5 = 1, word40 = 0x0000, cnc = 0, spatial = SpatialMode.HEAD.code, wind = false, anc = true, name = "Immersion")
-        writeSlot(3, ModePrompt.CINEMA.code, editable = false, configured = false, flag5 = 0, word40 = 0x0000, cnc = 0, spatial = SpatialMode.ROOM.code, wind = false, anc = true, name = "Cinema")
-        writeSlot(4, ModePrompt.HOME.code, editable = true, configured = true, flag5 = 0, word40 = USER_SLOT_WORD40, cnc = 0, spatial = 0, wind = true, anc = true, name = "Home")
-        for (i in 5 until QcUltra2.MODE_SLOT_COUNT) emptySlot(i)
+        profile.presets.forEachIndexed { i, p ->
+            writeSlot(i, p.prompt.code, editable = false, configured = false, flag5 = p.flag5, word40 = p.word40 ?: 0,
+                cnc = p.cncWire, spatial = p.spatial, wind = p.wind, anc = p.anc, name = p.name)
+        }
+        for (i in editableRange) {
+            val m = profile.savedModes[i]
+            if (m == null) emptySlot(i)
+            else writeSlot(i, m.prompt.code, editable = true, configured = true, flag5 = m.flag5, word40 = m.word40 ?: USER_SLOT_WORD40,
+                cnc = m.cncWire, spatial = m.spatial, wind = m.wind, anc = m.anc, name = m.name)
+        }
     }
 
     /** What `[31.9]` and bosectl's clear leave behind; matches the fw 10.12 empty-slot tail `1d 0a 00 00 01 00 01`. */
@@ -298,8 +333,12 @@ class VirtualQcUltra2(
      * mode. Two valid STATUS frames, concatenated like one RFCOMM read.
      */
     @Synchronized
-    fun greeting(): ByteArray = status(QcUltra2.BATTERY, batteryPayload()).encode() +
-        status(QcUltra2.CURRENT_MODE, byteArrayOf(currentMode.toByte())).encode()
+    fun greeting(): ByteArray {
+        val battery = status(QcUltra2.BATTERY, batteryPayload()).encode()
+        // No AudioModes block, no mode in the greeting (the #44 unit lists it and still pushes [31.3]).
+        return if (AUDIO_MODES_BLOCK !in profile.blocks) battery
+        else battery + status(QcUltra2.CURRENT_MODE, byteArrayOf(currentMode.toByte())).encode()
+    }
 
     /**
      * Unsolicited frames that are due now: deferred pushes queued by [handle] (the `[31.10]`
@@ -353,9 +392,9 @@ class VirtualQcUltra2(
         if (a in silentFunctions) return emptyList()
         if (refuseAudioModesBlock && a.block == AUDIO_MODES_BLOCK) return listOf(error(a, BmapError.FBLOCK_NOT_SUPPORTED))
         if (withoutAudioSettings && a == QcUltra2.AUDIO_SETTINGS) return listOf(error(a, BmapError.FUNC_NOT_SUPPORTED))
-        if (a.block !in KNOWN_BLOCKS) return listOf(error(a, BmapError.FBLOCK_NOT_SUPPORTED))
+        if (a.block !in profile.blocks) return listOf(error(a, BmapError.FBLOCK_NOT_SUPPORTED))
         if (a in ERROR_24_FUNCTIONS) return listOf(error(a, BmapError.SECURE_SESSION_REQUIRED))
-        if (a !in KNOWN_FUNCTIONS) return listOf(error(a, BmapError.FUNC_NOT_SUPPORTED))
+        if (!exists(a)) return listOf(error(a, BmapError.FUNC_NOT_SUPPORTED))
         return when (request.operator) {
             BmapOperator.GET -> listOf(get(a, request.payload))
             BmapOperator.SET_GET -> setGet(a, request.payload)
@@ -367,13 +406,22 @@ class VirtualQcUltra2(
         }
     }
 
+    /** The function exists on this profile's firmware (otherwise FuncNotSupp). */
+    private fun exists(a: FunctionAddress): Boolean = when {
+        // Bose Connect era: Earshot asks only ProductInfo and the battery there.
+        profile.legacyOnly -> (a.block == 0 && a in KNOWN_FUNCTIONS) || a == QcUltra2.BATTERY
+        a in profile.absent -> false
+        a == QcUltra2.STANDBY_TIMER -> standbyMinutes != null
+        else -> a in KNOWN_FUNCTIONS
+    }
+
     // ── GET ──────────────────────────────────────────────────────────────────────────────
 
     private fun get(a: FunctionAddress, payload: ByteArray): BmapPacket = when (a) {
         // ProductInfo [0.x] — fw 10.12 scan values
         FunctionAddress(0, 0) -> text(a, "1.1.0")
         QcUltra2.BMAP_VERSION -> text(a, QcUltra2.BMAP_VERSION_FW_10_12)
-        QcUltra2.ALL_FUNCTION_BLOCKS -> status(a, hex("87cc23ff"))
+        QcUltra2.ALL_FUNCTION_BLOCKS -> status(a, Bitset.encode(profile.blocks, 4)) // fw 10.12: 87cc23ff
         QcUltra2.PRODUCT_ID_VARIANT -> status(a, byteArrayOf((productId shr 8).toByte(), productId.toByte(), variant.toByte()))
         QcUltra2.FIRMWARE_VERSION -> text(a, firmwareVersion)
         QcUltra2.MAC_ADDRESS -> status(a, Mac.toBytes(macAddress))
@@ -387,8 +435,9 @@ class VirtualQcUltra2(
         QcUltra2.SETTINGS_FBLOCK_INFO -> text(a, "1.1.0")
         QcUltra2.CUSTOM_NAME -> status(a, byteArrayOf(0) + customName.toByteArray())
         QcUltra2.VOICE_PROMPTS -> status(a, voicePrompts.copyOf())
-        // [1.5] mirrors the slider; direction relative to the inverted [31.10] byte is a guess.
-        QcUltra2.CNC -> status(a, byteArrayOf(0x0b, live.cncWire.toByte(), 0x03))
+        QcUltra2.STANDBY_TIMER -> status(a, StandbyTimer.buildStatus(standbyMinutes ?: 0, twoByte = true))
+        // [1.5] mirrors the slider on the world-volume scale (step 0 = most cancelling, docs/bose-models.md §C3).
+        QcUltra2.CNC -> status(a, cncPayload())
         QcUltra2.EQ -> status(a, eqPayload())
         QcUltra2.BUTTONS -> status(a, shortcutButton.copyOf())
         QcUltra2.MULTIPOINT -> status(a, byteArrayOf(multipointByte.toByte()))
@@ -459,14 +508,15 @@ class VirtualQcUltra2(
 
         // AudioModes [31.x]
         QcUltra2.AUDIO_MODES_FBLOCK_INFO -> text(a, "1.0.0")
-        QcUltra2.MODES_CAPABILITIES -> status(a, hex("04070000007f02"))
+        // fw 10.12: 04 07 00 00 00 7f 02 (4 presets, 7 custom, every flag, two favourites minimum).
+        QcUltra2.MODES_CAPABILITIES -> status(a, ModesCapabilities.build(profile.presets.size, profile.customSlots, profile.modesFlags))
         QcUltra2.CURRENT_MODE -> status(a, byteArrayOf(currentMode.toByte()))
         QcUltra2.FAVORITES -> status(a, favoritesPayload())
         QcUltra2.AUDIO_SETTINGS -> status(a, AudioSettings.build(live))
         QcUltra2.MODE_CONFIG -> {
-            // GET [index] → that slot's 48-byte STATUS; a bare GET answers InvalidData (fw 10.12).
+            // GET [index] → that slot's STATUS; a bare GET answers InvalidData (fw 10.12).
             val index = if (payload.isEmpty()) -1 else payload[0].toInt() and 0xFF
-            if (index !in 0 until QcUltra2.MODE_SLOT_COUNT) error(a, BmapError.INVALID_DATA) else status(a, slots[index].copyOf())
+            if (index !in 0 until slotCount) error(a, BmapError.INVALID_DATA) else status(a, slotFrame(index))
         }
         FunctionAddress(31, 11) -> status(a, hex("1fffffffff"))
 
@@ -554,7 +604,24 @@ class VirtualQcUltra2(
         QcUltra2.AUTO_PLAY_PAUSE -> if (p.isEmpty()) error(a, BmapError.LENGTH) else { autoPlayPause = p[0] != 0.toByte(); get(a, BmapPacket.EMPTY) }
         QcUltra2.AUTO_ANSWER -> if (p.isEmpty()) error(a, BmapError.LENGTH) else { autoAnswer = p[0] != 0.toByte(); get(a, BmapPacket.EMPTY) }
         QcUltra2.DISABLE_CAPTOUCH -> if (p.isEmpty()) error(a, BmapError.LENGTH) else { captouchDisabled = p[0] != 0.toByte(); get(a, BmapPacket.EMPTY) }
-        // [1.5] CNC answers OpNotSupp to SET_GET (write through [31.10]); the rest are read-only.
+        // [1.4] [m] or two bytes little-endian (Bose SettingsStandbyTimerSetGetPacket); the reply is the GET form.
+        QcUltra2.STANDBY_TIMER -> when (p.size) {
+            1 -> { standbyMinutes = p[0].toInt() and 0xFF; get(a, BmapPacket.EMPTY) }
+            2 -> { standbyMinutes = (p[0].toInt() and 0xFF) or ((p[1].toInt() and 0xFF) shl 8); get(a, BmapPacket.EMPTY) }
+            else -> error(a, BmapError.LENGTH)
+        }
+        // [1.5] SET_GET [step, enabled]: the QC Earbuds 2020 path. Wolverine and the QC45 answer
+        // OpNotSupp (write through [31.10] or the slots); the rest are read-only.
+        QcUltra2.CNC -> if (!profile.cncWritable) error(a, BmapError.OP_NOT_SUPPORTED) else when {
+            p.size < 2 -> error(a, BmapError.LENGTH)
+            (p[0].toInt() and 0xFF) > QcUltra2.CNC_WIRE_MAX -> error(a, BmapError.INVALID_DATA)
+            else -> {
+                // Guess: switching ANC off only takes where [1.5] says the user may (flags bit 1 clear).
+                val anc = if (profile.cncFlags and 0x02 == 0) p[1] != 0.toByte() else live.ancEnabled
+                applyLive(live.copy(cncWire = p[0].toInt() and 0xFF, ancEnabled = anc))
+                status(a, cncPayload())
+            }
+        }
         else -> error(a, BmapError.OP_NOT_SUPPORTED)
     }
 
@@ -599,31 +666,35 @@ class VirtualQcUltra2(
             }
         }
         QcUltra2.MODE_CONFIG -> {
-            if (p.size != ModeConfigs.WRITE_SIZE) listOf(error(a, BmapError.LENGTH))
+            // Only the profile's own write length (40 / 39 / 37 bytes); the QC45 refuses 40 with Length.
+            if (p.size != layout.writeSize) listOf(error(a, BmapError.LENGTH))
             else {
                 val index = p[0].toInt() and 0xFF
                 when {
-                    index in QcUltra2.PRESET_MODE_SLOTS -> listOf(error(a, BmapError.RUNTIME)) // firmware-locked
-                    index !in QcUltra2.EDITABLE_MODE_SLOTS -> listOf(error(a, BmapError.INVALID_DATA))
+                    index in presetRange -> listOf(error(a, BmapError.RUNTIME)) // firmware-locked
+                    index !in editableRange -> listOf(error(a, BmapError.INVALID_DATA))
                     p[36] != 0.toByte() -> listOf(error(a, BmapError.RUNTIME)) // autoCnc, same as [31.10]
                     else -> {
                         val echo = ModeConfigs.parse(p)!!
+                        val wind = layout.hasWind && echo.windBlock
+                        // QC45 (bosectl): with wind block on, the firmware stores CNC 0 whatever was sent.
+                        val cnc = if (wind && layout == ModeLayout.COMPACT) 0 else echo.cncWire.coerceIn(0, QcUltra2.CNC_WIRE_MAX)
                         writeSlot(
                             index, promptCode = p[2].toInt() and 0xFF, editable = true, configured = true, flag5 = 0,
-                            word40 = USER_SLOT_WORD40, cnc = echo.cncWire.coerceIn(0, QcUltra2.CNC_WIRE_MAX),
-                            spatial = echo.spatialCode, wind = echo.windBlock, anc = echo.ancEnabled, name = echo.name,
+                            word40 = USER_SLOT_WORD40, cnc = cnc, spatial = if (layout.hasSpatial) echo.spatialCode else 0,
+                            wind = wind, anc = !layout.hasAncToggle || echo.ancEnabled, name = echo.name,
                         )
                         if (currentMode == index) applyLive(slotSettings(index), fromSlot = true)
-                        listOf(status(a, slots[index].copyOf()))
+                        listOf(status(a, slotFrame(index)))
                     }
                 }
             }
         }
         QcUltra2.FAVORITES -> {
             val parsed = FavoritesCodec.parse(p)
-            if (parsed == null || p.size < 3) listOf(error(a, BmapError.LENGTH))
+            if (parsed == null || p.size < 2) listOf(error(a, BmapError.LENGTH))
             else {
-                favorites = parsed.indices.filter { it < QcUltra2.MODE_SLOT_COUNT }.toSet()
+                favorites = parsed.indices.filter { it < slotCount }.toSet()
                 listOf(status(a, favoritesPayload()))
             }
         }
@@ -638,7 +709,7 @@ class VirtualQcUltra2(
      */
     private fun applyLive(settings: AudioSettings, fromSlot: Boolean = false) {
         live = settings
-        if (fromSlot) return
+        if (fromSlot || slotCount == 0) return
         if (currentMode != QcUltra2.NO_SAVED_MODE && slotSettings(currentMode) != live) {
             currentMode = QcUltra2.NO_SAVED_MODE
             push(status(QcUltra2.CURRENT_MODE, byteArrayOf(QcUltra2.NO_SAVED_MODE.toByte())))
@@ -651,7 +722,7 @@ class VirtualQcUltra2(
         QcUltra2.CURRENT_MODE -> {
             if (p.isEmpty()) listOf(error(a, BmapError.INVALID_DATA)) else {
                 val index = p[0].toInt() and 0xFF
-                if (index >= QcUltra2.MODE_SLOT_COUNT) listOf(error(a, BmapError.INVALID_DATA))
+                if (index >= slotCount) listOf(error(a, BmapError.INVALID_DATA))
                 else {
                     currentMode = index
                     live = slotSettings(index)
@@ -676,11 +747,11 @@ class VirtualQcUltra2(
             val index = p[0].toInt() and 0xFF
             // Guess: presets refuse like their SET_GET does (Runtime 8); custom slots go back to empty.
             when (index) {
-                in QcUltra2.PRESET_MODE_SLOTS -> listOf(error(a, BmapError.RUNTIME))
-                in QcUltra2.EDITABLE_MODE_SLOTS -> {
+                in presetRange -> listOf(error(a, BmapError.RUNTIME))
+                in editableRange -> {
                     emptySlot(index)
                     favorites = favorites - index
-                    push(status(QcUltra2.MODE_CONFIG, slots[index].copyOf()))
+                    push(status(QcUltra2.MODE_CONFIG, slotFrame(index)))
                     listOf(result(a, BmapPacket.EMPTY))
                 }
                 else -> listOf(error(a, BmapError.INVALID_DATA))
@@ -743,12 +814,33 @@ class VirtualQcUltra2(
         return listOf(result(a, byteArrayOf(p[0]) + Mac.toBytes(peer.mac)))
     }
 
-    private fun slotDump(): List<BmapPacket> = slots.map { status(QcUltra2.MODE_CONFIG, it.copyOf()) }
+    private fun slotDump(): List<BmapPacket> = slots.indices.map { status(QcUltra2.MODE_CONFIG, slotFrame(it)) }
 
     // ── Payload builders (device side) ───────────────────────────────────────────────────
 
-    /** `[2.2]` headphones form: `[percent, 0xFF, 0xFF, componentId=0]`. */
-    private fun batteryPayload() = byteArrayOf(batteryPercent.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0x00)
+    /**
+     * `[2.2]` headphones form: `[percent, 0xFF, 0xFF, componentId=0]`. Earbuds: right (1), left (2),
+     * combined (4) and case (3) records in bosectl's fixture order; minutes `ffff` unless the
+     * profile estimates them (three minutes per percent, a made-up rate).
+     */
+    private fun batteryPayload(): ByteArray {
+        if (profile.battery == VirtualBattery.SINGLE) return record(batteryPercent, null, 0)
+        val left = (batteryPercent - 3).coerceAtLeast(0)
+        fun minutes(p: Int) = if (profile.batteryMinutes) p * 3 else null
+        return record(batteryPercent, minutes(batteryPercent), 1) + record(left, minutes(left), 2) +
+            record(minOf(left, batteryPercent), minutes(minOf(left, batteryPercent)), 4) + record(caseBatteryPercent, null, 3)
+    }
+
+    private fun record(percent: Int, minutes: Int?, component: Int): ByteArray {
+        val m = minutes ?: 0xFFFF
+        return byteArrayOf(percent.toByte(), (m shr 8).toByte(), m.toByte(), component.toByte())
+    }
+
+    /** `[1.5]` `[steps=11, step, flags]`: the step follows the live level; bit 0 follows ANC where the user can switch it. */
+    private fun cncPayload(): ByteArray {
+        val flags = if (profile.cncFlags and 0x02 == 0) (profile.cncFlags and 0x01.inv()) or (if (live.ancEnabled) 1 else 0) else profile.cncFlags
+        return byteArrayOf(0x0b, live.cncWire.toByte(), flags.toByte())
+    }
 
     /** `[1.7]` three `[min, max, current, band]` groups. */
     private fun eqPayload() = ByteArray(12).also { out ->
@@ -760,7 +852,7 @@ class VirtualQcUltra2(
         }
     }
 
-    private fun favoritesPayload() = FavoritesCodec.build(favorites, QcUltra2.MODE_SLOT_COUNT)
+    private fun favoritesPayload() = FavoritesCodec.build(favorites.filter { it < slotCount }.toSet(), slotCount.coerceAtLeast(1))
 
     private fun volumePayload() = byteArrayOf(volumeMax.toByte(), volume.toByte())
 
@@ -793,8 +885,8 @@ class VirtualQcUltra2(
         /** Bytes 40-41 of every user slot in the raw dump (byte 41 = changeable flags 0x1d). */
         private const val USER_SLOT_WORD40 = 0x001d
 
-        /** `[0.2]` `87cc23ff`. */
-        val KNOWN_BLOCKS: Set<Int> = setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 18, 19, 22, 23, 24, 25, 26, 31)
+        /** `[0.2]` `87cc23ff` of the reference unit; other profiles list their own ([VirtualProfile.blocks]). */
+        val KNOWN_BLOCKS: Set<Int> get() = VirtualProfile.QC_ULTRA_2.blocks
 
         /** A sample of the error-24 functions from the fw 10.12 scan (FblockInfo of the debug-ish blocks). */
         val ERROR_24_FUNCTIONS: Set<FunctionAddress> = setOf(

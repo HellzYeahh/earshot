@@ -20,6 +20,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,8 +45,13 @@ import dev.earshot.ui.nav.navigateToTab
 import dev.earshot.ui.onboarding.OnboardingScreen
 import dev.earshot.ui.onboarding.Permissions
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.whatsnew.WhatsNew
+import dev.earshot.ui.whatsnew.WhatsNewSheet
+import dev.earshot.ui.whatsnew.WhatsNewStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Root of the Compose UI. Hosted by MainActivity; [tabRequests] carries the
@@ -172,5 +178,21 @@ fun EarshotRoot(tabRequests: StateFlow<Tab?>, onTabRequestHandled: () -> Unit) {
                 )
             }
         }
+    }
+
+    // ---- What's new (once per release, after an update; onboarding covers a fresh install) ----
+    val whatsNewStore = remember(context) { WhatsNewStore(context) }
+    val whatsNew by produceState<WhatsNew.Decision?>(initialValue = null, whatsNewStore) {
+        value = withContext(Dispatchers.IO) { whatsNewStore.decision() }
+    }
+    var whatsNewDismissed by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(whatsNew) {
+        if (whatsNew == WhatsNew.Decision.MARK_SEEN) withContext(Dispatchers.IO) { whatsNewStore.markSeen() }
+    }
+    if (!gated && whatsNew == WhatsNew.Decision.SHOW && !whatsNewDismissed) {
+        WhatsNewSheet(onDismiss = {
+            whatsNewDismissed = true
+            scope.launch(Dispatchers.IO) { whatsNewStore.markSeen() }
+        })
     }
 }

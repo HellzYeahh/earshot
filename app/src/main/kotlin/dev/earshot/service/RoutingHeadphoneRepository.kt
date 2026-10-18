@@ -150,6 +150,8 @@ class RoutingHeadphoneRepository(
     override suspend fun setLeAudioEnabled(enabled: Boolean) = current.setLeAudioEnabled(enabled)
     override suspend fun setLatencyMs(ms: Int) = current.setLatencyMs(ms)
     override suspend fun setTouchControls(enabled: Boolean) = current.setTouchControls(enabled)
+    /** The Crusher has no auto-off setting: its repository keeps the interface's "not supported". */
+    override suspend fun setAutoOff(minutes: Int) = current.setAutoOff(minutes)
     override suspend fun setVolume(level: Int) = current.setVolume(level)
     override suspend fun transport(control: TransportControl) = current.transport(control)
     override suspend fun setCrusherBass(active: Boolean?, intensity: Int?, mode: Int?) = current.setCrusherBass(active, intensity, mode)
