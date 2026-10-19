@@ -153,8 +153,13 @@ class VirtualQcUltra2(
     var autoAnswer = true
     /** `[1.3]` capture `41 00 00 81 02 00 00`; SET_GET rewrites byte 0 only. */
     val voicePrompts = byteArrayOf(0x41, 0x00, 0x00, 0x81.toByte(), 0x02, 0x00, 0x00)
-    /** `[1.9]` capture `80 09 0e 00 09 40 02`: Shortcut button, long press, Disabled. */
-    val shortcutButton = byteArrayOf(0x80.toByte(), 0x09, 0x0e, 0x00, 0x09, 0x40, 0x02)
+    /**
+     * `[1.9]` records, one STATUS frame each. Default: the capture `80 09 0e 00 09 40 02`
+     * (Shortcut button, long press, Disabled); [VirtualProfile.buttonRecords] gives earbuds one per bud.
+     */
+    val buttonRecords: List<ByteArray> = profile.buttonRecords?.map { hex(it) } ?: listOf(byteArrayOf(0x80.toByte(), 0x09, 0x0e, 0x00, 0x09, 0x40, 0x02))
+    /** The first `[1.9]` record (the one single-button products have). */
+    val shortcutButton: ByteArray get() = buttonRecords.first()
     /** `[1.34]`; the wire bit is 1 when touch controls are on (scan `01`, verified on hardware 2026-10-18). */
     var touchEnabled = true
     /** `[1.37]` LeAudioControl; scan `01` = on. */
@@ -309,6 +314,24 @@ class VirtualQcUltra2(
         push(status(QcUltra2.MIC_MUTE, byteArrayOf(if (muted) 1 else 0)))
     }
 
+    /**
+     * Press the button of the `[1.9]` record [buttonId] (the first record by default): pushes
+     * `[2.12]` with that record's id, event and action. For demo detection and the tests.
+     */
+    @Synchronized
+    fun pressButton(buttonId: Int = shortcutButton[0].toInt() and 0xFF) {
+        val record = buttonRecords.firstOrNull { (it[0].toInt() and 0xFF) == buttonId } ?: return
+        if (record === shortcutButton) { pressShortcutButton(); return }
+        push(status(QcUltra2.STATUS_BUTTON, record.copyOfRange(0, 3)))
+    }
+
+    /** Press play/pause on the headphones: the play state flips and `[5.4]` is pushed (the phone's player would follow over AVRCP). */
+    @Synchronized
+    fun pressPlayPause() {
+        playback = if (playback == PlaybackStatus.PLAYING) PlaybackStatus.PAUSED else PlaybackStatus.PLAYING
+        push(status(QcUltra2.AUDIO_STATUS, byteArrayOf(playback.code.toByte(), 0xFF.toByte(), 0xFF.toByte())))
+    }
+
     /** Swipe the touch strip: volume changes and is pushed. */
     @Synchronized
     fun swipeVolume(delta: Int) {
@@ -326,6 +349,7 @@ class VirtualQcUltra2(
     fun onSessionStart() {
         notifyBlocks = emptySet()
         deferred.clear()
+        lastSession = java.lang.ref.WeakReference(this)
     }
 
     /**
@@ -396,7 +420,8 @@ class VirtualQcUltra2(
         if (a in ERROR_24_FUNCTIONS) return listOf(error(a, BmapError.SECURE_SESSION_REQUIRED))
         if (!exists(a)) return listOf(error(a, BmapError.FUNC_NOT_SUPPORTED))
         return when (request.operator) {
-            BmapOperator.GET -> listOf(get(a, request.payload))
+            // Several records (earbuds): one STATUS per record, the way a per-bud reply would arrive.
+            BmapOperator.GET -> if (a == QcUltra2.BUTTONS) buttonRecords.map { status(a, it.copyOf()) } else listOf(get(a, request.payload))
             BmapOperator.SET_GET -> setGet(a, request.payload)
             BmapOperator.START -> start(a, request.payload)
             // Plain SET is not implemented for any function the app uses (error 5).
@@ -588,9 +613,11 @@ class VirtualQcUltra2(
         QcUltra2.BUTTONS -> {
             // Echoes the new action like the notes' "tested echo-back"; whether it sticks on the
             // real unit is disputed, here it does.
+            // Each record is addressed by its own button id and event type.
+            val record = if (p.size < 3) null else buttonRecords.firstOrNull { it[0] == p[0] && it[1] == p[1] }
             if (p.size < 3) error(a, BmapError.LENGTH)
-            else if (p[0] != shortcutButton[0] || p[1] != shortcutButton[1]) error(a, BmapError.INVALID_DATA)
-            else { shortcutButton[2] = p[2]; get(a, BmapPacket.EMPTY) }
+            else if (record == null) error(a, BmapError.INVALID_DATA)
+            else { record[2] = p[2]; status(a, record.copyOf()) }
         }
         QcUltra2.MULTIPOINT -> if (p.isEmpty()) error(a, BmapError.LENGTH) else {
             multipointByte = if (p[0] != 0.toByte()) multipointByte or 0x02 else multipointByte and 0x02.inv()
@@ -926,6 +953,16 @@ class VirtualQcUltra2(
             fns(24, 13)
             fns(31, 0, 1, 2, 3, 6, 8, 9, 10, 11)
         }
+
+        /**
+         * The unit whose RFCOMM session started last, for demo mode's "press a control" buttons
+         * (the units themselves live in `AppContainer`). Weak: a unit nobody holds is gone.
+         */
+        @Volatile
+        private var lastSession: java.lang.ref.WeakReference<VirtualQcUltra2>? = null
+
+        /** The demo unit currently (or last) connected, or null. */
+        fun current(): VirtualQcUltra2? = lastSession?.get()
 
         fun status(a: FunctionAddress, payload: ByteArray) = BmapPacket(a.block, a.function, BmapOperator.STATUS, payload)
         fun result(a: FunctionAddress, payload: ByteArray) = BmapPacket(a.block, a.function, BmapOperator.RESULT, payload)

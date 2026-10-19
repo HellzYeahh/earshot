@@ -55,6 +55,13 @@ interface HeadphoneRepository {
     suspend fun setMultipoint(enabled: Boolean)
     suspend fun setVoicePrompts(prompts: VoicePrompts)
     suspend fun setShortcutButton(action: ButtonAction)
+
+    /**
+     * `[1.9]` for one record of [HeadphoneState.shortcutButtons] (earbuds: one per bud). The
+     * default ignores the record and writes the primary button, which is right for single-button
+     * products.
+     */
+    suspend fun setShortcutButton(buttonId: Int, eventType: Int, action: ButtonAction): Unit = setShortcutButton(action)
     /** May throw with [HeadphoneCommandException.notSupportedByFirmware] set. */
     suspend fun setDeviceName(name: String)
 

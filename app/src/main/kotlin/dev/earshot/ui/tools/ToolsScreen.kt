@@ -50,13 +50,10 @@ import dev.earshot.shortcut.ShortcutSettings
 import dev.earshot.ui.LocalUiDependencies
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
-import dev.earshot.ui.common.earshotViewModel
-import dev.earshot.ui.more.SettingsViewModel
 
 /** Where the Tools tab's rows lead. */
 data class ToolsNavigation(
     val onOpenShortcuts: () -> Unit = {},
-    val onOpenDevices: () -> Unit = {},
     val onOpenConnection: () -> Unit = {},
     val onOpenCodec: () -> Unit = {},
     val onOpenCallAudio: () -> Unit = {},
@@ -68,30 +65,17 @@ data class ToolsNavigation(
 fun ToolsScreen(contentPadding: PaddingValues, navigation: ToolsNavigation) {
     val deps = LocalUiDependencies.current
     val codec by deps.codec.state.collectAsStateWithLifecycle()
-    val vm = earshotViewModel { SettingsViewModel(it.headphones, it.messenger) }
-    val headphones by vm.state.collectAsStateWithLifecycle()
+    val headphones by deps.headphones.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val shortcutSettings by remember { context.appContainer.shortcuts.prefs.settings }.collectAsStateWithLifecycle(ShortcutSettings())
-    // The choice for the headphones Earshot is connected to (what the remapper shows first), else the default.
+    // The choice for the headphones Earshot is connected to (what the Controls screen shows first), else the default.
     val connected = headphones.isConnected
     val shortcut = ShortcutButtonPolicy.displayedChoice(
         shortcutSettings,
         headphones.connection.deviceAddress.takeIf { connected },
         headphones.shortcutButton.takeIf { connected },
     )
-    ToolsContent(
-        codec = codec,
-        headphones = headphones,
-        shortcut = shortcut,
-        contentPadding = contentPadding,
-        navigation = navigation,
-        controls = HeadphoneControlsCallbacks(
-            onTouchControls = vm::setTouchControls,
-            onVoicePrompts = vm::setVoicePrompts,
-            onRename = vm::rename,
-            onPowerOff = vm::powerOff,
-        ),
-    )
+    ToolsContent(codec = codec, headphones = headphones, shortcut = shortcut, contentPadding = contentPadding, navigation = navigation)
 }
 
 @Composable
@@ -101,7 +85,6 @@ fun ToolsContent(
     shortcut: ShortcutAction,
     contentPadding: PaddingValues,
     navigation: ToolsNavigation,
-    controls: HeadphoneControlsCallbacks,
 ) {
     Column(
         Modifier
@@ -115,13 +98,9 @@ fun ToolsContent(
         ToolCard(
             icon = Icons.Default.TouchApp,
             title = stringResource(R.string.tools_shortcuts),
-            subtitle = stringResource(
-                R.string.tools_shortcuts_summary,
-                shortcutSummary(shortcut, HeadphoneLabels.isEarbuds(HeadphoneLabels.formFactor(headphones))),
-            ),
+            subtitle = controlsSummary(shortcut, headphones),
             onClick = navigation.onOpenShortcuts,
         )
-        HeadphoneControlsSection(headphones, controls, navigation.onOpenDevices)
         ToolCard(
             icon = Icons.Default.Bluetooth,
             title = stringResource(R.string.tools_connection),
@@ -175,6 +154,17 @@ private fun ToolCard(icon: ImageVector, title: String, subtitle: String, onClick
     }
 }
 
+/** "Shortcut Button 1: Cycle EQ preset · Touch controls on" (the touch part only when the headphones report it). */
+@Composable
+private fun controlsSummary(shortcut: ShortcutAction, headphones: HeadphoneState): String {
+    val base = stringResource(R.string.tools_shortcuts_summary, shortcutSummary(shortcut, HeadphoneLabels.isEarbuds(HeadphoneLabels.formFactor(headphones))))
+    return when (headphones.touchControlsEnabled.takeIf { headphones.isConnected }) {
+        true -> stringResource(R.string.tools_controls_summary_touch_on, base)
+        false -> stringResource(R.string.tools_controls_summary_touch_off, base)
+        null -> base
+    }
+}
+
 fun describeRate(hz: Int?): String = when {
     hz == null -> "?"
     hz % 1000 == 0 -> "${hz / 1000} kHz"
@@ -187,21 +177,19 @@ private fun ToolsPreview() {
     val state by remember { FakeCodecRepository() }.state.collectAsStateWithLifecycle()
     EarshotPreview {
         ToolsContent(
-            state, FakeHeadphoneRepository.connectedState(), ShortcutAction.CycleEq, PaddingValues(0.dp),
-            ToolsNavigation(), HeadphoneControlsCallbacks(),
+            state, FakeHeadphoneRepository.connectedState(), ShortcutAction.CycleEq, PaddingValues(0.dp), ToolsNavigation(),
         )
     }
 }
 
-/** Earbuds: earbud wording, only the rows the model has. */
+/** Earbuds: earbud wording in the Controls row. */
 @LightDarkPreview
 @Composable
 private fun ToolsEarbudsPreview() {
     val state by remember { FakeCodecRepository() }.state.collectAsStateWithLifecycle()
     EarshotPreview {
         ToolsContent(
-            state, FakeHeadphoneRepository.connectedEarbudsState(), ShortcutAction.OpenAssistant(), PaddingValues(0.dp),
-            ToolsNavigation(), HeadphoneControlsCallbacks(),
+            state, FakeHeadphoneRepository.connectedEarbudsState(), ShortcutAction.OpenAssistant(), PaddingValues(0.dp), ToolsNavigation(),
         )
     }
 }

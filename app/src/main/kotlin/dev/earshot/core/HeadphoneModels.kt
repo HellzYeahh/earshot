@@ -390,10 +390,22 @@ data class HeadphoneState(
     val autoOffMinutes: Int? = null,
     /** `[1.7]` band range the headphones report (min..max per band); null = the usual -10..10. */
     val eqRange: IntRange? = null,
+
+    // ---- Added for the Controls screen (several `[1.9]` records) ----
+
+    /**
+     * Every `[1.9]` record the device reported, primary first (Shortcut 0x80, then right 0x03,
+     * left 0x04, then the rest by id). Earbuds may report one record per bud. Empty = only
+     * [shortcutButton] is known (older producers); use [allShortcutButtons] to read either.
+     */
+    val shortcutButtons: List<ButtonAssignment> = emptyList(),
 ) {
     val isConnected: Boolean get() = connection.status == ConnectionStatus.CONNECTED
     val currentMode: ListeningMode? get() = currentModeIndex?.let { i -> modes.firstOrNull { it.index == i } }
     val favoriteModes: List<ListeningMode> get() = modes.filter { it.isFavorite }
+
+    /** [shortcutButtons], or just [shortcutButton] when the producer only filled that one. */
+    val allShortcutButtons: List<ButtonAssignment> get() = shortcutButtons.ifEmpty { listOfNotNull(shortcutButton) }
 }
 
 /** One-shot notifications from the repository (snackbars, logs). */

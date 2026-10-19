@@ -142,6 +142,7 @@ class RoutingHeadphoneRepository(
     override suspend fun setMultipoint(enabled: Boolean) = current.setMultipoint(enabled)
     override suspend fun setVoicePrompts(prompts: VoicePrompts) = current.setVoicePrompts(prompts)
     override suspend fun setShortcutButton(action: ButtonAction) = current.setShortcutButton(action)
+    override suspend fun setShortcutButton(buttonId: Int, eventType: Int, action: ButtonAction) = current.setShortcutButton(buttonId, eventType, action)
     override suspend fun setDeviceName(name: String) = current.setDeviceName(name)
     override suspend fun switchToDevice(address: String) = current.switchToDevice(address)
     override suspend fun enterPairingMode() = current.enterPairingMode()

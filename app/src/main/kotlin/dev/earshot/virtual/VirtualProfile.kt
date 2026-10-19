@@ -79,6 +79,11 @@ data class VirtualProfile(
     val absent: Set<FunctionAddress> = emptySet(),
     /** Bose Connect era (QC35): only ProductInfo and the battery answer. */
     val legacyOnly: Boolean = false,
+    /**
+     * `[1.9]` records as hex, one STATUS frame each; null = the fw 10.12 capture (Shortcut 0x80,
+     * long press). Earbuds get one record per bud (a guess: no earbuds `[1.9]` was ever captured).
+     */
+    val buttonRecords: List<String>? = null,
 ) {
     val slotCount: Int get() = presets.size + customSlots
 
@@ -116,6 +121,10 @@ data class VirtualProfile(
             productId = QcUltra2.PRODUCT_ID_EARBUDS, productName = "Bose QC Ultra 2 Earbuds", customName = "Bose QC Ultra 2 Earbuds",
             firmwareVersion = "8.0.11+g5d1e2a0", battery = VirtualBattery.BUDS,
             savedModes = mapOf(4 to VirtualSlot(ModePrompt.COMMUTE, "Commute", cncWire = 2)),
+            // Right bud (0x03) on Voice assistant, left bud (0x04) on Immersive Audio; both long
+            // press with the headphones' menu mask. The Bose app lets each bud's shortcut be set
+            // on its own; the exact wire form is a guess until an earbuds capture exists.
+            buttonRecords = listOf("0309010009400200010002", "0409130009400200010002"),
         )
 
         /**

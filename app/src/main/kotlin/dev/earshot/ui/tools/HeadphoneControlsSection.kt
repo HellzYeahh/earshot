@@ -32,7 +32,7 @@ import dev.earshot.ui.common.SwitchRow
 import dev.earshot.ui.common.rememberSettingsLoaded
 import dev.earshot.ui.more.VOICE_PROMPT_LANGUAGES
 
-/** The headphone commands behind the Tools tab's "Headphone controls" (a `SettingsViewModel`). */
+/** The headphone commands behind the Controls screen's "Headphone controls" (a `SettingsViewModel`). */
 data class HeadphoneControlsCallbacks(
     val onTouchControls: (Boolean) -> Unit = {},
     val onVoicePrompts: (VoicePrompts) -> Unit = {},
@@ -41,12 +41,20 @@ data class HeadphoneControlsCallbacks(
 )
 
 /**
- * Touch controls, voice prompts, devices, rename and power off (they used to live on More).
- * Same rules as before: rows are disabled while disconnected or busy, and once the settings have
- * loaded a row whose value is still null is hidden, since this model doesn't have it.
+ * Touch controls, voice prompts, devices, rename and power off, on the Controls screen (they
+ * lived on More, then on the Tools tab). Same rules as before: rows are disabled while
+ * disconnected or busy, and once the settings have loaded a row whose value is still null is
+ * hidden, since this model doesn't have it. [touchModifier] goes on the Touch controls row, so
+ * the detect sheet's hint can scroll to it and highlight it.
  */
 @Composable
-fun HeadphoneControlsSection(state: HeadphoneState, callbacks: HeadphoneControlsCallbacks, onOpenDevices: () -> Unit) {
+fun HeadphoneControlsSection(
+    state: HeadphoneState,
+    callbacks: HeadphoneControlsCallbacks,
+    onOpenDevices: () -> Unit,
+    modifier: Modifier = Modifier,
+    touchModifier: Modifier = Modifier,
+) {
     val enabled = state.isConnected && !state.isBusy
     var showRename by rememberSaveable { mutableStateOf(false) }
     var showPowerOff by rememberSaveable { mutableStateOf(false) }
@@ -55,7 +63,7 @@ fun HeadphoneControlsSection(state: HeadphoneState, callbacks: HeadphoneControls
     fun has(value: Any?) = !loaded || value != null
     val prompts = state.voicePrompts
 
-    SectionCard(title = stringResource(if (buds) R.string.tools_earbud_controls else R.string.tools_headphone_controls)) {
+    SectionCard(modifier = modifier, title = stringResource(if (buds) R.string.tools_earbud_controls else R.string.tools_headphone_controls)) {
         // [1.34]: wire bit 1 = touch on (the name "DisableCaptouch" is misleading); the state is already "enabled".
         if (has(state.touchControlsEnabled)) {
             SwitchRow(
@@ -64,6 +72,7 @@ fun HeadphoneControlsSection(state: HeadphoneState, callbacks: HeadphoneControls
                 callbacks.onTouchControls,
                 subtitle = stringResource(if (buds) R.string.settings_touch_controls_subtitle_buds else R.string.settings_touch_controls_subtitle),
                 enabled = enabled && state.touchControlsEnabled != null,
+                modifier = touchModifier,
             )
             HorizontalDivider()
         }

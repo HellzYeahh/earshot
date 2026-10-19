@@ -35,17 +35,22 @@ class ShortcutButtonSync(
     /** The address already handled in the current connection (null while disconnected). */
     private var handledAddress: String? = null
 
-    /** Last non-empty supported list per headset (upper-case address). */
-    private val supportedByAddress = ConcurrentHashMap<String, List<ButtonAction>>()
+    /** Last non-empty supported list per headset and button (upper-case address + button id). */
+    private val supportedByAddress = ConcurrentHashMap<Pair<String, Int>, List<ButtonAction>>()
 
     /**
      * The connected headphones' Shortcut button with the supported modes filled in from the last
      * full `[1.9]` read when this frame carried none: a 3-byte echo or push has no mask, and an
      * empty list would otherwise hide the native options and block every write.
      */
-    fun button(state: HeadphoneState): ButtonAssignment? {
-        val b = state.shortcutButton ?: return null
-        val key = state.connection.deviceAddress?.uppercase() ?: return b
+    fun button(state: HeadphoneState): ButtonAssignment? = state.shortcutButton?.let { withSupport(state, it) }
+
+    /** Every `[1.9]` record (primary first), each with its remembered supported modes. */
+    fun buttons(state: HeadphoneState): List<ButtonAssignment> = state.allShortcutButtons.map { withSupport(state, it) }
+
+    private fun withSupport(state: HeadphoneState, b: ButtonAssignment): ButtonAssignment {
+        val address = state.connection.deviceAddress?.uppercase() ?: return b
+        val key = address to b.buttonId
         if (b.supportedActions.isNotEmpty()) supportedByAddress[key] = b.supportedActions
         return ShortcutButtonPolicy.withKnownSupport(b, supportedByAddress[key])
     }
@@ -66,15 +71,39 @@ class ShortcutButtonSync(
 
     private suspend fun reapply(address: String) {
         val saved = runCatching { settings() }.getOrNull() ?: return
-        val mode = ShortcutButtonPolicy.writeOnConnect(saved, address, button(headphones.state.value)) ?: return
-        log("setting the shortcut button to ${mode.name} for the saved choice")
+        ShortcutButtonPolicy.writeOnConnect(saved, address, button(headphones.state.value))?.let { mode ->
+            log("setting the shortcut button to ${mode.name} for the saved choice")
+            writeOnConnect { headphones.setShortcutButton(mode) }
+        }
+        // The other buds' / buttons' records: only what the user set for them.
+        for (b in buttons(headphones.state.value).drop(1)) {
+            val mode = SecondaryButtonPolicy.writeFor(saved.buttonChoiceFor(address, b.buttonId), b) ?: continue
+            log("setting button 0x%02x to ${mode.name} for the saved choice".format(b.buttonId))
+            writeOnConnect { headphones.setShortcutButton(b.buttonId, b.eventType, mode) }
+        }
+    }
+
+    private suspend fun writeOnConnect(write: suspend () -> Unit) {
         try {
-            headphones.setShortcutButton(mode)
+            write()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             log("shortcut button write on connect failed: ${e.message}")
         }
+    }
+
+    /**
+     * Writes [mode] to the secondary `[1.9]` record [buttonId] (with its own event type), if it
+     * differs. Throws `HeadphoneCommandException` when refused.
+     */
+    suspend fun applySecondary(buttonId: Int, mode: ButtonAction) {
+        val state = headphones.state.value
+        if (!state.isConnected) return
+        val b = buttons(state).firstOrNull { it.buttonId == buttonId } ?: return
+        if (b.action == mode || mode !in b.supportedActions) return
+        log("setting button 0x%02x to ${mode.name}".format(buttonId))
+        headphones.setShortcutButton(b.buttonId, b.eventType, mode)
     }
 
     /**

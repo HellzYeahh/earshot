@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### New
-- **Shortcuts remapper** (top of Tools): give a headset's press-and-hold a new job. One dropdown,
+- **Controls** (top of Tools): give a headset's press-and-hold a new job. One dropdown,
   "Shortcut Button 1:", under the connected headset's name: Phone assistant (the default), Cycle
   EQ preset (announced in the headset), Voice memo (headset mic, saved to Recordings/Earshot) or
   Launch an app; on Bose headphones also their own Immersive Audio or Off. Works with any
@@ -13,13 +13,28 @@
 - **Automatic Bose Shortcut button:** Earshot sets the headphones' Shortcut button itself:
   Voice assistant for an Earshot action, or Immersive Audio / Off when you pick those, and puts it
   back on connect when it was changed. Only modes the headphones report are written, never twice
-  in a row, and nothing changes for someone who never picked anything in the remapper.
+  in a row, and nothing changes for someone who never picked anything on the Controls screen.
+- **Detect a button** (Controls): press each control on your headset and Earshot says what it
+  does: the assistant gesture ("This is your shortcut: you can remap it"), play/pause, track and
+  volume (they go straight to the music app; Android doesn't let apps remap them), Bose button
+  events by their Bose names, and call controls while a call is on. It never assumes which
+  control the shortcut is (on one QC Ultra 2 it was a short press of the power button): once
+  found you name it, and the screen shows e.g. "Power button, single press ✓". Hints for touch
+  controls being off, no button on the assistant, and other headsets. Works for any Bluetooth
+  headset from Android's own signals; Bose pushes add detail. Demo mode can press virtual controls.
+- **One row per Bose button:** earbuds that report a shortcut record per bud get "Shortcut
+  Button 1 (right earbud)" and "Shortcut Button 2 (left earbud)", each with the modes it reports
+  and written with its own button id. A second button can share Shortcut Button 1's action
+  (the phone can't tell two assistant buttons apart, and the screen says so) or do the
+  earbuds' own Immersive Audio / Off.
 
 ### Changed
-- **Headphone controls moved to Tools:** Touch controls, Voice prompts and Prompt language,
-  Devices, Rename and Power off now sit under the Shortcuts remapper on the Tools tab. The Shortcut
-  button row is gone from More (the remapper sets it). More keeps sidetone, auto play/pause,
-  auto-answer, multipoint, auto-off, About these headphones and the App section.
+- **"Shortcuts remapper" is now "Controls", and the headphone controls live there:** Touch
+  controls, Voice prompts and Prompt language, Devices, Rename and Power off sit on the Controls
+  screen below the shortcut buttons (same rules and dialogs as before). The Tools tab shows the
+  Controls row first ("Shortcut Button 1: Cycle EQ preset · Touch controls on"), then the other
+  tools. The Shortcut button row is gone from More (Controls sets it). More keeps sidetone, auto
+  play/pause, auto-answer, multipoint, auto-off, About these headphones and the App section.
 
 ## 0.4.0 — 2026-10-18
 

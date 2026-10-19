@@ -238,6 +238,8 @@ class ServiceHeadphoneRepository(
     override suspend fun setMultipoint(enabled: Boolean) = command("setMultipoint") { c, s -> protocol.setMultipoint(c, s, enabled) }
     override suspend fun setVoicePrompts(prompts: VoicePrompts) = command("setVoicePrompts") { c, s -> protocol.setVoicePrompts(c, s, prompts) }
     override suspend fun setShortcutButton(action: ButtonAction) = command("setShortcutButton") { c, s -> protocol.setShortcutButton(c, s, action) }
+    override suspend fun setShortcutButton(buttonId: Int, eventType: Int, action: ButtonAction) =
+        command("setShortcutButton") { c, s -> protocol.setShortcutButton(c, s, buttonId, eventType, action) }
     override suspend fun setDeviceName(name: String) = command("setDeviceName") { c, s -> protocol.setDeviceName(c, s, name) }
 
     override suspend fun switchToDevice(address: String) = command("switchToDevice") { c, s -> protocol.switchToDevice(c, s, address) }

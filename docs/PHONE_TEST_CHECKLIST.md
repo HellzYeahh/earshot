@@ -46,12 +46,13 @@ Tick what works; note anything odd (wrong value, delay, voice prompt, disconnect
 ## 5. More
 - [ ] Sidetone Off/Low/Medium/High audible on a call or voice memo.
 - [ ] Auto play/pause, auto-answer.
-- [ ] Tools → Headphone controls: voice prompts on/off + language.
-- [ ] Tools → Devices: paired list, active source badge; "Switch to this device" with playback started on the other device.
+- [ ] Tools → Controls → Headphone controls: voice prompts on/off + language.
+- [ ] Tools → Controls → Devices: paired list, active source badge; "Switch to this device" with playback started on the other device.
 - [ ] Pairing mode button → headphones announce pairing.
-- [ ] Tools → Shortcuts remapper: pick Cycle EQ → the Bose Shortcut button goes to Voice assistant by itself; pick Immersive Audio / Off → the button does that (may be refused by firmware — note the message).
-- [ ] Tools → Rename → expected message that the firmware doesn't support changing it.
-- [ ] Tools → Power off → headphones turn off, app shows disconnected.
+- [ ] Tools → Controls: pick Cycle EQ → the Bose Shortcut button goes to Voice assistant by itself; pick Immersive Audio / Off → the button does that (may be refused by firmware — note the message).
+- [ ] Tools → Controls → Detect a button: play/pause, a strip swipe and next track each show a row ("Goes straight to your music app"); try a short and a long press of every button, the power button too, and a long still touch on the strip, and note which one shows "Assistant gesture" (green). Name it; the card then reads e.g. "Power button, single press ✓". Turn Touch controls off and check the hint and its one-tap fix.
+- [ ] Tools → Controls → Rename → expected message that the firmware doesn't support changing it.
+- [ ] Tools → Controls → Power off → headphones turn off, app shows disconnected.
 - [ ] Automations: On connect → Quiet; Wi-Fi "home" → Aware (grant location); Schedule 2 min ahead; Foreground app (grant Usage access).
 - [ ] Low-battery alert threshold 90% (for testing) → alert appears once.
 - [ ] About: credits present, version shown.

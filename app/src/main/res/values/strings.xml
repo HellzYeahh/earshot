@@ -600,10 +600,12 @@
     <string name="alert_low_text_left">Left earbud at %1$d%%. Time to charge.</string>
     <string name="alert_low_text_right">Right earbud at %1$d%%. Time to charge.</string>
 
-    <!-- Shortcuts remapper (headset press-and-hold) -->
+    <!-- Controls screen (headset press-and-hold, formerly "Shortcuts remapper") -->
     <string name="shortcut_trigger_label">Earshot</string>
-    <string name="tools_shortcuts">Shortcuts remapper</string>
+    <string name="tools_shortcuts">Controls</string>
     <string name="tools_shortcuts_summary">Shortcut Button 1: %1$s</string>
+    <string name="tools_controls_summary_touch_on">%1$s · Touch controls on</string>
+    <string name="tools_controls_summary_touch_off">%1$s · Touch controls off</string>
     <string name="tools_headphone_controls">Headphone controls</string>
     <string name="tools_earbud_controls">Earbud controls</string>
     <string name="shortcut_button_1">Shortcut Button 1:</string>
@@ -642,6 +644,78 @@
     <string name="shortcut_start_failed">Couldn\'t open it</string>
     <string name="shortcut_no_headset">No headset connected</string>
 
+    <!-- Controls: several Bose buttons (earbuds: one per bud) -->
+    <string name="shortcut_button_n">Shortcut Button %1$d:</string>
+    <string name="shortcut_button_n_right">Shortcut Button %1$d (right earbud):</string>
+    <string name="shortcut_button_n_left">Shortcut Button %1$d (left earbud):</string>
+    <string name="shortcut_secondary_same">Same as Shortcut Button 1 (%1$s)</string>
+    <string name="shortcut_secondary_hint">The phone can\'t tell two assistant buttons apart, so this one can only share Shortcut Button 1\'s action or do something on the headset itself.</string>
+    <string name="shortcut_shared_assistant">More than one button is on the phone\'s assistant: they all run %1$s.</string>
+
+    <!-- Controls: Detect a button -->
+    <string name="shortcut_detected">Shortcut detected ✓</string>
+    <string name="shortcut_detected_named">%1$s ✓</string>
+    <string name="shortcut_detected_control_press">%1$s, %2$s</string>
+    <string name="detect_button">Detect a button</string>
+    <string name="detect_title">Press a button on your headphones</string>
+    <string name="detect_title_buds">Press a button on your earbuds</string>
+    <string name="detect_title_any">Press a button on your headset</string>
+    <string name="detect_listening">Listening · %1$d s left</string>
+    <string name="detect_stopped">Stopped listening</string>
+    <string name="detect_stop">Stop</string>
+    <string name="detect_again">Listen again</string>
+    <string name="detect_done">Done</string>
+    <string name="detect_empty">Nothing yet. Each control you press shows up here.</string>
+    <string name="detect_kind_assistant">Assistant gesture</string>
+    <string name="detect_kind_play_pause">Play / pause</string>
+    <string name="detect_kind_track">Track change</string>
+    <string name="detect_kind_volume">Volume</string>
+    <string name="detect_kind_button">Headphone button</string>
+    <string name="detect_kind_call">Call controls</string>
+    <string name="detect_verdict_assistant">This is your shortcut: you can remap it</string>
+    <string name="detect_verdict_music">Goes straight to your music app, Android doesn\'t let apps remap it</string>
+    <string name="detect_verdict_call">A call is using your headphones\' controls right now</string>
+    <string name="detect_verdict_button">Bose calls it: %1$s</string>
+    <string name="detect_use_for">Use for Shortcut Button 1</string>
+    <string name="detect_playing">Now playing</string>
+    <string name="detect_paused">Now paused</string>
+    <string name="detect_seeking">Seeking</string>
+    <string name="detect_volume_steps">%1$d → %2$d</string>
+    <string name="detect_volume_nudge">A still finger on the strip can register as small volume steps.</string>
+    <string name="detect_times">×%1$d</string>
+    <string name="detect_demo_label">Demo</string>
+    <string name="detect_wired">Wired headset</string>
+    <string name="detect_name_title">Which control was it?</string>
+    <string name="detect_name_how">How did you press it?</string>
+    <string name="detect_name_other">Name it</string>
+    <string name="control_power_button">Power button</string>
+    <string name="control_play_pause_button">Play/pause button</string>
+    <string name="control_volume_strip">Volume strip</string>
+    <string name="control_other">Other</string>
+    <string name="press_single">Single press</string>
+    <string name="press_double">Double press</string>
+    <string name="press_long">Long press</string>
+    <string name="press_touch_hold">Touch and hold</string>
+    <string name="press_single_lower">single press</string>
+    <string name="press_double_lower">double press</string>
+    <string name="press_long_lower">long press</string>
+    <string name="press_touch_hold_lower">touch and hold</string>
+    <string name="detect_hint_touch_off">Touch controls are off, so the shortcut can\'t fire.</string>
+    <string name="detect_turn_touch_on">Turn touch controls on</string>
+    <string name="detect_hint_no_assistant_button">None of the buttons is on the phone\'s assistant, so none of them reaches Earshot. Pick an Earshot action for Shortcut Button 1 first.</string>
+    <string name="detect_hint_try_each">Try each control once: a short press and a long press of every button, the power button too, and a long, still touch on the volume strip.</string>
+    <string name="detect_hint_try_each_other">Try each control once: a short press and a long press of every button, the power button too, and a long, still touch on any touch area.</string>
+    <string name="detect_hint_bose_none">Your headphones didn\'t send the shortcut. Bose calls it “%1$s” on the Shortcut: try each control again (a short and a long press of every button, the power button too, and a long, still touch on the strip), and check that Touch controls is on.</string>
+    <string name="detect_hint_bose_none_unnamed">Your headphones didn\'t send the shortcut. Try each control again (a short and a long press of every button, the power button too, and a long, still touch on the strip), and check that Touch controls is on.</string>
+    <string name="detect_show_touch">Show Touch controls</string>
+    <string name="detect_hint_other_none">Most headsets send the assistant gesture on press-and-hold; check your headset\'s app.</string>
+    <string name="detect_hint_other_handler">If %1$s opened, that was the shortcut: Android sends it there. Pick Earshot for it the next time Android asks, or clear %1$s as the default.</string>
+    <string name="detect_demo_title">Demo: press a control</string>
+    <string name="detect_demo_play">Play/pause</string>
+    <string name="detect_demo_volume">Volume</string>
+    <string name="detect_demo_button">Button</string>
+    <string name="detect_demo_assistant">Assistant</string>
+
     <!-- Voice memo -->
     <string name="memo_channel_name">Voice memos</string>
     <string name="memo_channel_description">Recording in progress and saved memos</string>
@@ -651,7 +725,7 @@
     <string name="memo_notif_phone_mic">Phone mic · stops after %1$d min</string>
     <string name="memo_notif_saved">Voice memo saved</string>
     <string name="memo_start_refused">Android didn\'t allow the recording to start. Open Earshot and try again.</string>
-    <string name="memo_no_permission">Earshot needs the microphone permission for voice memos. Allow it in Tools → Shortcuts remapper.</string>
+    <string name="memo_no_permission">Earshot needs the microphone permission for voice memos. Allow it in Tools → Controls.</string>
     <string name="memo_failed">Couldn\'t start the voice memo (is another app using the mic?)</string>
     <string name="memo_note_limit">Stopped at the %1$d-minute limit.</string>
     <string name="memo_note_error">Stopped by a recorder error.</string>

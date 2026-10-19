@@ -24,3 +24,21 @@ object TriggerCaller {
     fun isHeadsetPress(referrerPackage: String?, ownPackage: String, internalExtra: Boolean): Boolean =
         !internalExtra && referrerPackage != ownPackage
 }
+
+enum class TriggerRoute {
+    /** Run the headset's action (no detection running). */
+    RUN,
+    /** A detection is listening and this was a real headset press: report it, run nothing. */
+    REPORT_DETECTED,
+    /** A detection is listening and Earshot started the trigger itself: it neither counts nor runs. */
+    IGNORE,
+}
+
+/** What [ShortcutTriggerActivity] does with a start. Pure, so "detect mode never runs the action" is tested. */
+object TriggerRouting {
+    fun route(detecting: Boolean, headsetPress: Boolean): TriggerRoute = when {
+        !detecting -> TriggerRoute.RUN
+        headsetPress -> TriggerRoute.REPORT_DETECTED
+        else -> TriggerRoute.IGNORE
+    }
+}

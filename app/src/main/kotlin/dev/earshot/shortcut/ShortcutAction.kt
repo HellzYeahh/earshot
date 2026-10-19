@@ -69,6 +69,10 @@ data class ShortcutSettings(
      * "pick Earshot, then Always" hint.
      */
     val seenHeadsetPress: Boolean = false,
+    /** Headsets whose assistant gesture "Detect a button" has seen, with the user's name for the control. */
+    val detected: List<DetectedShortcut> = emptyList(),
+    /** Modes picked for Bose buttons after the first (earbuds: the other bud). */
+    val buttonChoices: List<ButtonChoice> = emptyList(),
 ) {
     /** The user picked something for the headset at [address] (or changed the default) rather than leaving the factory default. */
     fun hasExplicitChoice(address: String?): Boolean = overrideFor(address) != null || defaultAction != FACTORY_DEFAULT
@@ -92,6 +96,32 @@ data class ShortcutSettings(
         return copy(overrides = if (action == null) rest else rest + HeadsetOverride(address.uppercase(), name, action))
     }
 
+    fun detectedFor(address: String?): DetectedShortcut? =
+        address?.let { a -> detected.firstOrNull { it.address.equals(a, ignoreCase = true) } }
+
+    /** Records a detection for [address] at [at], keeping the name the user gave earlier. */
+    fun withDetected(address: String, at: Long): ShortcutSettings {
+        val old = detectedFor(address)
+        val entry = old?.copy(at = at) ?: DetectedShortcut(address.uppercase(), at)
+        return copy(detected = detected.filterNot { it.address.equals(address, ignoreCase = true) } + entry)
+    }
+
+    /** The user's name for the detected control of [address] (a detection must exist). */
+    fun withDetectedName(address: String, control: PhysicalControl?, press: PressStyle?, customName: String?): ShortcutSettings {
+        val old = detectedFor(address) ?: return this
+        val named = old.copy(control = control, press = press, customName = customName?.trim()?.takeIf { it.isNotEmpty() && control == PhysicalControl.OTHER })
+        return copy(detected = detected.map { if (it === old) named else it })
+    }
+
+    fun buttonChoiceFor(address: String?, buttonId: Int): ButtonChoice? =
+        address?.let { a -> buttonChoices.firstOrNull { it.address.equals(a, ignoreCase = true) && it.buttonId == buttonId } }
+
+    /** Sets ([mode] non-null) or clears the choice for one secondary Bose button of [address]. */
+    fun withButtonChoice(address: String, buttonId: Int, mode: Int?): ShortcutSettings {
+        val rest = buttonChoices.filterNot { it.address.equals(address, ignoreCase = true) && it.buttonId == buttonId }
+        return copy(buttonChoices = if (mode == null) rest else rest + ButtonChoice(address.uppercase(), buttonId, mode))
+    }
+
     companion object {
         val FACTORY_DEFAULT: ShortcutAction = ShortcutAction.OpenAssistant()
     }
@@ -107,7 +137,14 @@ object ShortcutCodec {
      * The DataStore's raw values to settings. Missing keys take the defaults, so settings stored
      * by an older build (the first remapper build had no [ShortcutSettings.seenHeadsetPress]) keep working.
      */
-    fun decodeSettings(defaultAction: String?, overrides: String?, spokenFeedback: Boolean?, seenHeadsetPress: Boolean?): ShortcutSettings {
+    fun decodeSettings(
+        defaultAction: String?,
+        overrides: String?,
+        spokenFeedback: Boolean?,
+        seenHeadsetPress: Boolean?,
+        detected: String? = null,
+        buttonChoices: String? = null,
+    ): ShortcutSettings {
         val defaults = ShortcutSettings()
         return ShortcutSettings(
             defaultAction = decodeAction(defaultAction)
@@ -116,6 +153,8 @@ object ShortcutCodec {
             overrides = decodeOverrides(overrides),
             spokenFeedback = spokenFeedback ?: defaults.spokenFeedback,
             seenHeadsetPress = seenHeadsetPress ?: defaults.seenHeadsetPress,
+            detected = ShortcutExtrasCodec.decodeDetected(detected),
+            buttonChoices = ShortcutExtrasCodec.decodeButtonChoices(buttonChoices),
         )
     }
 

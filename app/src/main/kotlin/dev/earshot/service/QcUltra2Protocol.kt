@@ -32,6 +32,7 @@ import dev.earshot.protocol.qcultra2.BoseModel
 import dev.earshot.protocol.qcultra2.ButtonEvent
 import dev.earshot.protocol.qcultra2.ButtonEventPush
 import dev.earshot.protocol.qcultra2.ButtonId
+import dev.earshot.protocol.qcultra2.ProductForm
 import dev.earshot.protocol.qcultra2.Buttons
 import dev.earshot.protocol.qcultra2.ChargerDetect
 import dev.earshot.protocol.qcultra2.Cnc
@@ -358,7 +359,17 @@ class QcUltra2Protocol(
         r.get(QcUltra2.AUTO_PLAY_PAUSE) { s = s.copy(autoPlayPause = Toggle.parse(it.payload)) }
         r.get(QcUltra2.AUTO_ANSWER) { s = s.copy(autoAnswer = Toggle.parse(it.payload)) }
         r.get(QcUltra2.VOICE_PROMPTS) { s = s.copy(voicePrompts = VoicePromptsCodec.parse(it.payload)?.toVoicePrompts()) }
-        r.get(QcUltra2.BUTTONS) { s = s.copy(shortcutButton = Buttons.parse(it.payload)?.toButtonAssignment()) }
+        if (model.formFactor == ProductForm.HEADPHONES) {
+            r.get(QcUltra2.BUTTONS) { s = s.withButtonRecords(listOfNotNull(Buttons.parse(it.payload)?.toButtonAssignment())) }
+        } else {
+            // Earbuds may answer with one STATUS per bud (right 0x03, left 0x04): collect them all.
+            // Headphones keep the single read, so the QC Ultra 2 refresh costs no quiet gap.
+            r.multi(BmapPacket.get(QcUltra2.BUTTONS)) { frames ->
+                val records = frames.filter { it.matches(QcUltra2.BUTTONS) && it.operator == BmapOperator.STATUS }
+                    .mapNotNull { Buttons.parse(it.payload)?.toButtonAssignment() }
+                if (records.isNotEmpty()) s = s.withButtonRecords(records)
+            }
+        }
         r.get(QcUltra2.DISABLE_CAPTOUCH) { s = s.copy(touchControlsEnabled = TouchControls.parseEnabled(it.payload)) }
         r.get(QcUltra2.LE_AUDIO_CONTROL) { s = s.copy(leAudioEnabled = LeAudioControl.parse(it.payload)) }
 
@@ -1008,18 +1019,31 @@ class QcUltra2Protocol(
      * press). bosectl says the remap works; Quiet Rebellion says the firmware echoes but ignores
      * it. The echo is checked so the second case is reported, not hidden.
      */
-    override suspend fun setShortcutButton(c: BmapRequester, current: HeadphoneState, action: ButtonAction): HeadphoneState {
+    override suspend fun setShortcutButton(c: BmapRequester, current: HeadphoneState, action: ButtonAction): HeadphoneState =
+        setShortcutButton(
+            c, current,
+            buttonId = current.shortcutButton?.buttonId ?: ButtonId.SHORTCUT.code,
+            eventType = current.shortcutButton?.eventType ?: ButtonEvent.LONG_PRESS.code,
+            action = action,
+        )
+
+    /** One record (earbuds: one per bud), always with the button id and event type the device reported for it. */
+    override suspend fun setShortcutButton(
+        c: BmapRequester,
+        current: HeadphoneState,
+        buttonId: Int,
+        eventType: Int,
+        action: ButtonAction,
+    ): HeadphoneState {
         requireDriven()
         if (action == ButtonAction.UNKNOWN) throw HeadphoneCommandException("That button action is not known to the headphones")
-        val buttonId = current.shortcutButton?.buttonId ?: ButtonId.SHORTCUT.code
-        val eventType = current.shortcutButton?.eventType ?: ButtonEvent.LONG_PRESS.code
         val echo = c.setGet(QcUltra2.BUTTONS, Buttons.build(buttonId, eventType, action.wire))
         val config = parsed(QcUltra2.BUTTONS) { Buttons.parse(echo.payload) }
             ?: throw unexpected(QcUltra2.BUTTONS, "short echo (${echo.payload.size} bytes)")
         if (config.actionCode != action.wire) {
             throw HeadphoneCommandException("The headphones ignored the change (that action may be unavailable right now)")
         }
-        return current.copy(shortcutButton = config.toButtonAssignment())
+        return current.withButtonRecord(config.toButtonAssignment())
     }
 
     /**
@@ -1215,7 +1239,7 @@ class QcUltra2Protocol(
                 QcUltra2.AUTO_ANSWER -> Toggle.parse(p)?.let { current.copy(autoAnswer = it) }
                 QcUltra2.MULTIPOINT -> Multipoint.parse(p)?.let { current.copy(multipointEnabled = it) }
                 QcUltra2.VOICE_PROMPTS -> VoicePromptsCodec.parse(p)?.let { current.copy(voicePrompts = it.toVoicePrompts()) }
-                QcUltra2.BUTTONS -> Buttons.parse(p)?.let { current.copy(shortcutButton = it.toButtonAssignment()) }
+                QcUltra2.BUTTONS -> Buttons.parse(p)?.let { current.withButtonRecord(it.toButtonAssignment()) }
                 QcUltra2.DISABLE_CAPTOUCH -> TouchControls.parseEnabled(p)?.let { current.copy(touchControlsEnabled = it) }
                 QcUltra2.LE_AUDIO_CONTROL -> LeAudioControl.parse(p)?.let { current.copy(leAudioEnabled = it) }
                 QcUltra2.LE_AUDIO_SUPPORTED -> ProductInfo.parseLeAudioSupported(p)?.let { current.copy(leAudioSupported = it) }

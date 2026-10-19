@@ -8,7 +8,7 @@ import android.content.pm.PackageManager
  * Wired and USB-C headsets: a long press of play/pause sends
  * `android.speech.action.VOICE_SEARCH_HANDS_FREE` while the phone is locked or the screen is off
  * (unlocked it opens search / the assist app instead, which Earshot leaves alone). The manifest's
- * activity-alias for it ships disabled; the experimental switch on the Shortcuts remapper screen
+ * activity-alias for it ships disabled; the experimental switch on the Controls screen
  * enables it, so Earshot never shows up in that chooser unless asked to.
  */
 object WiredTrigger {

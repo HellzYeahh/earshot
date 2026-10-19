@@ -47,6 +47,9 @@ interface HeadphoneProtocol {
     suspend fun setMultipoint(c: BmapRequester, current: HeadphoneState, enabled: Boolean): HeadphoneState
     suspend fun setVoicePrompts(c: BmapRequester, current: HeadphoneState, prompts: VoicePrompts): HeadphoneState
     suspend fun setShortcutButton(c: BmapRequester, current: HeadphoneState, action: ButtonAction): HeadphoneState
+    /** One `[1.9]` record by its own button id and event type; the default writes the primary button. */
+    suspend fun setShortcutButton(c: BmapRequester, current: HeadphoneState, buttonId: Int, eventType: Int, action: ButtonAction): HeadphoneState =
+        setShortcutButton(c, current, action)
     suspend fun setDeviceName(c: BmapRequester, current: HeadphoneState, name: String): HeadphoneState
 
     suspend fun switchToDevice(c: BmapRequester, current: HeadphoneState, address: String): HeadphoneState

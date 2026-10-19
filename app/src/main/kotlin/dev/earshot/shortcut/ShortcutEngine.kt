@@ -39,6 +39,9 @@ class ShortcutEngine(
     val feedback = SpokenFeedback(context)
     val buttonSync = ShortcutButtonSync(headphones, prefs::current, scope)
 
+    /** "Detect a button" on the Controls screen; the trigger reports to it instead of running while it listens. */
+    val detector = ControlDetector(scope, headphones.state, AndroidControlFeeds.all(context), log = { Log.i(TAG, it) })
+
     init {
         buttonSync.start()
     }
@@ -51,6 +54,39 @@ class ShortcutEngine(
     /** A real headset press reached the trigger. In the app scope: the trigger activity finishes at once. */
     fun markHeadsetPressSeen() {
         scope.launch { runCatching { prefs.markHeadsetPressSeen() }.onFailure { Log.w(TAG, "could not store the first press: $it") } }
+    }
+
+    /**
+     * The trigger fired while [detector] listens: works out the headset in the app scope (the
+     * activity has already finished) and reports the gesture. Same guard as for voice memos: an
+     * exported activity anyone can start, so a "detection" needs a headset actually connected.
+     */
+    fun reportAssistantGesture(trigger: Intent?, wired: Boolean) {
+        val at = System.currentTimeMillis()
+        scope.launch {
+            val present = runCatching { if (wired) headsets.wiredHeadsetPresent() else headsets.anyHfpConnected() != false }.getOrDefault(false)
+            if (!present) {
+                Log.w(TAG, "detect: gesture without a connected headset ignored")
+                return@launch
+            }
+            val presser = if (wired) null else runCatching { headsets.resolve(trigger, savedAddress()) }.getOrNull()
+                ?.takeIf { it.source != HeadsetSource.SAVED }?.address
+            Log.i(TAG, "detect: assistant gesture from ${presser ?: if (wired) "a wired headset" else "an unknown headset"}")
+            detector.report(ControlSignal.AssistantGesture(presser, wired, at))
+            rememberDetection(presser ?: detector.session.value.headsetAddress, at)
+        }
+    }
+
+    /** Demo mode's "Assistant gesture" button: the same report path, labelled as a demo. */
+    fun simulateAssistantGesture() {
+        val at = System.currentTimeMillis()
+        detector.report(ControlSignal.AssistantGesture(null, wired = false, at = at, origin = SignalOrigin.DEMO))
+        scope.launch { rememberDetection(detector.session.value.headsetAddress, at) }
+    }
+
+    private suspend fun rememberDetection(address: String?, at: Long) {
+        if (address == null) return
+        runCatching { prefs.markShortcutDetected(address, at) }.onFailure { Log.w(TAG, "could not store the detection: $it") }
     }
 
     /** The saved headphones' address, the last resort of [HeadsetResolution]. */
@@ -189,7 +225,7 @@ class ShortcutEngine(
         }
     }
 
-    /** Opens Earshot on the Tools tab (where the Shortcuts remapper asks for the permission). */
+    /** Opens Earshot on the Tools tab (where the Controls screen asks for the permission). */
     private fun openEarshot(activity: Activity) {
         val intent = Intent(activity, MainActivity::class.java)
             .putExtra(MainActivity.EXTRA_OPEN_TAB, "tools")

@@ -2,7 +2,9 @@ package dev.earshot.ui.tools
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,7 +16,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
@@ -22,6 +27,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Earbuds
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -30,14 +36,17 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,10 +62,19 @@ import dev.earshot.R
 import dev.earshot.appContainer
 import dev.earshot.core.ButtonAction
 import dev.earshot.core.ButtonAssignment
+import dev.earshot.core.HeadphoneState
+import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.shortcut.AssistantCandidate
+import dev.earshot.shortcut.DetectHintInput
+import dev.earshot.shortcut.DetectHints
+import dev.earshot.shortcut.DetectionSession
 import dev.earshot.shortcut.HandlerStatus
+import dev.earshot.shortcut.PhysicalControl
+import dev.earshot.shortcut.PressStyle
+import dev.earshot.shortcut.SecondaryButtonPolicy
 import dev.earshot.shortcut.ShortcutAction
 import dev.earshot.shortcut.ShortcutSettings
+import dev.earshot.shortcut.isEarshotAction
 import dev.earshot.ui.common.AppPickerDialog
 import dev.earshot.ui.common.BannerTone
 import dev.earshot.ui.common.EarshotPreview
@@ -67,23 +85,37 @@ import dev.earshot.ui.common.SubScreenScaffold
 import dev.earshot.ui.common.SwitchRow
 import dev.earshot.ui.common.earshotViewModel
 import dev.earshot.ui.common.rememberInstalledApps
+import dev.earshot.ui.more.SettingsViewModel
 import dev.earshot.ui.onboarding.Permissions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** What the screen can ask for; one object keeps the content composable's signature short. */
 data class ShortcutsCallbacks(
     val onBack: () -> Unit = {},
     val onChoose: (ShortcutAction) -> Unit = {},
+    val onChooseSecondary: (buttonId: Int, mode: ButtonAction) -> Unit = { _, _ -> },
     val onSpokenFeedback: (Boolean) -> Unit = {},
     val onGrantMic: () -> Unit = {},
+    val onOpenDevices: () -> Unit = {},
+    /** Opens the "Detect a button" sheet (starts listening). */
+    val onStartDetect: () -> Unit = {},
 )
 
+/** Which part of the screen to scroll to and pulse for a moment. */
+enum class ControlsHighlight { SHORTCUT, TOUCH_CONTROLS }
+
 @Composable
-fun ShortcutsRemapperScreen(onBack: () -> Unit) {
+fun ShortcutsRemapperScreen(onBack: () -> Unit, onOpenDevices: () -> Unit = {}) {
     val context = LocalContext.current
     val vm = earshotViewModel { deps -> ShortcutsRemapperViewModel(context.appContainer.shortcuts, deps.headphones, deps.messenger) }
+    // The headphone commands that used to sit on the Tools tab ("Headphone controls").
+    val settingsVm = earshotViewModel { SettingsViewModel(it.headphones, it.messenger) }
     val state by vm.state.collectAsStateWithLifecycle()
+    val headphones by settingsVm.state.collectAsStateWithLifecycle()
+    val detection by vm.detection.collectAsStateWithLifecycle()
+    val demo by remember { context.appContainer.demoMode.isEnabled }.collectAsStateWithLifecycle(false)
     var micGranted by remember { mutableStateOf(Permissions.has(context, Permissions.RECORD_AUDIO)) }
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         micGranted = granted
@@ -98,6 +130,9 @@ fun ShortcutsRemapperScreen(onBack: () -> Unit) {
     ShortcutsRemapperContent(
         state = state,
         micGranted = micGranted,
+        headphones = headphones,
+        detection = detection,
+        demo = demo,
         callbacks = ShortcutsCallbacks(
             onBack = onBack,
             onChoose = { action ->
@@ -105,18 +140,60 @@ fun ShortcutsRemapperScreen(onBack: () -> Unit) {
                 // Asked right when it's picked: the press itself can't show a permission prompt.
                 if (action == ShortcutAction.VoiceMemo && !micGranted) micLauncher.launch(Permissions.RECORD_AUDIO)
             },
+            onChooseSecondary = vm::chooseSecondary,
             onSpokenFeedback = vm::setSpokenFeedback,
             onGrantMic = { micLauncher.launch(Permissions.RECORD_AUDIO) },
+            onOpenDevices = onOpenDevices,
+            onStartDetect = vm::startDetect,
+        ),
+        controls = HeadphoneControlsCallbacks(
+            onTouchControls = settingsVm::setTouchControls,
+            onVoicePrompts = settingsVm::setVoicePrompts,
+            onRename = settingsVm::rename,
+            onPowerOff = settingsVm::powerOff,
+        ),
+        detect = DetectCallbacks(
+            onStop = vm::stopDetect,
+            onRestart = vm::startDetect,
+            onClose = vm::closeDetect,
+            onTurnTouchOn = { settingsVm.setTouchControls(true) },
+            onName = vm::nameDetected,
+            onDemo = vm::simulate,
         ),
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ShortcutsRemapperContent(state: ShortcutsUiState, micGranted: Boolean, callbacks: ShortcutsCallbacks) {
+fun ShortcutsRemapperContent(
+    state: ShortcutsUiState,
+    micGranted: Boolean,
+    callbacks: ShortcutsCallbacks,
+    headphones: HeadphoneState = HeadphoneState(),
+    controls: HeadphoneControlsCallbacks = HeadphoneControlsCallbacks(),
+    detection: DetectionSession = DetectionSession(),
+    detect: DetectCallbacks = DetectCallbacks(),
+    demo: Boolean = false,
+) {
     var pickingApp by remember { mutableStateOf(false) }
     var pickingAssistant by remember { mutableStateOf(false) }
+    var detecting by rememberSaveable { mutableStateOf(false) }
+    var highlight by remember { mutableStateOf<ControlsHighlight?>(null) }
+    val shortcutRequester = remember { BringIntoViewRequester() }
+    val touchRequester = remember { BringIntoViewRequester() }
     val choice = state.choice
     val earbuds = state.headset?.earbuds == true
+
+    LaunchedEffect(highlight) {
+        when (highlight) {
+            ControlsHighlight.SHORTCUT -> shortcutRequester.bringIntoView()
+            ControlsHighlight.TOUCH_CONTROLS -> touchRequester.bringIntoView()
+            null -> return@LaunchedEffect
+        }
+        delay(HIGHLIGHT_MS)
+        highlight = null
+    }
+    val highlightColor = MaterialTheme.colorScheme.primary
 
     SubScreenScaffold(title = stringResource(R.string.tools_shortcuts), onBack = callbacks.onBack) { padding ->
         Column(
@@ -125,8 +202,12 @@ fun ShortcutsRemapperContent(state: ShortcutsUiState, micGranted: Boolean, callb
         ) {
             HeadsetHeader(state.headset)
 
-            SectionCard {
-                Text(stringResource(R.string.shortcut_button_1), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+            SectionCard(
+                modifier = Modifier
+                    .bringIntoViewRequester(shortcutRequester)
+                    .highlighted(highlight == ControlsHighlight.SHORTCUT, highlightColor),
+            ) {
+                ButtonTitle(state.buttons.firstOrNull(), index = 1, detected = detectedSummary(state.detected))
                 ChoiceDropdown(
                     selected = choice.choice(),
                     options = ShortcutChoice.options(state.nativeModes, choice.choice()),
@@ -175,10 +256,72 @@ fun ShortcutsRemapperContent(state: ShortcutsUiState, micGranted: Boolean, callb
                         onCheckedChange = callbacks.onSpokenFeedback,
                     )
                 }
+
+                OutlinedButton(
+                    onClick = { detecting = true; callbacks.onStartDetect() },
+                    modifier = Modifier.padding(top = 12.dp),
+                ) {
+                    Icon(Icons.Default.TouchApp, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.detect_button))
+                }
             }
+
+            state.secondaryButtons.forEachIndexed { i, button ->
+                SecondaryButtonCard(
+                    button = button,
+                    index = i + 2,
+                    selected = SecondaryButtonPolicy.displayed(state.settings.buttonChoiceFor(state.headset?.address, button.buttonId), button),
+                    sharedLabel = sharedActionLabel(choice, earbuds),
+                    earbuds = earbuds,
+                    onSelect = { mode -> callbacks.onChooseSecondary(button.buttonId, mode) },
+                )
+            }
+            if (state.sharesAssistant) {
+                InfoBanner(stringResource(R.string.shortcut_shared_assistant, sharedActionLabel(choice, earbuds)), tone = BannerTone.INFO)
+            }
+
+            HeadphoneControlsSection(
+                headphones, controls, callbacks.onOpenDevices,
+                touchModifier = Modifier
+                    .bringIntoViewRequester(touchRequester)
+                    .highlighted(highlight == ControlsHighlight.TOUCH_CONTROLS, highlightColor),
+            )
         }
     }
 
+    if (detecting) {
+        val bose = state.headset?.viaEarshot == true
+        val hints = DetectHints.hints(
+            DetectHintInput(
+                listening = detection.listening,
+                finished = detection.finished,
+                sawAssistantGesture = detection.sawAssistantGesture,
+                bose = bose,
+                buttons = state.buttons,
+                touchControlsEnabled = headphones.touchControlsEnabled.takeIf { bose },
+                handler = state.handler,
+            ),
+        )
+        DetectButtonSheet(
+            session = detection,
+            info = DetectSheetInfo(
+                earbuds = earbuds,
+                anyHeadset = !bose,
+                hasStrip = bose && !earbuds && state.buttons.isNotEmpty(),
+                hints = hints,
+                bosePressName = DetectHints.bosePressName(state.buttons),
+                otherHandlerLabel = (state.handler as? HandlerStatus.OtherApp)?.label,
+                detected = state.detected,
+                demo = demo,
+            ),
+            callbacks = detect.copy(
+                onClose = { detecting = false; detect.onClose() },
+                onUseForShortcut = { detecting = false; detect.onClose(); highlight = ControlsHighlight.SHORTCUT },
+                onShowTouch = { detecting = false; detect.onClose(); highlight = ControlsHighlight.TOUCH_CONTROLS },
+            ),
+        )
+    }
     if (pickingApp) {
         val apps by rememberInstalledApps()
         AppPickerDialog(
@@ -197,6 +340,35 @@ fun ShortcutsRemapperContent(state: ShortcutsUiState, micGranted: Boolean, callb
         )
     }
 }
+
+/** A primary-coloured outline while [on]: where "Use for Shortcut Button 1" / "Show Touch controls" lead. */
+private fun Modifier.highlighted(on: Boolean, color: androidx.compose.ui.graphics.Color): Modifier =
+    if (on) border(2.dp, color, RoundedCornerShape(20.dp)) else this
+
+/** "Shortcut Button 1:" (or "… (right earbud):") with the detected control on the right. */
+@Composable
+private fun ButtonTitle(button: ButtonAssignment?, index: Int, detected: String?) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(buttonTitle(button, index), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        if (detected != null) {
+            Text(detected, style = MaterialTheme.typography.labelLarge, color = successColor(), modifier = Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+@Composable
+internal fun buttonTitle(button: ButtonAssignment?, index: Int): String = when (button?.let { SecondaryButtonPolicy.side(it.buttonId) }) {
+    SecondaryButtonPolicy.Side.RIGHT -> stringResource(R.string.shortcut_button_n_right, index)
+    SecondaryButtonPolicy.Side.LEFT -> stringResource(R.string.shortcut_button_n_left, index)
+    null -> if (index == 1) stringResource(R.string.shortcut_button_1) else stringResource(R.string.shortcut_button_n, index)
+}
+
+/** What a second assistant button runs: Shortcut Button 1's Earshot action, else the phone's assistant. */
+@Composable
+private fun sharedActionLabel(choice: ShortcutAction, earbuds: Boolean): String =
+    if (choice.isEarshotAction) shortcutSummary(choice, earbuds) else choiceLabel(ShortcutChoice.PHONE_ASSISTANT, earbuds)
+
+private const val HIGHLIGHT_MS = 2_500L
 
 /** The connected headset's name with a headphones / earbuds icon; "Any headset" with none. */
 @Composable
@@ -303,31 +475,38 @@ private fun rememberAppIcon(packageName: String?): ImageBitmap? {
 
 private val previewBose = RemapperHeadset("68:F2:1F:12:34:56", "Fargo", earbuds = false, viaEarshot = true)
 
+private val previewButton = ButtonAssignment(
+    buttonId = 0x80, eventType = 9, action = ButtonAction.VOICE_ASSISTANT,
+    supportedActions = listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED, ButtonAction.SPOTIFY_TAP, ButtonAction.SPATIAL_AUDIO),
+)
+
 private val previewState = ShortcutsUiState(
     handler = HandlerStatus.Chooser,
-    settings = ShortcutSettings().withChoice(previewBose.address, previewBose.name, ShortcutAction.CycleEq),
+    settings = ShortcutSettings().withChoice(previewBose.address, previewBose.name, ShortcutAction.CycleEq)
+        .withDetected(previewBose.address, 0L)
+        .withDetectedName(previewBose.address, PhysicalControl.POWER_BUTTON, PressStyle.SINGLE_PRESS, null),
     headset = previewBose,
-    button = ButtonAssignment(
-        buttonId = 0x80, eventType = 9, action = ButtonAction.VOICE_ASSISTANT,
-        supportedActions = listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED, ButtonAction.SPOTIFY_TAP, ButtonAction.SPATIAL_AUDIO),
-    ),
+    button = previewButton,
+    buttons = listOf(previewButton),
     autoAssistant = AssistantCandidate("com.google.android.googlequicksearchbox", "HandsFreeActivity", "Google", AssistantCandidate.Kind.VOICE_COMMAND),
 )
 
-/** Bose connected, Cycle EQ, before the first press: the one hint line and the announce switch. */
+/** Bose connected, Cycle EQ, the detected power button, the hint line, Detect a button and the headphone controls. */
 @LightDarkPreview
 @Composable
 private fun ShortcutsRemapperPreview() {
-    EarshotPreview { ShortcutsRemapperContent(previewState, micGranted = true, callbacks = ShortcutsCallbacks()) }
+    EarshotPreview {
+        ShortcutsRemapperContent(previewState, micGranted = true, callbacks = ShortcutsCallbacks(), headphones = FakeHeadphoneRepository.connectedState())
+    }
 }
 
-/** Nothing connected: the default, Phone assistant with its optional assistant row. */
+/** Nothing connected: the default, Phone assistant with its optional assistant row; the controls disabled. */
 @LightDarkPreview
 @Composable
 private fun ShortcutsRemapperDefaultPreview() {
     EarshotPreview {
         ShortcutsRemapperContent(
-            previewState.copy(handler = HandlerStatus.Earshot, settings = ShortcutSettings(), headset = null, button = null),
+            previewState.copy(handler = HandlerStatus.Earshot, settings = ShortcutSettings(), headset = null, button = null, buttons = emptyList()),
             micGranted = true,
             callbacks = ShortcutsCallbacks(),
         )
@@ -346,9 +525,27 @@ private fun ShortcutsRemapperAppPreview() {
                 settings = ShortcutSettings().withChoice(buds.address, buds.name, ShortcutAction.LaunchApp("com.spotify.music", "Spotify")),
                 headset = buds,
                 button = null,
+                buttons = emptyList(),
             ),
             micGranted = true,
             callbacks = ShortcutsCallbacks(),
+        )
+    }
+}
+
+/** Bose earbuds with one record per bud: "Shortcut Button 1 (right earbud)" and "Shortcut Button 2 (left earbud)". */
+@LightDarkPreview
+@Composable
+private fun ShortcutsRemapperBudsPreview() {
+    val buds = RemapperHeadset("68:F2:1F:12:34:57", "Bose QC Ultra 2 Earbuds", earbuds = true, viaEarshot = true)
+    val right = previewButton.copy(buttonId = 0x03)
+    val left = previewButton.copy(buttonId = 0x04, action = ButtonAction.SPATIAL_AUDIO)
+    EarshotPreview {
+        ShortcutsRemapperContent(
+            previewState.copy(handler = HandlerStatus.Earshot, settings = ShortcutSettings(), headset = buds, button = right, buttons = listOf(right, left)),
+            micGranted = true,
+            callbacks = ShortcutsCallbacks(),
+            headphones = FakeHeadphoneRepository.connectedEarbudsState(),
         )
     }
 }

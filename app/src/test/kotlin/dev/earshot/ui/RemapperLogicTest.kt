@@ -65,4 +65,24 @@ class RemapperLogicTest {
         // Not through Earshot: no native modes.
         assertTrue(ShortcutsUiState(headset = RemapperHeadset.resolve(HeadphoneState(), buds)).nativeModes.isEmpty())
     }
+
+    @Test
+    fun `one row per Bose record, the shared-assistant warning and the detected control`() {
+        val hp = FakeHeadphoneRepository.connectedEarbudsState()
+        val headset = RemapperHeadset.resolve(hp, null)!!
+        val modes = listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED, ButtonAction.SPATIAL_AUDIO)
+        val right = dev.earshot.core.ButtonAssignment(0x03, 9, ButtonAction.VOICE_ASSISTANT, modes)
+        val left = right.copy(buttonId = 0x04)
+        val s = ShortcutsUiState(headset = headset, button = right, buttons = listOf(right, left))
+        assertEquals(listOf(left), s.secondaryButtons)
+        assertTrue(s.sharesAssistant)
+        assertFalse(s.copy(buttons = listOf(right, left.copy(action = ButtonAction.DISABLED))).sharesAssistant)
+        // A single-button product, or a headset without BMAP: no extra rows.
+        assertTrue(ShortcutsUiState(headset = headset, button = right).secondaryButtons.isEmpty())
+        assertTrue(ShortcutsUiState(headset = RemapperHeadset.resolve(HeadphoneState(), buds), buttons = emptyList()).secondaryButtons.isEmpty())
+
+        val seen = s.copy(settings = ShortcutSettings().withDetected(headset.address, 1L))
+        assertEquals(headset.address.uppercase(), seen.detected?.address)
+        assertEquals(null, s.detected)
+    }
 }

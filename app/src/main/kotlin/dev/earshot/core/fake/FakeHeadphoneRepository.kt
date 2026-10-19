@@ -154,6 +154,14 @@ class FakeHeadphoneRepository(
         command { s -> s.copy(shortcutButton = s.shortcutButton?.copy(action = action)) }
     }
 
+    override suspend fun setShortcutButton(buttonId: Int, eventType: Int, action: ButtonAction) {
+        requireConnected()
+        command { s ->
+            val records = s.allShortcutButtons.map { if (it.buttonId == buttonId) it.copy(action = action) else it }
+            s.copy(shortcutButtons = records, shortcutButton = records.firstOrNull())
+        }
+    }
+
     override suspend fun setDeviceName(name: String) {
         requireConnected()
         // Mirrors the virtual unit: [1.2] SET_GET answers error 5 (not implemented by the firmware).

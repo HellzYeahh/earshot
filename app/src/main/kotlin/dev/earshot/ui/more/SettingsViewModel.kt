@@ -9,7 +9,7 @@ import dev.earshot.ui.common.EarshotViewModel
 import dev.earshot.ui.common.UiMessenger
 import kotlinx.coroutines.flow.StateFlow
 
-/** Headphone settings ([1.x]) plus devices and power, shared by More, Tools (Headphone controls) and Devices. */
+/** Headphone settings ([1.x]) plus devices and power, shared by More, Controls (Headphone controls) and Devices. */
 class SettingsViewModel(private val headphones: HeadphoneRepository, messenger: UiMessenger) : EarshotViewModel(messenger) {
     val state: StateFlow<HeadphoneState> = headphones.state
 

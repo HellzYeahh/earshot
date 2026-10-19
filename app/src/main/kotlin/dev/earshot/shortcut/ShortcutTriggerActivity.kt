@@ -38,6 +38,20 @@ class ShortcutTriggerActivity : ComponentActivity() {
             ownPackage = packageName,
             internalExtra = trigger?.getBooleanExtra(TriggerCaller.EXTRA_INTERNAL, false) == true,
         )
+        when (TriggerRouting.route(engine.detector.isListening, headsetPress)) {
+            TriggerRoute.REPORT_DETECTED -> {
+                // "Detect a button" is listening: say what this was, run nothing, get out of the way.
+                engine.markHeadsetPressSeen()
+                engine.reportAssistantGesture(trigger, wired)
+                finish()
+                return
+            }
+            TriggerRoute.IGNORE -> {
+                finish()
+                return
+            }
+            TriggerRoute.RUN -> Unit
+        }
         lifecycleScope.launch {
             val settings = runCatching { engine.prefs.current() }.getOrDefault(ShortcutSettings())
             // Ends the remapper's "pick Earshot, then Always" hint; off the critical path (after the read).

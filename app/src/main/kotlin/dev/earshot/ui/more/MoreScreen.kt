@@ -74,8 +74,8 @@ data class SettingsCallbacks(
 
 /**
  * The More tab: the headphones' everyday settings, About these headphones and the App section.
- * Touch controls, voice prompts, devices, rename and power off live on Tools (Headphone controls);
- * the Shortcut button is set by the Shortcuts remapper.
+ * Touch controls, voice prompts, devices, rename and power off live on Tools → Controls
+ * (Headphone controls), which also sets the Shortcut button.
  */
 @Composable
 fun MoreContent(

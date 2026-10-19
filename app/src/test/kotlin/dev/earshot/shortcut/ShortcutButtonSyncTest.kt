@@ -108,4 +108,43 @@ class ShortcutButtonSyncTest {
         sync.applyChoice(ShortcutAction.CycleEq)
         assertEquals(ButtonAction.VOICE_ASSISTANT, repo.state.value.shortcutButton?.action)
     }
+
+    /** Earbuds with a record per bud; every per-record write is logged with its button id and event. */
+    private class Buds(val fake: FakeHeadphoneRepository) : HeadphoneRepository by fake {
+        val modes = listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED, ButtonAction.SPATIAL_AUDIO)
+        private val right = dev.earshot.core.ButtonAssignment(0x03, 9, ButtonAction.VOICE_ASSISTANT, modes)
+        private val left = dev.earshot.core.ButtonAssignment(0x04, 5, ButtonAction.SPATIAL_AUDIO, modes)
+        val shown = MutableStateFlow(fake.state.value.copy(shortcutButton = right, shortcutButtons = listOf(right, left)))
+        override val state: StateFlow<HeadphoneState> = shown
+        val writes = mutableListOf<Triple<Int, Int, ButtonAction>>()
+        override suspend fun setShortcutButton(action: ButtonAction) = setShortcutButton(right.buttonId, right.eventType, action)
+        override suspend fun setShortcutButton(buttonId: Int, eventType: Int, action: ButtonAction) {
+            writes += Triple(buttonId, eventType, action)
+            shown.update { s ->
+                val records = s.shortcutButtons.map { if (it.buttonId == buttonId) it.copy(action = action) else it }
+                s.copy(shortcutButtons = records, shortcutButton = records.first())
+            }
+        }
+    }
+
+    @Test
+    fun `each bud's record is written with its own id and event, only when the user set it`() = runTest {
+        val buds = Buds(FakeHeadphoneRepository(backgroundScope, commandDelayMillis = 0, startConnected = true))
+        val settings = ShortcutSettings().withButtonChoice(address, 0x04, ButtonAction.VOICE_ASSISTANT.wire)
+        ShortcutButtonSync(buds, { settings }, backgroundScope, log = {}).start()
+        testScheduler.runCurrent()
+        // The right bud is already on Voice assistant (no explicit choice anyway); the left gets its saved mode.
+        assertEquals(listOf(Triple(0x04, 5, ButtonAction.VOICE_ASSISTANT)), buds.writes)
+        assertTrue(SecondaryButtonPolicy.sharesAssistant(buds.state.value.allShortcutButtons))
+
+        val sync = ShortcutButtonSync(buds, { settings }, backgroundScope, log = {})
+        assertEquals(listOf(0x03, 0x04), sync.buttons(buds.state.value).map { it.buttonId })
+        sync.applySecondary(0x04, ButtonAction.DISABLED)
+        sync.applySecondary(0x04, ButtonAction.DISABLED) // already there
+        sync.applySecondary(0x04, ButtonAction.SPOTIFY_TAP) // not reported by the bud
+        sync.applySecondary(0x42, ButtonAction.DISABLED) // no such record
+        assertEquals(Triple(0x04, 5, ButtonAction.DISABLED), buds.writes.last())
+        assertEquals(2, buds.writes.size)
+        assertEquals(ButtonAction.VOICE_ASSISTANT, buds.state.value.shortcutButton?.action, "the right bud untouched")
+    }
 }

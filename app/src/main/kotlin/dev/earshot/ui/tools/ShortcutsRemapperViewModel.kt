@@ -7,7 +7,15 @@ import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
 import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.shortcut.AssistantCandidate
+import dev.earshot.shortcut.ControlSignal
+import dev.earshot.shortcut.DetectedShortcut
+import dev.earshot.shortcut.DetectionSession
 import dev.earshot.shortcut.FirstPressHint
+import dev.earshot.shortcut.PhysicalControl
+import dev.earshot.shortcut.PressStyle
+import dev.earshot.shortcut.SecondaryButtonPolicy
+import dev.earshot.shortcut.SignalOrigin
+import dev.earshot.virtual.VirtualQcUltra2
 import dev.earshot.shortcut.HandlerStatus
 import dev.earshot.shortcut.HfpHeadset
 import dev.earshot.shortcut.ShortcutAction
@@ -53,7 +61,10 @@ data class RemapperHeadset(
     }
 }
 
-/** Everything the Shortcuts remapper screen shows. */
+/** Demo mode's "press a control" buttons in the detect sheet. */
+enum class DemoPress { PLAY_PAUSE, VOLUME, BUTTON, ASSISTANT }
+
+/** Everything the Controls screen shows. */
 data class ShortcutsUiState(
     val handler: HandlerStatus = HandlerStatus.Unknown,
     val settings: ShortcutSettings = ShortcutSettings(),
@@ -61,6 +72,8 @@ data class ShortcutsUiState(
     val headset: RemapperHeadset? = null,
     /** The Bose Shortcut button `[1.9]`, only for a headset connected through Earshot. */
     val button: ButtonAssignment? = null,
+    /** Every `[1.9]` record, primary ([button]) first; earbuds may have one per bud. */
+    val buttons: List<ButtonAssignment> = listOfNotNull(button),
     /** Other apps' VOICE_COMMAND / VOICE_ASSIST activities. */
     val assistants: List<AssistantCandidate> = emptyList(),
     /** What "automatic" resolves to on this phone right now. */
@@ -69,6 +82,12 @@ data class ShortcutsUiState(
     val choice: ShortcutAction get() = ShortcutButtonPolicy.displayedChoice(settings, headset?.address, button)
     val nativeModes: List<ButtonAction> get() = ShortcutButtonPolicy.nativeOptions(button?.supportedActions)
     val showFirstPressHint: Boolean get() = FirstPressHint.visible(choice, handler, settings.seenHeadsetPress)
+    /** The buttons after the first, each with its own row. */
+    val secondaryButtons: List<ButtonAssignment> get() = buttons.drop(1)
+    /** Two or more Bose buttons on Voice assistant: they run the same Earshot action. */
+    val sharesAssistant: Boolean get() = SecondaryButtonPolicy.sharesAssistant(buttons)
+    /** The last detection of this headset's assistant gesture, with the user's name for the control. */
+    val detected: DetectedShortcut? get() = settings.detectedFor(headset?.address)
 }
 
 class ShortcutsRemapperViewModel(
@@ -93,10 +112,65 @@ class ShortcutsRemapperViewModel(
             settings = settings,
             headset = headset,
             button = engine.buttonSync.button(hp).takeIf { headset?.viaEarshot == true },
+            buttons = if (headset?.viaEarshot == true) engine.buttonSync.buttons(hp) else emptyList(),
             assistants = l.assistants,
             autoAssistant = l.autoAssistant,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ShortcutsUiState())
+
+    /** The "Detect a button" session (shared with the trigger activity through the engine). */
+    val detection: StateFlow<DetectionSession> = engine.detector.session
+
+    fun startDetect() = engine.detector.start(state.value.headset?.address)
+
+    fun stopDetect() = engine.detector.stop()
+
+    /** The sheet closed: stop listening and forget the list. */
+    fun closeDetect() = engine.detector.clear()
+
+    /** The user's name for the control that sent the gesture, for the headset at the top. */
+    fun nameDetected(control: PhysicalControl?, press: PressStyle?, customName: String?) = launchCatching {
+        val address = state.value.headset?.address ?: return@launchCatching
+        engine.prefs.update { it.withDetectedName(address, control, press, customName) }
+    }
+
+    /** A secondary Bose button (earbuds: the other bud): saved for that headset, then written. */
+    fun chooseSecondary(buttonId: Int, mode: ButtonAction) = launchCatching {
+        val headset = state.value.headset?.takeIf { it.viaEarshot } ?: return@launchCatching
+        engine.prefs.update { it.withButtonChoice(headset.address, buttonId, mode.wire) }
+        engine.buttonSync.applySecondary(buttonId, mode)
+    }
+
+    /**
+     * Demo mode's "press a control": the virtual Bose unit pushes what real headphones would
+     * (`[5.4]`, `[5.5]`, `[2.12]`); the assistant gesture, which can't travel over a virtual HFP
+     * link, and every control of a demo without BMAP (the Crusher) go through the report path,
+     * labelled as a demo.
+     */
+    fun simulate(press: DemoPress) {
+        val unit = VirtualQcUltra2.current()?.takeIf { headphones.state.value.isConnected && headphones.state.value.crusher == null }
+        val now = System.currentTimeMillis()
+        when (press) {
+            DemoPress.ASSISTANT -> engine.simulateAssistantGesture()
+            DemoPress.PLAY_PAUSE -> if (unit != null) unit.pressPlayPause() else {
+                demoPlaying = !demoPlaying
+                engine.detector.report(ControlSignal.PlayState(demoPlaying, SignalOrigin.DEMO, now))
+            }
+            DemoPress.VOLUME -> if (unit != null) unit.swipeVolume(+2) else {
+                engine.detector.report(ControlSignal.Volume(demoVolume, demoVolume + 1, SignalOrigin.DEMO, now))
+                demoVolume = (demoVolume + 1) % 15
+            }
+            DemoPress.BUTTON -> unit?.pressButton()
+        }
+    }
+
+    private var demoPlaying = true
+    private var demoVolume = 7
+
+    override fun onCleared() {
+        engine.detector.clear()
+        super.onCleared()
+    }
 
     init {
         // A headset coming or going through Earshot can change which HFP headset is current too.

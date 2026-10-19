@@ -19,8 +19,8 @@ import java.io.IOException
 private val Context.shortcutDataStore: DataStore<Preferences> by preferencesDataStore(name = "headset_shortcuts")
 
 /**
- * Shortcuts remapper settings: default action, per-headset choices, spoken feedback and whether a
- * real headset press has reached Earshot yet. The keys and their JSON are the first build's; new
+ * Controls screen settings: default action, per-headset choices, spoken feedback, whether a real
+ * headset press has reached Earshot yet, detected shortcuts and the other Bose buttons' modes. The keys and their JSON are the first build's; new
  * fields only add keys (see [ShortcutCodec.decodeSettings]).
  */
 class ShortcutPrefs(context: Context) {
@@ -41,8 +41,13 @@ class ShortcutPrefs(context: Context) {
             p[OVERRIDES] = ShortcutCodec.encodeOverrides(after.overrides)
             p[SPOKEN_FEEDBACK] = after.spokenFeedback
             p[SEEN_HEADSET_PRESS] = after.seenHeadsetPress
+            p[DETECTED] = ShortcutExtrasCodec.encodeDetected(after.detected)
+            p[BUTTON_CHOICES] = ShortcutExtrasCodec.encodeButtonChoices(after.buttonChoices)
         }
     }
+
+    /** "Detect a button" saw [address]'s assistant gesture at [at]. */
+    suspend fun markShortcutDetected(address: String, at: Long) = update { it.withDetected(address, at) }
 
     /** Records that a real headset press reached the trigger (once; later calls don't write). */
     suspend fun markHeadsetPressSeen() {
@@ -50,7 +55,7 @@ class ShortcutPrefs(context: Context) {
     }
 
     private fun decode(p: Preferences): ShortcutSettings =
-        ShortcutCodec.decodeSettings(p[DEFAULT_ACTION], p[OVERRIDES], p[SPOKEN_FEEDBACK], p[SEEN_HEADSET_PRESS])
+        ShortcutCodec.decodeSettings(p[DEFAULT_ACTION], p[OVERRIDES], p[SPOKEN_FEEDBACK], p[SEEN_HEADSET_PRESS], p[DETECTED], p[BUTTON_CHOICES])
 
     private companion object {
         const val TAG = "Earshot/Shortcut"
@@ -58,5 +63,7 @@ class ShortcutPrefs(context: Context) {
         val OVERRIDES = stringPreferencesKey("overrides")
         val SPOKEN_FEEDBACK = booleanPreferencesKey("spoken_feedback")
         val SEEN_HEADSET_PRESS = booleanPreferencesKey("seen_headset_press")
+        val DETECTED = stringPreferencesKey("detected_shortcuts")
+        val BUTTON_CHOICES = stringPreferencesKey("button_choices")
     }
 }

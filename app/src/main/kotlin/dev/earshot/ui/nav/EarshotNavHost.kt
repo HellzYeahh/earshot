@@ -80,7 +80,6 @@ fun EarshotNavHost(
                     contentPadding = tabPadding,
                     navigation = ToolsNavigation(
                         onOpenShortcuts = { navController.navigate(Routes.SHORTCUTS_REMAPPER) },
-                        onOpenDevices = { navController.navigate(Routes.DEVICES) },
                         onOpenConnection = { navController.navigate(Routes.CONNECTION) },
                         onOpenCodec = { navController.navigate(Routes.CODEC) },
                         onOpenCallAudio = { navController.navigate(Routes.CALL_AUDIO) },
@@ -102,7 +101,9 @@ fun EarshotNavHost(
             composable(Routes.CALL_AUDIO) { CallAudioScreen(onBack = navController::popBackStack) }
             composable(Routes.MIC_CHECK) { MicCheckScreen(onBack = navController::popBackStack) }
             composable(Routes.LAB) { LabScreen(onBack = navController::popBackStack) }
-            composable(Routes.SHORTCUTS_REMAPPER) { ShortcutsRemapperScreen(onBack = navController::popBackStack) }
+            composable(Routes.SHORTCUTS_REMAPPER) {
+                ShortcutsRemapperScreen(onBack = navController::popBackStack, onOpenDevices = { navController.navigate(Routes.DEVICES) })
+            }
 
             composable(Routes.MORE) {
                 MoreScreen(

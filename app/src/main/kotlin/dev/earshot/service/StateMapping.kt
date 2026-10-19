@@ -265,6 +265,34 @@ internal fun ButtonConfig.toButtonAssignment(): ButtonAssignment = ButtonAssignm
         .distinct(),
 )
 
+/**
+ * Display order of `[1.9]` records: the headphones' Shortcut (0x80), then the right bud (0x03),
+ * the left bud (0x04), then anything else by id. The first is "Shortcut Button 1".
+ */
+private fun buttonRank(buttonId: Int): Int = when (buttonId) {
+    0x80 -> 0
+    0x03 -> 1
+    0x04 -> 2
+    else -> 10 + buttonId
+}
+
+/** The state with exactly [records] as its `[1.9]` records (a full GET), primary first. */
+internal fun HeadphoneState.withButtonRecords(records: List<ButtonAssignment>): HeadphoneState {
+    val ordered = records.distinctBy { it.buttonId }.sortedBy { buttonRank(it.buttonId) }
+    return copy(shortcutButtons = ordered, shortcutButton = ordered.firstOrNull())
+}
+
+/**
+ * One `[1.9]` record from a push or an echo, merged by button id so the other buds' records stay.
+ * A short frame (3-byte echo, no masks) keeps the supported list the full read gave.
+ */
+internal fun HeadphoneState.withButtonRecord(record: ButtonAssignment): HeadphoneState {
+    val old = allShortcutButtons
+    val previous = old.firstOrNull { it.buttonId == record.buttonId }
+    val merged = if (record.supportedActions.isEmpty() && previous != null) record.copy(supportedActions = previous.supportedActions) else record
+    return withButtonRecords(old.filterNot { it.buttonId == record.buttonId } + merged)
+}
+
 internal fun VoicePromptsState.toVoicePrompts(): VoicePrompts = VoicePrompts(enabled = enabled, languageId = languageCode)
 
 // ── Devices ──────────────────────────────────────────────────────────────────────────────
