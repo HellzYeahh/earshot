@@ -44,12 +44,21 @@ object ShortcutButtonPolicy {
     }
 
     /**
-     * The write to make by itself when the headset at [address] connects. Only for a choice the
-     * user actually made ([ShortcutSettings.hasExplicitChoice]): someone who never opened the
-     * remapper keeps the Spotify Tap or Immersive Audio button they set in the Bose app.
+     * Modes that do nothing at all while Earshot holds the connection. Spotify Tap needs the Bose
+     * app on the other end: on the QC Ultra 2 (fw 10.12, 2026-10-18) a press in that mode sent
+     * nothing to the phone, so the owner's button was simply dead after testing it.
+     */
+    val DEAD_WITH_EARSHOT: Set<ButtonAction> = setOf(ButtonAction.SPOTIFY_TAP)
+
+    /**
+     * The write to make by itself when the headset at [address] connects: for a choice the user
+     * actually made ([ShortcutSettings.hasExplicitChoice]), or when the button is in a mode that
+     * can't work with Earshot ([DEAD_WITH_EARSHOT]); then it gets what the (default) choice needs.
+     * Someone who never opened the remapper keeps an Immersive Audio or Off button from the Bose app.
      */
     fun writeOnConnect(settings: ShortcutSettings, address: String?, button: ButtonAssignment?): ButtonAction? {
-        if (!settings.hasExplicitChoice(address)) return null
+        val dead = button?.action in DEAD_WITH_EARSHOT
+        if (!settings.hasExplicitChoice(address) && !dead) return null
         return writeFor(settings.actionFor(address), button)
     }
 

@@ -93,8 +93,12 @@ class ShortcutButtonPolicyTest {
     fun `on connect only a choice the user made is applied`() {
         val address = "68:F2:1F:12:34:56"
         val spotifyTap = ButtonAssignment(0x80, 9, ButtonAction.SPOTIFY_TAP, qcUltra2)
-        // Never opened the remapper: the Bose app's Spotify Tap stays.
-        assertNull(ShortcutButtonPolicy.writeOnConnect(ShortcutSettings(), address, spotifyTap))
+        // Never opened the remapper, button on Spotify Tap: that mode is dead while Earshot holds the
+        // connection (QC Ultra 2 test), so it gets what the default choice needs (Phone assistant → Vpa).
+        assertEquals(ButtonAction.VOICE_ASSISTANT, ShortcutButtonPolicy.writeOnConnect(ShortcutSettings(), address, spotifyTap))
+        // Never opened the remapper, button on Immersive Audio or Off: left as the Bose app set it.
+        assertNull(ShortcutButtonPolicy.writeOnConnect(ShortcutSettings(), address, spotifyTap.copy(action = ButtonAction.SPATIAL_AUDIO)))
+        assertNull(ShortcutButtonPolicy.writeOnConnect(ShortcutSettings(), address, spotifyTap.copy(action = ButtonAction.DISABLED)))
         // Picked for this headset (even Phone assistant), or a non-factory default: applied.
         assertEquals(
             ButtonAction.VOICE_ASSISTANT,
