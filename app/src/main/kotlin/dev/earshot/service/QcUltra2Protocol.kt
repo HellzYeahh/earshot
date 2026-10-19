@@ -932,7 +932,7 @@ class QcUltra2Protocol(
         return parsed(address) { Toggle.parse(echo.payload) } ?: enabled
     }
 
-    /** `[1.34]` DisableCaptouch SET_GET; the wire bit is the inverse of [enabled]. */
+    /** `[1.34]` SET_GET; the wire bit equals [enabled] (1 = touch on, verified 2026-10-18; see [TouchControls]). */
     override suspend fun setTouchControls(c: BmapRequester, current: HeadphoneState, enabled: Boolean): HeadphoneState {
         requireDriven()
         val echo = c.setGet(QcUltra2.DISABLE_CAPTOUCH, TouchControls.build(enabled))

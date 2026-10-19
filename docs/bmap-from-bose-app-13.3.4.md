@@ -160,7 +160,7 @@ unless stated. "GET" below means the STATUS reply to GET; SET_GET replies with t
 | 1.29 AutoAwareMode | SET_GET | `[0/1]` | `[bit0]` |
 | 1.32 AutoVolumeLevel | SET_GET | `[0/1]` | `[bit0]` |
 | 1.33 Grouping | SET_GET | `[enabled, LinkingStatus 0/1/2]` | `[b0 bits][status][modes bits][variant][guid…]` |
-| 1.34 DisableCaptouch | SET_GET | `[0/1]` (1 = touch disabled) | `[bit0]` |
+| 1.34 DisableCaptouch | SET_GET | `[0/1]`, **1 = touch controls ON** despite the name (the app's `isEnabled = (b0 & 1) == 1`; verified on hardware 2026-10-18) | `[bit0]` |
 | 1.37 LeAudioControl | SET_GET | `[0/1]` | `[bit0]` |
 | 1.38 LeAudioBroadcastConfig | SET_GET | `[type]` | 0 CompatHQ 48 kHz, 1 CompatLQ 16 kHz, 2 BoseLQ 16 kHz, 3 BoseHQ 48 kHz, 4 CompatNormal 24 kHz |
 | 1.39 HeadGesture | SET_GET (API only) | `[0/1]` | `[bit0]` |
@@ -456,7 +456,7 @@ SET_GET); INVALID_DATA = exists, GET needs a payload; error 24 = unknown to the 
 | 1.11 | 01020f | Self Voice Medium, persisted, Off/High/Med/Low |
 | 1.12 | 00 | setup not complete (Bose app never finished setup) |
 | 1.24 / 1.27 | 01 / 01 | auto play-pause on, auto-answer on |
-| 1.34 | 01 | **DisableCaptouch = 1** → touch controls disabled [obs bit; user-visible meaning to verify] |
+| 1.34 | 01 | **Touch controls ON** (verified 2026-10-18: `00` left the capacitive strip dead, no volume swipes and no touch-and-hold Shortcut; the Bose app showed touch off, and turning it on restored `01`) |
 | 1.37 | 01 | **LE Audio enabled** |
 | absent | 1.4, 1.6, 1.8, 1.13–1.16, 1.20, 1.22, 1.26, 1.28, 1.29, 1.32, 1.33, 1.38, 1.39, 1.41 | standby timer, ANR, alerts, conversation mode, CNC presets/persistence, on-head, auto-off, flip, Teams, volume-control, auto-aware, auto-volume, grouping, broadcast cfg, head gesture, LEA grouping |
 | 2.2 | 5affff00 | 90 %, remaining unknown, Single |
@@ -532,6 +532,6 @@ Not available on this firmware (do not build): conversation mode `[1.13]`, auto-
 on-head detection `[1.16]`, standby timer `[1.4]`, default mode `[31.4]`, head gesture `[1.39]`,
 chirp/find-my `[7.2]`, fit test `[7.15]`, spatial mode `[5.15]`, broadcast quality `[1.38]`.
 
-Open verification items: ModeConfig wind byte (45 vs 46); meaning of `[1.34]=01` and `[2.21]=01`
+Open verification items: ModeConfig wind byte (45 vs 46); meaning of `[2.21]=01`. (`[1.34]=01` = touch on, settled 2026-10-18.)
 on real hardware; whether `[5.7]` SET_GET is accepted and audible; error 24 semantics; `[4.12]`
 routing on 10.12 (GET now FUNC_NOT_SUPPORTED).

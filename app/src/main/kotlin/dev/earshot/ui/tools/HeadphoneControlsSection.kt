@@ -56,7 +56,7 @@ fun HeadphoneControlsSection(state: HeadphoneState, callbacks: HeadphoneControls
     val prompts = state.voicePrompts
 
     SectionCard(title = stringResource(if (buds) R.string.tools_earbud_controls else R.string.tools_headphone_controls)) {
-        // [1.34] is "disable captouch" on the wire; the state already presents it the right way up.
+        // [1.34]: wire bit 1 = touch on (the name "DisableCaptouch" is misleading); the state is already "enabled".
         if (has(state.touchControlsEnabled)) {
             SwitchRow(
                 stringResource(R.string.settings_touch_controls),

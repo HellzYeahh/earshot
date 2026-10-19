@@ -155,8 +155,8 @@ class VirtualQcUltra2(
     val voicePrompts = byteArrayOf(0x41, 0x00, 0x00, 0x81.toByte(), 0x02, 0x00, 0x00)
     /** `[1.9]` capture `80 09 0e 00 09 40 02`: Shortcut button, long press, Disabled. */
     val shortcutButton = byteArrayOf(0x80.toByte(), 0x09, 0x0e, 0x00, 0x09, 0x40, 0x02)
-    /** `[1.34]` DisableCaptouch; scan `01` = touch off. */
-    var captouchDisabled = true
+    /** `[1.34]`; the wire bit is 1 when touch controls are on (scan `01`, verified on hardware 2026-10-18). */
+    var touchEnabled = true
     /** `[1.37]` LeAudioControl; scan `01` = on. */
     var leAudioEnabled = true
         private set
@@ -445,7 +445,7 @@ class VirtualQcUltra2(
         QcUltra2.SETUP_COMPLETE -> status(a, byteArrayOf(1))
         QcUltra2.AUTO_PLAY_PAUSE -> status(a, byteArrayOf(if (autoPlayPause) 1 else 0))
         QcUltra2.AUTO_ANSWER -> status(a, byteArrayOf(if (autoAnswer) 1 else 0))
-        QcUltra2.DISABLE_CAPTOUCH -> status(a, byteArrayOf(if (captouchDisabled) 1 else 0))
+        QcUltra2.DISABLE_CAPTOUCH -> status(a, byteArrayOf(if (touchEnabled) 1 else 0))
         QcUltra2.LE_AUDIO_CONTROL -> status(a, byteArrayOf(if (leAudioEnabled) 1 else 0))
 
         // Status [2.x]
@@ -603,7 +603,7 @@ class VirtualQcUltra2(
         }
         QcUltra2.AUTO_PLAY_PAUSE -> if (p.isEmpty()) error(a, BmapError.LENGTH) else { autoPlayPause = p[0] != 0.toByte(); get(a, BmapPacket.EMPTY) }
         QcUltra2.AUTO_ANSWER -> if (p.isEmpty()) error(a, BmapError.LENGTH) else { autoAnswer = p[0] != 0.toByte(); get(a, BmapPacket.EMPTY) }
-        QcUltra2.DISABLE_CAPTOUCH -> if (p.isEmpty()) error(a, BmapError.LENGTH) else { captouchDisabled = p[0] != 0.toByte(); get(a, BmapPacket.EMPTY) }
+        QcUltra2.DISABLE_CAPTOUCH -> if (p.isEmpty()) error(a, BmapError.LENGTH) else { touchEnabled = p[0] != 0.toByte(); get(a, BmapPacket.EMPTY) }
         // [1.4] [m] or two bytes little-endian (Bose SettingsStandbyTimerSetGetPacket); the reply is the GET form.
         QcUltra2.STANDBY_TIMER -> when (p.size) {
             1 -> { standbyMinutes = p[0].toInt() and 0xFF; get(a, BmapPacket.EMPTY) }

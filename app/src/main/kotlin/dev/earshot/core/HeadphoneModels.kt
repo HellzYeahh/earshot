@@ -348,7 +348,7 @@ data class HeadphoneState(
     val latencyMs: Int? = null,
     /** `[5.7]` min..max the firmware reports (0..520 on fw 10.12). */
     val latencyRangeMs: IntRange? = null,
-    /** `[1.34]` touch controls on (the wire flag is "disable captouch", inverted here). fw 10.12 reads false. */
+    /** `[1.34]` touch controls on (wire bit 1 = on despite the name "DisableCaptouch"; verified 2026-10-18). fw 10.12 reads true. */
     val touchControlsEnabled: Boolean? = null,
     /** `[5.5]` absolute headphone volume, 0..[volumeMax]. */
     val volume: Int? = null,

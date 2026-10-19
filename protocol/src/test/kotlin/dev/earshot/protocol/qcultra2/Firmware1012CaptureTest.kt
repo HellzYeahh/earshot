@@ -273,14 +273,15 @@ class Firmware1012CaptureTest {
     }
 
     @Test
-    fun `LE audio 0_23 and 1_37 are on, touch 1_34 reads disabled, BMAP 1_2_0`() {
+    fun `LE audio 0_23 and 1_37 are on, touch 1_34 reads on, BMAP 1_2_0`() {
         assertEquals(true, ProductInfo.parseLeAudioSupported(Scan.LE_AUDIO_SUPPORTED.hexToBytes()))
         assertEquals(true, LeAudioControl.parse(Scan.LE_AUDIO_CONTROL.hexToBytes()))
         assertEquals("00", LeAudioControl.build(false).toHex())
-        // DisableCaptouch = 1 → touch controls are *off*
-        assertEquals(false, TouchControls.parseEnabled(Scan.DISABLE_CAPTOUCH.hexToBytes()))
-        assertEquals("00", TouchControls.build(enabled = true).toHex())
-        assertEquals("01", TouchControls.build(enabled = false).toHex())
+        // "DisableCaptouch" = 1 → touch controls are ON, despite the name (Bose app parser; verified on
+        // the QC Ultra 2 on 2026-10-18 when 00 left the strip dead and the Bose app restored 01).
+        assertEquals(true, TouchControls.parseEnabled(Scan.DISABLE_CAPTOUCH.hexToBytes()))
+        assertEquals("01", TouchControls.build(enabled = true).toHex())
+        assertEquals("00", TouchControls.build(enabled = false).toHex())
         assertEquals(QcUltra2.BMAP_VERSION_FW_10_12, ProductInfo.parseBmapVersion(Scan.BMAP_VERSION.hexToBytes()))
         assertEquals(BatteryComponent.SINGLE.code, ProductInfo.parseComponentId(Scan.COMPONENT_ID.hexToBytes()))
         assertEquals("68:F2:1F:00:00:01", ProductInfo.parseMac(Scan.COMPONENT_ID.hexToBytes()))

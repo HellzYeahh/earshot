@@ -102,7 +102,8 @@ class QcUltra2NewFeaturesTest {
         assertEquals("1.2.0", s.info?.bmapVersion)
         assertEquals(true, s.leAudioSupported)
         assertEquals(true, s.leAudioEnabled)
-        assertEquals(false, s.touchControlsEnabled)
+        // [1.34] = 01 is touch controls ON (Bose app parser; verified on the QC Ultra 2, 2026-10-18).
+        assertEquals(true, s.touchControlsEnabled)
         assertEquals(true, s.availableToConnect)
         assertEquals(TransportControl.entries.toSet(), s.supportedTransportControls)
         assertEquals(Playback(PlaybackState.PLAYING, null), s.playback)
@@ -148,7 +149,7 @@ class QcUltra2NewFeaturesTest {
     fun `touch, volume and latency write the documented payloads`() = runTest {
         fake.echo(QcUltra2.DISABLE_CAPTOUCH)
         assertEquals(true, protocol.setTouchControls(fake, HeadphoneState(), true).touchControlsEnabled)
-        assertEquals("0122020100", fake.sent.last().encode().toHex()) // DisableCaptouch = 0
+        assertEquals("0122020101", fake.sent.last().encode().toHex()) // [1.34] = 1: touch controls on
 
         fake.on(QcUltra2.VOLUME, BmapOperator.SET_GET) { listOf(FakeRequester.statusFrame(QcUltra2.VOLUME, "1f" + "%02x".format(it.payload[0]))) }
         val v = protocol.setVolume(fake, HeadphoneState(volume = 22, volumeMax = 31), 16)
@@ -215,7 +216,7 @@ class QcUltra2NewFeaturesTest {
         assertEquals(false, push(QcUltra2.MIC_MUTE, "00").micMuted)
         assertEquals(OperationMode.FIRMWARE_UPDATE_ONLY, push(QcUltra2.OPERATION_MODE, "02").operationMode)
         assertEquals(false, push(QcUltra2.LE_AUDIO_CONTROL, "00").leAudioEnabled)
-        assertEquals(true, push(QcUltra2.DISABLE_CAPTOUCH, "00").touchControlsEnabled)
+        assertEquals(false, push(QcUltra2.DISABLE_CAPTOUCH, "00").touchControlsEnabled)
         assertEquals(14, push(QcUltra2.VOLUME, "1f0e").volume)
         assertEquals(PlaybackState.PAUSED, push(QcUltra2.AUDIO_STATUS, "02ffff").playback?.state)
         assertEquals(215, push(QcUltra2.LATENCY, "0000020800d7").latencyMs)

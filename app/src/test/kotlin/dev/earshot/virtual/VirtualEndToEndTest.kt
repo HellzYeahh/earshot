@@ -88,7 +88,7 @@ class VirtualEndToEndTest {
         assertEquals("1.2.0", s.info?.bmapVersion)
         assertEquals(true, s.leAudioSupported)
         assertEquals(true, s.leAudioEnabled)
-        assertEquals(false, s.touchControlsEnabled)
+        assertEquals(true, s.touchControlsEnabled) // scan [1.34] = 01: touch on
         assertEquals(22, s.volume)
         assertEquals(31, s.volumeMax)
         assertEquals(210, s.latencyMs)
@@ -187,9 +187,13 @@ class VirtualEndToEndTest {
         assertEquals("94:45:60:85:05:A7", again.pairedDevices.single { it.isActiveSource }.address)
 
         // New writes
-        s = protocol.setTouchControls(requester, again, true)
+        // Switching touch off writes 00 and the unit reports it off; back on writes 01.
+        s = protocol.setTouchControls(requester, again, false)
+        assertEquals(false, s.touchControlsEnabled)
+        assertFalse(device.touchEnabled)
+        s = protocol.setTouchControls(requester, s, true)
         assertEquals(true, s.touchControlsEnabled)
-        assertFalse(device.captouchDisabled)
+        assertTrue(device.touchEnabled)
         s = protocol.setVolume(requester, s, 12)
         assertEquals(12, s.volume)
         assertFailsWith<HeadphoneCommandException> { protocol.setVolume(requester, s, 40) }

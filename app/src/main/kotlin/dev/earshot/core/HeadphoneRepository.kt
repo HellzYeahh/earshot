@@ -98,7 +98,7 @@ interface HeadphoneRepository {
      */
     suspend fun setLatencyMs(ms: Int): Unit = unsupported()
 
-    /** Turn the touch controls on or off (`[1.34]` DisableCaptouch, inverted). */
+    /** Turn the touch controls on or off (`[1.34]`, wire bit 1 = on). */
     suspend fun setTouchControls(enabled: Boolean): Unit = unsupported()
 
     /** `[1.4]` auto-off timer in minutes (0 = never). Only offered when [HeadphoneState.autoOffMinutes] is non-null. */

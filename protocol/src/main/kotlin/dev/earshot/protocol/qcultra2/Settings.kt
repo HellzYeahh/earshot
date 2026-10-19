@@ -248,15 +248,19 @@ object Toggle {
 // ── Touch controls [1.34] DisableCaptouch ────────────────────────────────────────────────
 
 /**
- * `[1.34]` DisableCaptouch: GET → `[bit0]`, SET_GET `[0|1]`, where **1 = touch disabled** (the
- * Bose app's name and bit). fw 10.12 reads `01`, i.e. touch controls off; whether the user-visible
- * effect is the capacitive volume strip is still to be verified on hardware.
+ * `[1.34]` "DisableCaptouch": GET → `[bit0]`, SET_GET `[0|1]`, where **1 = touch controls ON**,
+ * despite the function's name. The Bose app 13.3.4 reads it as
+ * `isEnabled = (payload[0] & 1) == 1` (`SettingsDisableCaptouchResponse`) and writes `isEnabled ? 1 : 0`.
+ * Verified on the QC Ultra 2 (fw 10.12), 2026-10-18: with `00` the capacitive strip ignored swipes
+ * and the touch-and-hold Shortcut; the Bose app showed "Touch controls off", and after it turned
+ * them on the headphones read `01` and the strip worked. Earshot 0.4.0 had this inverted, so its
+ * "Touch controls" switch turned the strip off when set to on.
  */
 object TouchControls {
-    /** Touch controls *enabled* (the inverse of the wire bit); null on an empty payload. */
-    fun parseEnabled(payload: ByteArray): Boolean? = if (payload.isEmpty()) null else (payload.u8(0) and 0x01) == 0
+    /** Touch controls enabled (wire bit 0 set); null on an empty payload. */
+    fun parseEnabled(payload: ByteArray): Boolean? = if (payload.isEmpty()) null else (payload.u8(0) and 0x01) == 1
 
-    fun build(enabled: Boolean): ByteArray = byteArrayOf(if (enabled) 0 else 1)
+    fun build(enabled: Boolean): ByteArray = byteArrayOf(if (enabled) 1 else 0)
 }
 
 // ── LE Audio [1.37] LeAudioControl ───────────────────────────────────────────────────────
