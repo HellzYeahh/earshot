@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-10-20
+
+**Controls: give your headset's press-and-hold a new job.** A new screen at the top of Tools
+remaps the shortcut gesture of any Bluetooth headset, finds out what each of its controls does,
+and gathers the Bose headphone controls in one place. Touch controls on Bose headphones were
+inverted and are fixed.
 
 ### New
 - **Controls** (top of Tools): give a headset's press-and-hold a new job. One dropdown,
@@ -8,12 +13,15 @@
   EQ preset (announced in the headset), Voice memo (headset mic, saved to Recordings/Earshot) or
   Launch an app; on Bose headphones also their own Immersive Audio or Off. Works with any
   Bluetooth headset whose press-and-hold calls the phone's voice assistant. The choice is kept per
-  headset without any list to manage. No setup screen: the first time you hold the button,
-  Android asks which app to open; pick Earshot, then Always.
+  headset without any list to manage. No setup screen: the first time you hold the button after
+  picking an action, Android asks which app to open; pick Earshot, then Always. Earshot only
+  offers itself for the gesture while an action or "Detect a button" needs it, so nothing changes
+  for anyone who keeps Phone assistant.
 - **Automatic Bose Shortcut button:** Earshot sets the headphones' Shortcut button itself:
   Voice assistant for an Earshot action, or Immersive Audio / Off when you pick those, and puts it
   back on connect when it was changed. Only modes the headphones report are written, never twice
-  in a row, and nothing changes for someone who never picked anything on the Controls screen.
+  in a row. For someone who never picked anything on the Controls screen only a button on Spotify
+  Tap is changed (to Voice assistant), because Spotify Tap does nothing while Earshot is connected.
 - **Detect a button** (Controls): press each control on your headset and Earshot says what it
   does: the assistant gesture ("This is your shortcut: you can remap it"), play/pause, track and
   volume (they go straight to the music app; Android doesn't let apps remap them), Bose button
@@ -35,6 +43,19 @@
   Controls row first ("Shortcut Button 1: Cycle EQ preset · Touch controls on"), then the other
   tools. The Shortcut button row is gone from More (Controls sets it). More keeps sidetone, auto
   play/pause, auto-answer, multipoint, auto-off, About these headphones and the App section.
+- **Call audio shows the call link:** the headset's call volume and mic gain (0–15, as the
+  headset reports them) and whether the phone's own echo cancelling and noise reduction run on
+  top of the headphones'. Shown when the phone reports them.
+
+### Fixed
+- **Touch controls were inverted:** turning the switch on turned the headphones' touch strip off
+  (volume swipes and the touch-and-hold Shortcut stopped working). Bose's own app reads the
+  setting the other way round, and the QC Ultra 2 confirmed it. If you used the switch in 0.4.0,
+  it now shows the real state: turn it on once to get the touch strip back.
+- **A Bose button left on Spotify Tap did nothing** while Earshot was connected; on connect it now
+  gets what the default action needs. Immersive Audio and Off set in the Bose app are kept.
+- The connection search no longer mistakes the headset's call channel for "the Bose app is holding
+  the control channel"; it closes that channel and keeps looking.
 
 ## 0.4.0 — 2026-10-18
 

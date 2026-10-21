@@ -29,6 +29,16 @@ calls, a Quick Settings tile, a widget and automations.
   <img src="docs/screenshots/08-more-dark.png" width="23%" alt="Dark theme">
 </p>
 
+### New in 0.5.0: Controls
+
+Tools now opens with **Controls**: give your headset's press-and-hold a new job (cycle the Pro EQ
+preset, announced in the headset; a voice memo through the headset mic; launch an app; or, on Bose
+headphones, their own Immersive Audio or Off). It works with any Bluetooth headset whose
+press-and-hold calls the phone's voice assistant, and Earshot sets the Bose Shortcut button for
+you. **Detect a button** tells you what each control on your headset does. Touch controls, voice
+prompts, devices, rename and power off live there too. Also fixed: the Touch controls switch was
+inverted. Full list: [CHANGELOG.md](CHANGELOG.md).
+
 ### New in 0.4.0: it adapts to your Bose model
 
 <p align="center">
@@ -55,6 +65,7 @@ name to switch between your Bose products. LE Audio earbuds now connect too.
 | LE Audio | Buried per-device toggle | LE Audio on/off with status, phone support check, a "try anyway" option and a result check; per-device LE vs Classic view. Earbuds on LE Audio are controlled over LE |
 | Several Bose products | Pick from a list each time | **Quick switcher**: tap the name on Home |
 | Earbuds battery | Per bud in a sub-screen | Left, right and case on Home, plus **listening time left** |
+| Headset buttons | Shortcut button: a few Bose actions | **Remap the press-and-hold** of any Bluetooth headset: EQ preset, voice memo, launch an app; **Detect a button** says what each control does |
 | Latency | Not shown | Reported latency, low-latency tips, experimental latency control |
 | Per-app sound | No | Different EQ per app (e.g. music vs. video) |
 | Quick access | Open the app | **Quick Settings tile**, **home-screen widget**, persistent notification with mode buttons |
@@ -116,7 +127,7 @@ looks without the headphones (App preferences, Demo mode).
 | Headphones | One of the [supported models](#supported-headphones), paired in Android's Bluetooth settings. QC Ultra (2nd Gen) firmware 10.x tested. |
 | Bose app | **Closed or disabled** while Earshot is in use: only one app can hold the headphones' control channel and the Bose app grabs it in the background. Keep it for firmware updates. |
 | Optional | [Shizuku](https://shizuku.rikka.app/) (free, no root; start it via Wireless debugging on Android 11+) unlocks codec switching and the absolute-volume option. Everything else works without it. |
-| Permissions | Nearby devices (Bluetooth), notifications; microphone only for the mic check; location only if you create a Wi-Fi automation; usage access only for app-based automations. **No internet permission.** |
+| Permissions | Nearby devices (Bluetooth), notifications; microphone only for the mic check and headset voice memos; location only if you create a Wi-Fi automation; usage access only for app-based automations. **No internet permission.** |
 
 ## Install
 

@@ -580,16 +580,15 @@
     <string name="modes_no_custom_buds">These earbuds have no custom modes. Switch between the built-in ones here, on Home, or with a touch and hold on the earbuds.</string>
     <string name="modes_not_editable">Earshot can\'t edit custom modes on this model yet. You can still switch to them.</string>
 
-    <!-- 0.4.0: what's new sheet -->
-    <string name="whats_new_title">What\'s new in Earshot 0.4.0</string>
-    <string name="whats_new_subtitle">A big update for every Bose model.</string>
-    <string name="whats_new_adapts">Adapts to your Bose model: headphones or earbuds, with its name and generation shown</string>
-    <string name="whats_new_models">More models supported</string>
-    <string name="whats_new_le_audio">LE Audio earbuds now connect</string>
-    <string name="whats_new_battery">Left, right and case battery, plus time left</string>
-    <string name="whats_new_switcher">Quick headphone switcher: tap the name on Home</string>
-    <string name="whats_new_auto_off">Auto-off timer in More</string>
-    <string name="whats_new_le_switch">The LE Audio switch can be tried on any model, with a warning</string>
+    <!-- 0.5.0: what's new sheet -->
+    <string name="whats_new_title">What\'s new in Earshot 0.5.0</string>
+    <string name="whats_new_subtitle">Give your headset\'s press-and-hold a new job.</string>
+    <string name="whats_new_controls">Controls, at the top of Tools: remap the shortcut on any Bluetooth headset</string>
+    <string name="whats_new_actions">Cycle EQ presets, record a voice memo or open an app from the headset</string>
+    <string name="whats_new_detect">Detect a button: press a control and Earshot says what it does</string>
+    <string name="whats_new_headphone_controls">Touch controls, voice prompts, devices and power off now live in Controls</string>
+    <string name="whats_new_touch_fix">Fixed: the Touch controls switch turned the touch strip off</string>
+    <string name="whats_new_call_link">Call audio shows the headset\'s call volume and mic gain</string>
     <string name="whats_new_done">Got it</string>
 
     <!-- 0.4.0: low-battery alert -->
