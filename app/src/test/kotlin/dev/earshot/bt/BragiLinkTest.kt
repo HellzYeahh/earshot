@@ -109,8 +109,10 @@ class BragiLinkTest {
         assertEquals(DeviceFamily.BRAGI, DeviceFamily.forName("Skullcandy CRUSHER 1080 ANC"))
         assertEquals(DeviceFamily.BRAGI, DeviceFamily.forName("Crusher 1080 ANC"))
         assertEquals(DeviceFamily.BOSE, DeviceFamily.forName("Bose QC Ultra Headphones"))
-        assertEquals(DeviceFamily.BOSE, DeviceFamily.forName("Fargo")) // unknown name: Bose, as before
-        assertEquals(DeviceFamily.BOSE, DeviceFamily.forName(null))
+        // Since 0.6 an unknown name is a generic headset, never sent BMAP.
+        assertEquals(DeviceFamily.GENERIC, DeviceFamily.forName("Fargo"))
+        assertEquals(DeviceFamily.GENERIC, DeviceFamily.forName(null))
+        assertEquals(DeviceFamily.GENERIC, DeviceFamily.fromKey("generic"))
         assertEquals(DeviceFamily.BRAGI, DeviceFamily.fromKey("bragi"))
         assertEquals(DeviceFamily.BOSE, DeviceFamily.fromKey("BOSE"))
         assertEquals(null, DeviceFamily.fromKey("nonsense"))
@@ -125,9 +127,10 @@ class BragiLinkTest {
         // A renamed Crusher: the name says nothing, the setting decides.
         assertEquals(DeviceFamily.BRAGI, DeviceFamily.resolve("bragi", "Alex's headphones"))
         assertEquals(DeviceFamily.BOSE, DeviceFamily.resolve("bose", "Skullcandy CRUSHER 1080 ANC"))
-        // No setting: the name decides, as before.
+        assertEquals(DeviceFamily.GENERIC, DeviceFamily.resolve("generic", "Bose QC Ultra Headphones"))
+        // No setting: the name decides.
         assertEquals(DeviceFamily.BRAGI, DeviceFamily.resolve(null, "Skullcandy CRUSHER 1080 ANC"))
-        assertEquals(DeviceFamily.BOSE, DeviceFamily.resolve(null, "Alex's headphones"))
-        assertEquals(DeviceFamily.BOSE, DeviceFamily.resolve("garbage", null))
+        assertEquals(DeviceFamily.GENERIC, DeviceFamily.resolve(null, "Alex's headphones"))
+        assertEquals(DeviceFamily.GENERIC, DeviceFamily.resolve("garbage", null))
     }
 }

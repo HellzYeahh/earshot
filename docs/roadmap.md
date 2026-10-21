@@ -44,6 +44,28 @@ Theme: make Earshot useful and safe on every headset, put the vendor seam in pla
 first new vendor we can test (AirPods). User-visible headline: *works with any Bluetooth headset;
 deep control for Bose and AirPods.*
 
+### Progress (2026-10-20)
+
+- **Done, first step of A1 + B4:**
+  - `DeviceFamily.GENERIC` with `GenericHeadphoneRepository` (audio link, name, battery broadcast;
+    never sends anything). Unknown names are no longer Bose.
+  - `DevicePrefs.familyFor` (per-device "Headphone type", then the stack that answered on the
+    address, then the name).
+  - `DevicePick`: the connected headset wins at launch; an explicit pick is pinned for the run.
+  - `AudioClass`: car kits, speakers and watches aren't headsets.
+  - Neutral device strings.
+- **Still open in A1:** the `VendorDriver` registry. The router still has one constructor parameter
+  and one `when` branch per family, which is fine for three families but not for six.
+- **Learned from the user's phone (feeds D1/D2):**
+  - *soundcore Sleep A30*: class 0x240404; SDP shows the Soundcore UUID
+    `0cf12d31-fac3-4553-bd80-d6832e7d1301` and BES's firmware-update UUID `66666666-…`. So it's a
+    BES chip: never open that channel.
+  - *soundcore Boom 2* (speaker): advertises the Fast Pair Message Stream `df21fe2c-…`.
+  - *Bose QC Ultra 2 HP*: class 0x2C4404; advertises `deca-fade…`, BLE Battery Service and LE
+    Audio (VCS, BASS).
+  - The car (Uconnect, 0x340408 hands-free + MNS) and a Galaxy Watch that is an HFP hands-free unit
+    both looked like headsets before the `AudioClass` filter.
+
 ### A. Safety and the vendor seam (do first)
 
 | # | Item | Why / where | Size |

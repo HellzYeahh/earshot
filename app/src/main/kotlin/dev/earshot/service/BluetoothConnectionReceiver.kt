@@ -60,7 +60,8 @@ class BluetoothConnectionReceiver : BroadcastReceiver() {
             try {
                 val ours = withTimeoutOrNull(RECEIVER_BUDGET_MS) { repository.isOurDevice(address) } ?: false
                 if (ours) {
-                    Log.i(TAG, "headphones linked ($address), connecting")
+                    Log.i(TAG, "headset linked ($address), connecting")
+                    repository.followLinkUp(address)
                     // Awaited: the receiver must not finish before the service and the manager have started.
                     repository.connectNow()
                 }

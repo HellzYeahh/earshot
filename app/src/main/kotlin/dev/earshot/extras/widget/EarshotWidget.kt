@@ -213,7 +213,7 @@ class EarshotWidget : GlanceAppWidget() {
     private fun statusLine(state: HeadphoneState): String = when (state.connection.status) {
         ConnectionStatus.CONNECTING -> "Connecting…"
         ConnectionStatus.NO_PERMISSION -> "Bluetooth permission needed"
-        ConnectionStatus.NO_PAIRED_DEVICE -> "No Bose headphones paired"
+        ConnectionStatus.NO_PAIRED_DEVICE -> "No headphones paired"
         else -> "Disconnected"
     }
 

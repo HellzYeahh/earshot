@@ -47,12 +47,16 @@ object HeadphoneLabels {
 
     fun formFactorFromName(name: String?): FormFactor {
         val n = name?.lowercase() ?: return FormFactor.HEADPHONES
+        val buds = "bud" in n || EARBUD_WORDS.containsMatchIn(n)
         return when {
-            "open" in n && "bud" in n -> FormFactor.OPEN_EARBUDS
-            "bud" in n -> FormFactor.EARBUDS
+            "open" in n && buds -> FormFactor.OPEN_EARBUDS
+            buds -> FormFactor.EARBUDS
             else -> FormFactor.HEADPHONES
         }
     }
+
+    /** Earbud names that don't say "buds": AirPods, "Nothing Ear (2)", "… Earphones", "TWS". AirPods Max are headphones. */
+    private val EARBUD_WORDS = Regex("""pods(?!\s*max)|\bear\b|earphone|\btws\b""")
 
     fun isEarbuds(formFactor: FormFactor): Boolean = formFactor != FormFactor.HEADPHONES
 

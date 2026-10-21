@@ -3,6 +3,8 @@ package dev.earshot.service
 import dev.earshot.bt.DeviceFamily
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
+import dev.earshot.bt.DeviceSelection
+import dev.earshot.bt.FindResult
 import dev.earshot.core.ButtonAction
 import dev.earshot.core.HeadphoneCandidate
 import dev.earshot.core.HeadphoneEq
@@ -34,16 +36,20 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * The [HeadphoneRepository] the rest of the app sees. It owns one repository per [DeviceFamily] and
- * forwards every call to the one that drives the paired headphones, so Home, the widget, the tile,
- * the notification and the automations never know which protocol is underneath.
+ * forwards every call to the one that drives the headset, so Home, the widget, the tile, the
+ * notification and the automations never know which protocol is underneath.
  *
- * The family comes from, in order: the user's "Headphone type" setting, the demo device, the saved
- * device's Bluetooth name, the first Bose- or Skullcandy-looking paired device. The repository for
- * the other family stays idle: its connection manager stands down for devices it does not handle.
+ * Which headset: [DeviceFinder.find] (the one connected right now, else the saved one; an explicit
+ * pick wins for the rest of the run). Which family: [DevicePrefs.familyFor] for that device (its
+ * "Headphone type" setting, then the stack that answered on it before, then its name), or the
+ * demo device. Anything Earshot has no stack for goes to [GenericHeadphoneRepository], which never
+ * sends it anything. The other repositories stay idle: their connection managers stand down for
+ * devices they do not handle.
  */
 class RoutingHeadphoneRepository(
     private val bose: ServiceHeadphoneRepository,
     private val crusher: CrusherHeadphoneRepository,
+    private val generic: GenericHeadphoneRepository,
     private val prefs: DevicePrefs,
     private val finder: DeviceFinder,
     private val scope: CoroutineScope,
@@ -53,27 +59,41 @@ class RoutingHeadphoneRepository(
 
     private val active = MutableStateFlow(DeviceFamily.BOSE)
 
-    private fun repo(family: DeviceFamily): HeadphoneRepository = if (family == DeviceFamily.BRAGI) crusher else bose
+    private fun repo(family: DeviceFamily): HeadphoneRepository = when (family) {
+        DeviceFamily.BOSE -> bose
+        DeviceFamily.BRAGI -> crusher
+        DeviceFamily.GENERIC -> generic
+    }
     private val current: HeadphoneRepository get() = repo(active.value)
 
     override val state: StateFlow<HeadphoneState> =
-        combine(active, bose.state, crusher.state) { family, b, c -> if (family == DeviceFamily.BRAGI) c else b }
-            .stateIn(scope, SharingStarted.Eagerly, bose.state.value)
+        combine(active, bose.state, crusher.state, generic.state) { family, b, c, g ->
+            when (family) {
+                DeviceFamily.BOSE -> b
+                DeviceFamily.BRAGI -> c
+                DeviceFamily.GENERIC -> g
+            }
+        }.stateIn(scope, SharingStarted.Eagerly, bose.state.value)
 
     override val events: SharedFlow<HeadphoneEvent> =
-        merge(bose.events, crusher.events).shareIn(scope, SharingStarted.Eagerly)
+        merge(bose.events, crusher.events, generic.events).shareIn(scope, SharingStarted.Eagerly)
 
     /** The family currently in charge (for the Lab and the diagnostics screen). */
     val family: StateFlow<DeviceFamily> get() = active
 
     // ---- Selection -------------------------------------------------------------------------
 
-    /** The family for the paired headphones, see the class comment. [DeviceFamily.resolve] is the rule the managers use too. */
+    /**
+     * The family for the headset [DeviceFinder.find] picks, see the class comment; the managers
+     * pick with the same call and stand down unless [DevicePrefs.familyFor] names their family.
+     * With nothing to pick (no permission, Bluetooth off, nothing paired) the saved device's
+     * family reports it, or the generic repository when there is none.
+     */
     suspend fun resolveFamily(): DeviceFamily {
         demoFamily()?.let { return it }
-        val override = prefs.familyOverride()
-        prefs.savedDevice()?.let { return DeviceFamily.resolve(override, it.name) }
-        return DeviceFamily.resolve(override, finder.candidates().firstOrNull { it.looksLikeBose }?.name)
+        (finder.find() as? FindResult.Found)?.let { return prefs.familyFor(it.candidate.address, it.candidate.name) }
+        prefs.savedDevice()?.let { return prefs.familyFor(it.address, it.name) }
+        return DeviceFamily.GENERIC
     }
 
     private val selectLock = Mutex()
@@ -84,6 +104,7 @@ class RoutingHeadphoneRepository(
         when (active.value) {
             DeviceFamily.BOSE -> bose.releaseConnection()
             DeviceFamily.BRAGI -> crusher.releaseConnection()
+            DeviceFamily.GENERIC -> generic.releaseConnection()
         }
         active.value = family
     }
@@ -116,16 +137,30 @@ class RoutingHeadphoneRepository(
     override suspend fun deviceCandidates(): List<HeadphoneCandidate> = current.deviceCandidates()
 
     override suspend fun chooseDevice(address: String, name: String?) {
-        // An explicit "Headphone type" setting still wins over the name of the device just picked.
-        select(demoFamily() ?: DeviceFamily.resolve(prefs.familyOverride(), name))
+        // The user's pick beats "whatever is connected" for the rest of this run.
+        DeviceSelection.pinned = address
+        select(demoFamily() ?: prefs.familyFor(address, name))
         current.chooseDevice(address, name)
     }
 
-    /** True when [address] is the saved (or, before any choice, a Bose- or Skullcandy-looking) device. Used by the link-up receiver. */
+    /**
+     * True when the link-up receiver should follow [address]: the saved device (or its LE Audio /
+     * classic twin), or since 0.6 any other headset, so the one just turned on is the one shown.
+     * A car stereo or a watch is not a headset: only audio-class devices and products Earshot has
+     * a stack for count.
+     */
     suspend fun isOurDevice(address: String): Boolean {
         val saved = prefs.savedDevice()?.address
-        if (saved != null) return saved.equals(address, ignoreCase = true)
-        return finder.candidates().any { it.address.equals(address, ignoreCase = true) && it.looksLikeBose }
+        if (saved != null && (saved.equals(address, ignoreCase = true) || finder.twinsOf(saved).any { it.address.equals(address, ignoreCase = true) })) {
+            return true
+        }
+        return finder.candidates().any { it.address.equals(address, ignoreCase = true) && (it.isAudioDevice || it.looksLikeBose) }
+    }
+
+    /** A headset other than the pinned one linked up: the user just turned it on, so it wins again. */
+    fun followLinkUp(address: String) {
+        val pinned = DeviceSelection.pinned ?: return
+        if (!pinned.equals(address, ignoreCase = true)) DeviceSelection.pinned = null
     }
 
     // ---- Everything else forwards ----------------------------------------------------------

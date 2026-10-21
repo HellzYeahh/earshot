@@ -108,7 +108,10 @@ fun DisconnectedCard(
             Text(stringResource(R.string.disconnected_tips_title), style = MaterialTheme.typography.titleSmall)
             Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Tip(Icons.Default.PowerSettingsNew, stringResource(if (buds) R.string.tip_power_on_buds else R.string.tip_power_on))
-                Tip(Icons.Default.Block, stringResource(R.string.tip_close_bose_app))
+                // Only Bose has a Bose app to close; for any other headset the tip would mislead.
+                if (channelBusy || dev.earshot.bt.DeviceFamily.looksLikeBose(connection.deviceName)) {
+                    Tip(Icons.Default.Block, stringResource(R.string.tip_close_bose_app))
+                }
                 Tip(Icons.Default.Bluetooth, stringResource(R.string.tip_le_audio))
             }
             Spacer(Modifier.size(4.dp))

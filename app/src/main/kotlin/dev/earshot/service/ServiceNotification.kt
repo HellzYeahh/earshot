@@ -176,6 +176,6 @@ class ServiceNotification(private val context: Context) {
     companion object {
         const val CHANNEL_ID = "connection"
         const val NOTIFICATION_ID = 1001
-        private const val DEFAULT_NAME = "Bose headphones"
+        private const val DEFAULT_NAME = "Headphones"
     }
 }

@@ -22,7 +22,8 @@ object DiagnosticsReport {
         val container = context.applicationContext.appContainer
         val state = container.headphones.state.value
         val saved = runCatching { container.devicePrefs.savedDevice() }.getOrNull()
-        val family = runCatching { container.devicePrefs.familyOverride() }.getOrNull()
+        val family = runCatching { container.devicePrefs.familyOverrideFor(saved?.address) }.getOrNull()
+        val drivenBy = saved?.let { runCatching { container.devicePrefs.familyFor(it.address, it.name) }.getOrNull() }
         val profile = saved?.address?.let { runCatching { container.devicePrefs.bragiProfileFor(it) }.getOrNull() }
         val channel = saved?.address?.let { runCatching { container.devicePrefs.candidateFor(it) }.getOrNull() }
         return buildString {
@@ -32,6 +33,7 @@ object DiagnosticsReport {
             appendLine()
             appendLine("Saved headphones: ${saved?.name ?: "none"} ${saved?.address ?: ""}".trim())
             appendLine("Headphone type setting: ${family ?: "automatic"}")
+            appendLine("Driven by: ${drivenBy?.name?.lowercase() ?: "-"}")
             appendLine("Learned link: ${profile ?: "-"} / Bose channel ${channel ?: "-"}")
             appendLine("Connection: ${state.connection.status} ${state.connection.message ?: ""}".trim())
             saved?.address?.let { appendLeAudio(context, it) }

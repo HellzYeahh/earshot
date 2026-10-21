@@ -13,6 +13,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import dev.earshot.bt.AudioClass
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -98,7 +99,14 @@ class HeadsetLookup(private val context: Context) {
                 val listener = object : BluetoothProfile.ServiceListener {
                     override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                         val list = try {
-                            proxy.connectedDevices.map { HfpHeadset(it.address, runCatching { it.name }.getOrNull()) }
+                            proxy.connectedDevices
+                                // A watch or a car on HFP is not the headset whose button gets remapped.
+                                .filter { d ->
+                                    val btClass = runCatching { d.bluetoothClass }.getOrNull()
+                                    val uuids = runCatching { d.uuids?.map { it.uuid.toString() } }.getOrNull().orEmpty()
+                                    AudioClass.isAudioPeer(btClass?.majorDeviceClass, btClass?.deviceClass, uuids)
+                                }
+                                .map { HfpHeadset(it.address, runCatching { it.name }.getOrNull()) }
                         } catch (e: SecurityException) {
                             emptyList()
                         }

@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased (0.6 in progress)
+
+**Any headset.** Earshot is becoming the companion app for every Bluetooth headset, not just Bose
+(plan: [docs/roadmap.md](docs/roadmap.md)). First step:
+
+### New
+- **Headsets without an Earshot driver are shown as themselves.** AirPods, Sony, Soundcore,
+  no-name earbuds and the rest appear by their own Bluetooth name. Home shows "Connected" while the
+  headset is linked for audio, its battery when it reports one to Android, and a note on what works
+  with it (Pro EQ, codec, call audio, Controls, automations). Earshot never sends anything to them.
+- **The connected headset is the one shown.** Opening Earshot with AirPods on shows the AirPods
+  instead of waiting for the Bose you used last. A headset you turn on later takes over too. Picking
+  a device in the switcher keeps it until another headset links up or the app restarts.
+- **Headphone type: Other headset**, for a device that Earshot mistakes for a Bose.
+
+### Changed
+- Bose detection by name is stricter: "QCY" earbuds and "… Ultra" names no longer count as Bose. A
+  Bose you renamed stays Bose once Earshot has talked to it, and existing setups carry over.
+- The "Headphone type" setting now belongs to the device it was set for.
+- The device switcher lists every paired headset, not only the Bose products. Car kits, speakers and
+  watches are left out.
+- Wording: "Headphones", "No paired headphones found", "Your headphones" instead of Bose-specific
+  text where any headset can be meant. The "close the Bose app" tip only shows for Bose.
+
+### Fixed
+- **Unknown headsets got the Bose connection search.** Earshot used to treat any headset it didn't
+  recognise as a Bose and opened Bose control-channel sockets on it.
+- **Controls named the watch as your headset:** a smartwatch that takes calls (Galaxy Watch) is
+  connected like a hands-free headset and was shown on the Controls screen. Watches and car kits are
+  skipped now.
+
 ## 0.5.0 — 2026-10-20
 
 **Controls: give your headset's press-and-hold a new job.** A new screen at the top of Tools

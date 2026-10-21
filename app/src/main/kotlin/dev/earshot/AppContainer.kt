@@ -18,6 +18,7 @@ import dev.earshot.extras.automation.AutomationRepositoryImpl
 import dev.earshot.mic.MicCheckRepositoryImpl
 import dev.earshot.service.CrusherHeadphoneRepository
 import dev.earshot.service.CrusherProtocol
+import dev.earshot.service.GenericHeadphoneRepository
 import dev.earshot.service.HeadphoneProtocol
 import dev.earshot.service.QcUltra2Protocol
 import dev.earshot.service.RoutingHeadphoneRepository
@@ -94,14 +95,24 @@ class AppContainer(private val appContext: Context) {
         )
     }
 
+    /**
+     * Any other headset (AirPods, Sony, no-name earbuds): shown by its own name from what Android
+     * reports, never sent anything. Shares the Bose repository's prefs and finder, so every stack
+     * agrees on which device is picked.
+     */
+    private val genericHeadphones: GenericHeadphoneRepository by lazy {
+        GenericHeadphoneRepository(appContext, boseHeadphones.devicePrefs, boseHeadphones.deviceFinder, applicationScope)
+    }
+
     /** The saved headphones and what Earshot has learned about how to reach them. */
     val devicePrefs: dev.earshot.bt.DevicePrefs get() = boseHeadphones.devicePrefs
 
-    /** What the app talks to: forwards to the Bose or the Crusher repository for the paired headphones. */
+    /** What the app talks to: forwards to the Bose, Crusher or generic repository for the headset in use. */
     val headphones: HeadphoneRepository by lazy {
         RoutingHeadphoneRepository(
             bose = boseHeadphones,
             crusher = crusherHeadphones,
+            generic = genericHeadphones,
             prefs = boseHeadphones.devicePrefs,
             finder = boseHeadphones.deviceFinder,
             scope = applicationScope,

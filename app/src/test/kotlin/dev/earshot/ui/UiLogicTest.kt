@@ -58,7 +58,8 @@ class UiLogicTest {
         val none = DeviceSwitcherList.build(listOf(leTwin, classic, headphones, car), currentAddress = null)
         assertEquals(listOf("Bose QC Ultra 2 Earbuds", "Bose QC Ultra Headphones"), none.bose.map { it.label })
         assertEquals(classic, none.bose.first().candidate) // the Classic twin carries the BMAP channel
-        assertTrue(none.otherAudio.isEmpty())
+        // Since 0.6 other headsets are listed next to the Bose products.
+        assertEquals(listOf("Car stereo"), none.otherAudio.map { it.label })
 
         val onLe = DeviceSwitcherList.build(listOf(classic, leTwin, headphones), currentAddress = leTwin.address)
         assertEquals(leTwin, onLe.bose.first().candidate)

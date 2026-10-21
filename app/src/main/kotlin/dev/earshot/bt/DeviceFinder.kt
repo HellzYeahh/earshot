@@ -20,7 +20,10 @@ import kotlin.coroutines.resume
 data class DeviceCandidate(
     val address: String,
     val name: String?,
-    /** True when the name says Bose / QC / QuietComfort / Ultra. */
+    /**
+     * True when the name says Bose (or Skullcandy Crusher): a product Earshot has a stack for.
+     * Since 0.6 by [DeviceFamily.forName] ("QCY" earbuds and "… Ultra" no longer count).
+     */
     val looksLikeBose: Boolean,
     /** True when the Bluetooth class is a headphone / headset / hands-free. */
     val isAudioDevice: Boolean,
@@ -36,8 +39,8 @@ sealed interface FindResult {
 }
 
 /**
- * Finds the QC Ultra among the phone's bonded devices. No scanning: the headphones must be
- * paired in system settings first, same as every other Bose tool.
+ * Finds the headset among the phone's bonded devices. No scanning: it must be paired in system
+ * settings first, same as every other headset tool.
  */
 class DeviceFinder(private val context: Context, private val prefs: DevicePrefs) {
 
@@ -69,9 +72,11 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
     }
 
     /**
-     * Pick the headphones without asking: the saved device if still bonded, else the one
-     * bonded device whose name says Bose, else the only audio device. Anything more ambiguous
-     * is [FindResult.NoDevice] with candidates for the UI to offer.
+     * Pick the headphones without asking, by [DevicePick.choose]: a headset connected to the
+     * phone right now wins (the saved one first), so opening Earshot with AirPods on shows the
+     * AirPods instead of waiting for the Bose saved last week. With nothing connected: the saved
+     * device, else the one Bose-looking device, else the only audio device. Anything more
+     * ambiguous is [FindResult.NoDevice] with candidates for the UI to offer.
      */
     @SuppressLint("MissingPermission")
     suspend fun find(): FindResult {
@@ -79,13 +84,26 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
         val adapter = adapter ?: return FindResult.BluetoothOff
         if (!adapter.isEnabled) return FindResult.BluetoothOff
         val candidates = candidates()
-        val pick = candidates.firstOrNull { it.isSaved }
-            ?: candidates.filter { it.looksLikeBose }.takeIf { it.size == 1 }?.single()
-            ?: candidates.filter { it.looksLikeBose && it.isAudioDevice }.firstOrNull()
-            ?: candidates.filter { it.isAudioDevice }.takeIf { it.size == 1 }?.single()
+        val pick = DevicePick.choose(candidates, connectedCandidates(adapter, candidates), DeviceSelection.pinned)
             ?: return FindResult.NoDevice(candidates)
         val device = deviceFor(pick.address) ?: return FindResult.NoDevice(candidates)
         return FindResult.Found(device, pick)
+    }
+
+    /**
+     * Addresses (upper case) among [candidates] with an audio profile up right now, counting a
+     * candidate whose LE Audio / classic twin is the connected one ([mergeLeTwins] keeps only one
+     * of the two in the list).
+     */
+    @SuppressLint("MissingPermission")
+    private suspend fun connectedCandidates(adapter: BluetoothAdapter, candidates: List<DeviceCandidate>): Set<String> {
+        val raw = buildSet { for (profile in audioProfiles()) connectedVia(adapter, profile)?.let(::addAll) }
+        if (raw.isEmpty()) return emptySet()
+        val bonded = try { adapter.bondedDevices.orEmpty() } catch (e: SecurityException) { return emptySet() }
+        val names = bonded.associate { it.address to (try { it.name } catch (e: SecurityException) { null }) }
+        return candidates.map { it.address.uppercase() }.filterTo(HashSet()) { address ->
+            address in raw || LeAudioTwins.twinsOf(address, names).any { it.uppercase() in raw }
+        }
     }
 
     /**
@@ -174,12 +192,17 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
 
     @SuppressLint("MissingPermission")
     private suspend fun connectedViaProfile(adapter: BluetoothAdapter, profile: Int, addresses: Set<String>): Boolean? =
+        connectedVia(adapter, profile)?.any { it in addresses }
+
+    /** Upper-case addresses connected on [profile], or null when the proxy could not be queried in time. */
+    @SuppressLint("MissingPermission")
+    private suspend fun connectedVia(adapter: BluetoothAdapter, profile: Int): Set<String>? =
         withTimeoutOrNull(PROFILE_PROXY_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->
                 val listener = object : BluetoothProfile.ServiceListener {
                     override fun onServiceConnected(p: Int, proxy: BluetoothProfile) {
-                        val result = try {
-                            proxy.connectedDevices.any { it.address.uppercase() in addresses }
+                        val result: Set<String>? = try {
+                            proxy.connectedDevices.mapTo(HashSet()) { it.address.uppercase() }
                         } catch (e: SecurityException) {
                             null
                         }
@@ -204,11 +227,15 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
     private fun BluetoothDevice.toCandidate(savedAddress: String?): DeviceCandidate {
         val name = try { name } catch (e: SecurityException) { null }
         val deviceClass = try { bluetoothClass?.deviceClass } catch (e: SecurityException) { null }
+        // Cached SDP record, no lookup. Only consulted for the hands-free class, see AudioClass.
+        val serviceUuids = if (deviceClass == BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE) {
+            try { uuids?.map { it.uuid.toString() }.orEmpty() } catch (e: SecurityException) { emptyList() }
+        } else emptyList()
         return DeviceCandidate(
             address = address,
             name = name,
-            looksLikeBose = name != null && NAME_HINTS.any { name.contains(it, ignoreCase = true) },
-            isAudioDevice = deviceClass in AUDIO_CLASSES,
+            looksLikeBose = DeviceFamily.forName(name) != DeviceFamily.GENERIC,
+            isAudioDevice = AudioClass.isHeadset(deviceClass, serviceUuids),
             isSaved = savedAddress != null && address.equals(savedAddress, ignoreCase = true),
         )
     }
@@ -222,18 +249,6 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
         /** `BluetoothLeAudio.ACTION_LE_AUDIO_CONNECTION_STATE_CHANGED` (API 33). */
         const val ACTION_LE_AUDIO_CONNECTION_STATE_CHANGED = "android.bluetooth.action.LE_AUDIO_CONNECTION_STATE_CHANGED"
 
-        /**
-         * The headphones advertise as "Bose QC Ultra Headphones" unless renamed in the Bose app; the
-         * Skullcandy Crusher 1080 ANC (Sound by Bose) as "Skullcandy CRUSHER 1080 ANC" (other Skullcandy
-         * products are deliberately not matched).
-         */
-        private val NAME_HINTS = listOf("Bose", "QC", "QuietComfort", "Ultra", "Crusher 1080")
-
-        private val AUDIO_CLASSES = setOf(
-            BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES,
-            BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET,
-            BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE,
-        )
 
         /** Device address extra of ACL / profile broadcasts, null when the intent has none. */
         fun deviceAddressFrom(intent: android.content.Intent): String? {
@@ -253,4 +268,80 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
         @Suppress("unused") // keeps the profile action strings next to the code that handles them
         val PROFILE_ACTIONS = listOf(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED, BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
     }
+}
+
+/**
+ * Process-wide: the device the user picked explicitly during this run (device switcher,
+ * onboarding). It beats "whatever is connected", or picking the Bose while AirPods play would
+ * snap straight back to the AirPods. A new process starts unpinned (so launching Earshot shows
+ * the connected headset), and another headset linking up clears it (the user just turned that
+ * one on).
+ */
+internal object DeviceSelection {
+    @Volatile
+    var pinned: String? = null
+}
+
+/** The choice behind [DeviceFinder.find], kept free of Android types so it is unit-tested. */
+internal object DevicePick {
+    /**
+     * [candidates] come sorted (saved, Bose/Skullcandy-looking, audio device, name); [connected]
+     * holds the upper-case addresses among them with audio up right now.
+     *  0. The device the user [pinned] in this run, while it is still bonded.
+     *  1. A connected headset: the saved one if it is connected, else the first connected one.
+     *  2. Nothing connected: the saved device, else the only Bose-looking one, else the first
+     *     Bose-looking audio device, else the only audio device.
+     */
+    fun choose(candidates: List<DeviceCandidate>, connected: Set<String>, pinned: String? = null): DeviceCandidate? {
+        pinned?.let { p -> candidates.firstOrNull { it.address.equals(p, ignoreCase = true) }?.let { return it } }
+        val live = candidates.filter { it.address.uppercase() in connected && (it.isAudioDevice || it.looksLikeBose || it.isSaved) }
+        return live.firstOrNull { it.isSaved }
+            ?: live.firstOrNull()
+            ?: candidates.firstOrNull { it.isSaved }
+            ?: candidates.filter { it.looksLikeBose }.takeIf { it.size == 1 }?.single()
+            ?: candidates.firstOrNull { it.looksLikeBose && it.isAudioDevice }
+            ?: candidates.filter { it.isAudioDevice }.takeIf { it.size == 1 }?.single()
+    }
+}
+
+/**
+ * Which bonded devices count as a headset (picker, "show the connected one", link-up follow).
+ * Headphones and wearable headsets always do. Hands-free is shared by earbuds and car kits:
+ * the user's car (Uconnect, class 0x340408) and plenty of cheap earbuds both report it. Car kits
+ * also run the phonebook (PBAP client) and message (MAP notification) services to show contacts
+ * and texts on the dashboard; headsets never do, so those UUIDs mark a car.
+ */
+internal object AudioClass {
+    private val HEADSET_CLASSES = setOf(
+        BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES,
+        BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET,
+    )
+
+    /** MAP notification server (0x1133) and PBAP client (0x112E), base UUID, lower case. */
+    private val CAR_KIT_UUIDS = setOf(
+        "00001133-0000-1000-8000-00805f9b34fb",
+        "0000112e-0000-1000-8000-00805f9b34fb",
+    )
+
+    fun isHeadset(deviceClass: Int?, serviceUuids: List<String>): Boolean = when (deviceClass) {
+        in HEADSET_CLASSES -> true
+        BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE -> !isCarKit(serviceUuids)
+        else -> false
+    }
+
+    /**
+     * Looser, for devices already connected over HFP: anything filed under audio/video except a
+     * car. A watch that takes calls itself (the user's Galaxy Watch8 is an HFP hands-free unit,
+     * major class Wearable) or another phone is not a headset, and showed up as one on the
+     * Controls screen. An unknown class is kept, as before.
+     */
+    fun isAudioPeer(majorClass: Int?, deviceClass: Int?, serviceUuids: List<String>): Boolean = when {
+        majorClass == null -> true
+        majorClass != BluetoothClass.Device.Major.AUDIO_VIDEO -> false
+        deviceClass == BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO -> false
+        deviceClass == BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE -> !isCarKit(serviceUuids)
+        else -> true
+    }
+
+    private fun isCarKit(serviceUuids: List<String>) = serviceUuids.any { it.lowercase() in CAR_KIT_UUIDS }
 }

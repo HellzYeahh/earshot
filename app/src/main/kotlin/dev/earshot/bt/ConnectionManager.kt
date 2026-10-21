@@ -178,9 +178,10 @@ class ConnectionManager<C : ManagedLink>(
             }
             val address = device.address
             val name = found.candidate.name
-            // The same rule the router uses (the user's "Headphone type" beats the name), so exactly one
-            // manager drives a device and a renamed one is not left with nobody.
-            if (DeviceFamily.resolve(prefs.familyOverride(), name) != factory.family) {
+            // The same rule the router uses (DevicePrefs.familyFor: the device's own "Headphone type",
+            // then what answered on it before, then its name), so exactly one stack drives a device,
+            // a renamed one is not left with nobody, and nothing else ever gets this stack's probe.
+            if (prefs.familyFor(address, name) != factory.family) {
                 BtLog.d("${factory::class.simpleName} does not drive \"$name\"; standing down")
                 return
             }
@@ -197,6 +198,8 @@ class ConnectionManager<C : ManagedLink>(
                 connection = factory.open(device, name, prefs, scope)
                 _connection.value = connection
                 setState(ConnectionStatus.CONNECTED, name, address, message = null)
+                // This stack answered here: a later rename doesn't turn the device into a generic one.
+                runCatching { prefs.rememberFamily(address, factory.family) }.onFailure { BtLog.w("could not remember the family of $address: ${it.message}") }
                 val attemptsBefore = attempt
                 attempt = 0
                 val cause = connection.awaitClosed()

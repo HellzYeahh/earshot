@@ -58,7 +58,8 @@ object DeviceSwitcherList {
      * Bose products first. Earbuds on LE Audio are bonded twice ("Bose QC Ultra Earbuds" and
      * "LE-Bose QC Ultra Earbuds"), which would read as the same product listed twice: one entry
      * per name, keeping the current address, else the Classic one (the BMAP channel lives there).
-     * Other audio devices are listed only when nothing looks like Bose (a renamed product).
+     * Every other audio device follows (since 0.6: AirPods, Sony and the rest are shown by their own
+     * name, so they are listed even when a Bose is paired).
      */
     fun build(candidates: List<HeadphoneCandidate>, currentAddress: String?): Lists {
         fun entries(list: List<HeadphoneCandidate>): List<Entry> = list
@@ -72,7 +73,7 @@ object DeviceSwitcherList {
             }
             .sortedWith(compareByDescending<Entry> { it.isCurrent }.thenBy { it.label.lowercase() })
         val bose = entries(candidates.filter { it.looksLikeBose })
-        val other = if (bose.isEmpty()) entries(candidates.filter { !it.looksLikeBose && it.isAudioDevice }) else emptyList()
+        val other = entries(candidates.filter { !it.looksLikeBose && it.isAudioDevice })
         return Lists(bose, other)
     }
 }
@@ -132,7 +133,7 @@ fun DeviceSwitcherContent(
             }
         } else {
             val lists = DeviceSwitcherList.build(candidates, currentAddress)
-            if (lists.bose.isEmpty()) {
+            if (lists.bose.isEmpty() && lists.otherAudio.isEmpty()) {
                 Text(
                     stringResource(R.string.switcher_empty),
                     style = MaterialTheme.typography.bodyMedium,

@@ -63,6 +63,13 @@ own module. Never edit another area's files, the Gradle files, the version catal
   stores it in `DevicePrefs` (SDP winners as negative codes). Opened-but-mute → `looksBusy`.
   A socket that greets with an AT line (`AT+BRSF=…`, HFP 1.8 §4.2.1.1) is the headset's HFP
   channel: `LivenessProbe.Verdict.Hfp`, closed at once, **not** counted as busy.
+- **Vendor routing (0.6):** `DeviceFamily` = BOSE / BRAGI / **GENERIC**. An unknown name is GENERIC
+  (`GenericHeadphoneRepository`: audio link + Android battery broadcast, **never sends anything**),
+  not Bose. One rule everywhere: `DevicePrefs.familyFor(address, name)` = that device's "Headphone
+  type", else the family whose stack answered on it (`rememberFamily`), else the name ("QC" needs a
+  model after it: QCY is not Bose). `DeviceFinder.find` → `DevicePick`: the connected headset wins,
+  an explicit pick is pinned for the run (`DeviceSelection`). `AudioClass` keeps cars, speakers and
+  watches out.
 - **Strict `LivenessProbe`**: GET `[0.1]` (the QC45 init packet); alive only on a device-side
   STATUS/ERROR/RESULT for `[0.1]` or traffic that frames *entirely* as device-side BMAP on known
   blocks (`BmapConnection.traffic()`). Beacons, logs and echoes fail.
