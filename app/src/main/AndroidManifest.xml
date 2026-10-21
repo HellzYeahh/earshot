@@ -129,20 +129,31 @@
             android:exported="false" />
 
         <!-- Shortcuts remapper (shortcut/): the headset's press-and-hold (HFP voice recognition)
-             arrives as VOICE_COMMAND once the user picks Earshot in Android's chooser. No UI. -->
+             arrives as VOICE_COMMAND once the user picks Earshot in Android's chooser. No UI.
+             Reached only through the aliases below. -->
         <activity
             android:name=".shortcut.ShortcutTriggerActivity"
-            android:exported="true"
+            android:exported="false"
             android:excludeFromRecents="true"
             android:label="@string/shortcut_trigger_label"
             android:showWhenLocked="true"
             android:taskAffinity="dev.earshot.shortcut"
-            android:theme="@style/Theme.Earshot.Trigger">
+            android:theme="@style/Theme.Earshot.Trigger" />
+
+        <!-- Bluetooth headsets' press-and-hold. Disabled until a Controls choice or "Detect a
+             button" needs it (shortcut/HeadsetTrigger): a second VOICE_COMMAND handler makes
+             Android show its chooser on every headset's next press. -->
+        <activity-alias
+            android:name=".shortcut.HeadsetTrigger"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/shortcut_trigger_label"
+            android:targetActivity=".shortcut.ShortcutTriggerActivity">
             <intent-filter>
                 <action android:name="android.intent.action.VOICE_COMMAND" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <!-- Wired / USB-C headsets' long press (locked or screen off). Disabled until the
              experimental switch on the Shortcuts remapper screen enables it. -->

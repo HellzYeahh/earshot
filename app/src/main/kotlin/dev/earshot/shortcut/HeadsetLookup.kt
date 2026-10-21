@@ -42,6 +42,10 @@ class HeadsetLookup(private val context: Context) {
     suspend fun anyHfpConnected(): Boolean? =
         if (!hasConnectPermission()) null else connectedHfpAddresses().isNotEmpty()
 
+    /** [address] is a connected HFP headset. An address from the trigger's extras is only a claim until this says so. */
+    suspend fun isHfpConnected(address: String): Boolean =
+        connectedHfpAddresses().any { it.equals(address, ignoreCase = true) }
+
     /**
      * The headset a press would come from right now, for the remapper's header: the active HFP
      * device (the one with the SCO route), else the first connected one. Null with none or

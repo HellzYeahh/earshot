@@ -16,6 +16,11 @@ import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.dsp.EqPreset
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 /**
@@ -44,6 +49,23 @@ class ShortcutEngine(
 
     init {
         buttonSync.start()
+        keepHeadsetTriggerInStep()
+    }
+
+    /** The `VOICE_COMMAND` entry is on only while a choice or a detection needs it (see [HeadsetTrigger]). */
+    private fun keepHeadsetTriggerInStep() {
+        combine(prefs.settings, detector.session.map { it.listening }.distinctUntilChanged()) { settings, detecting ->
+            HeadsetTrigger.needed(settings, detecting)
+        }
+            .distinctUntilChanged()
+            .onEach { needed ->
+                if (HeadsetTrigger.isEnabled(context) != needed) {
+                    runCatching { HeadsetTrigger.setEnabled(context, needed) }
+                        .onSuccess { Log.i(TAG, "headset trigger ${if (needed) "on" else "off"}") }
+                        .onFailure { Log.w(TAG, "could not switch the headset trigger: $it") }
+                }
+            }
+            .launchIn(scope)
     }
 
     /** The experimental wired / USB-C trigger (the disabled-by-default activity-alias; no switch on the screen for now). */

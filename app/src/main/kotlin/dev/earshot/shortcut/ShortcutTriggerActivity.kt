@@ -11,9 +11,10 @@ import kotlinx.coroutines.launch
 /**
  * Receives the headset's press-and-hold. Android's Bluetooth stack turns the HFP voice-recognition
  * request (`AT+BVRA=1`, "startVoiceRecognitionByHeadset" in the log) into a bare `VOICE_COMMAND`
- * and starts whichever app the user picked in the chooser; this activity is Earshot's entry. The
- * disabled-by-default alias `WiredHeadsetTrigger` also routes wired / USB-C headsets'
- * `VOICE_SEARCH_HANDS_FREE` here (see [WiredTrigger]).
+ * and starts whichever app the user picked in the chooser; this activity is Earshot's entry,
+ * reached through the alias `HeadsetTrigger`, which is on only while a choice needs it (see
+ * [HeadsetTrigger]). The disabled-by-default alias `WiredHeadsetTrigger` also routes wired /
+ * USB-C headsets' `VOICE_SEARCH_HANDS_FREE` here (see [WiredTrigger]).
  *
  * No UI of its own (translucent, excluded from recents, own task affinity, shown over the lock
  * screen). It works out which headset pressed, runs that headset's action, and finishes. Being in
@@ -81,6 +82,8 @@ class ShortcutTriggerActivity : ComponentActivity() {
         wired -> engine.headsets.wiredHeadsetPresent()
         headset == null -> false
         headset.source == HeadsetSource.SAVED -> engine.headsets.anyHfpConnected() != false
+        // Any app can put an address in the extras: only a headset that is really connected counts.
+        headset.source == HeadsetSource.INTENT -> engine.headsets.isHfpConnected(headset.address)
         else -> true
     }
 

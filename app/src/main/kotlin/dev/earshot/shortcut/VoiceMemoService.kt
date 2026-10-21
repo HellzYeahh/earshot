@@ -25,6 +25,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import dev.earshot.R
 import dev.earshot.appContainer
+import dev.earshot.bt.DeviceFinder
 import dev.earshot.mic.HeadsetMicRouter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -242,6 +243,10 @@ class VoiceMemoService : Service() {
     private fun watchVoiceRecognition() {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, intent: Intent) {
+                // With a second HFP device (car kit, watch), its SCO going down is not our stop.
+                val from = DeviceFinder.deviceAddressFrom(intent)
+                val ours = headsetAddress
+                if (ours != null && from != null && !from.equals(ours, ignoreCase = true)) return
                 if (intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1) == BluetoothHeadset.STATE_AUDIO_DISCONNECTED) {
                     Log.i(TAG, "SCO closed (headset press or disconnect), stopping")
                     finishRecording(keep = true, note = getString(R.string.memo_note_headset_stopped))
@@ -345,7 +350,14 @@ class VoiceMemoService : Service() {
                 val intent = Intent(context, VoiceMemoService::class.java).setAction(ACTION_START)
                     .putExtra(EXTRA_SPOKEN, spokenFeedback)
                     .putExtra(EXTRA_ADDRESS, headsetAddress)
-                ContextCompat.startForegroundService(context, intent)
+                try {
+                    ContextCompat.startForegroundService(context, intent)
+                } catch (e: IllegalStateException) {
+                    // Android 12+ ForegroundServiceStartNotAllowedException: the press came too late
+                    // after the trigger went to the background (the headset lookup can take ~1.5 s).
+                    Log.w(TAG, "memo service start refused: $e")
+                    context.appContainer.shortcuts.feedback.toast(context.getString(R.string.memo_start_refused))
+                }
             }
         }
     }
