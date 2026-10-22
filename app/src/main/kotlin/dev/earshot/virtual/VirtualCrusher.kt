@@ -44,6 +44,12 @@ class VirtualCrusher(
     private val channelTagLength: Int = 16,
     /** The largest sidetone volume the unit reports (the real range is read from the headphones). */
     val sidetoneVolumeMax: Int = 5,
+    /** `dev_info.model` and `model_number`: the Crusher 1080 by default; the Method earbuds' own come from [method360] / [method540]. */
+    val model: String = "CHP300",
+    val modelNumber: String = "S6CNW",
+    /** A Method earbud has neither the Crusher bass nor spatial audio: those services answer "unknown method", as firmware without them would. */
+    val hasCrusherBass: Boolean = true,
+    val hasSpatialAudio: Boolean = true,
 ) {
     private val random = SecureRandom()
     private val serverIdentity: BragiHandshake.EcKeyPair by lazy { BragiHandshake.generateIdentity() }
@@ -65,8 +71,6 @@ class VirtualCrusher(
     }
     private var pairing: Pairing? = null
     // ── Identity ─────────────────────────────────────────────────────────────────────────
-    val model = "CHP300"
-    val modelNumber = "S6CNW"
     val firmware = "1.0.0-virtual"
     val bosVersion = "bos-virtual"
     val serial = "VIRTUAL-CRUSHER-1080"
@@ -132,6 +136,9 @@ class VirtualCrusher(
             return emptyList()
         }
         if (packet.type != BosMessageType.REQUEST) return emptyList()
+        if ((a.service == BragiServices.CRUSHER && !hasCrusherBass) || (a.service == BragiServices.SPATIAL_AUDIO && !hasSpatialAudio)) {
+            return listOf(BosRpcPacket(BosMessageType.STATUS, a.service, a.method, packet.tag, byteArrayOf(UNKNOWN_METHOD)))
+        }
         val out = ArrayList<BosRpcPacket>()
         val tag = packet.tag
         fun final(payload: ByteArray) { out += reply(a, tag, payload, final = true); out += status(a, tag) }
@@ -338,6 +345,12 @@ class VirtualCrusher(
     }
 
     companion object {
+        /** A virtual Skullcandy Method 360 ANC: Quiet / Aware / Off, sidetone and battery; no Crusher bass, no spatial audio. */
+        fun method360() = VirtualCrusher(model = "T99_PLUS", modelNumber = "S2MTW", hasCrusherBass = false, hasSpatialAudio = false).also { it.batteryPercent = 74 }
+
+        /** A virtual Skullcandy Method 540 ANC, the same surface under its own identity. */
+        fun method540() = VirtualCrusher(model = "T120", modelNumber = "S2MFW", hasCrusherBass = false, hasSpatialAudio = false).also { it.batteryPercent = 81 }
+
         /** STATUS code for a protected call made without a secure session. */
         const val NOT_AUTHENTICATED: Byte = 0x0B
         private const val ERR_BAD_REQUEST = 0x60

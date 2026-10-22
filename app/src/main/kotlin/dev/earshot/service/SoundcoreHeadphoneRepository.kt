@@ -22,9 +22,16 @@ import dev.earshot.core.NoiseSettings
 import dev.earshot.core.RawFrame
 import dev.earshot.core.Sidetone
 import dev.earshot.core.VoicePrompts
+import dev.earshot.protocol.soundcore.AmbientMode
 import dev.earshot.protocol.soundcore.D1301State
+import dev.earshot.protocol.soundcore.SoundModes
 import dev.earshot.protocol.soundcore.SoundcoreCommands
+import dev.earshot.protocol.soundcore.SoundcoreModel
 import dev.earshot.protocol.soundcore.SoundcorePacket
+import dev.earshot.protocol.soundcore.SoundcoreState
+import dev.earshot.protocol.soundcore.SoundcoreStateReader
+import dev.earshot.protocol.soundcore.SoundcoreWriteRefused
+import dev.earshot.protocol.soundcore.SoundcoreWrites
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,21 +52,27 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * [HeadphoneRepository] for Soundcore earbuds; the Sleep A30 (D1301) for now. The same
- * [ConnectionManager] policy as Bose and the Crusher (reconnects, Bluetooth on/off, "close the
- * soundcore app"), over [SoundcoreConnection]:
- *  - connect: read the state (`01 01`), map it ([SoundcoreStateMapping]);
- *  - pushes: full state `01 01` and battery `01 03` arrive by themselves; the state is also re-read
- *    once a minute in case a model doesn't push;
- *  - commands: noise cancelling on/off (`06 87`, through the two listening modes), tap controls
- *    (`10 94`). Each re-reads the state afterwards, so the screen shows what the earbuds did.
- * Everything else throws a readable [HeadphoneCommandException]: Tools let anyone try a setting.
+ * [HeadphoneRepository] for Soundcore earbuds and headphones. The same [ConnectionManager] policy
+ * as Bose and the Crusher (reconnects, Bluetooth on/off, "close the soundcore app"), over
+ * [SoundcoreConnection]. Two paths share it:
+ *  - the **Sleep A30** (D1301, tested on a real pair), unchanged: noise cancelling on/off
+ *    (`06 87`, through two listening modes), tap controls (`10 94`) and the sleep options;
+ *  - **every other model on the vendor service** (the table in [SoundcoreModel]): the state
+ *    (`01 01`) is read through [SoundcoreStateReader] for battery, charging, firmware and mode;
+ *    models whose layout the notes document and whose state matches it (size, length byte,
+ *    serial) can also change their ambient mode, noise-cancelling type and level, wind and
+ *    settings ([SoundcoreWrites]). Anything else is read-only and says why.
+ * Pushes (`01 01`, battery `01 03`, charging `01 04`, modes `06 01`) arrive by themselves; the
+ * state is also re-read once a minute. Every write re-reads the state, so the screen shows what the
+ * earbuds did; a model that acknowledges and ignores a write is reported as such.
+ * Everything unsupported throws a readable [HeadphoneCommandException]: Tools let anyone try a setting.
  */
 class SoundcoreHeadphoneRepository(
     context: Context,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     demoTransport: () -> (() -> ByteTransport)? = { null },
     autoConnect: () -> Boolean = { true },
+    demoName: () -> String = { DEMO_NAME },
 ) : HeadphoneRepository {
 
     private val appContext = context.applicationContext
@@ -70,7 +83,7 @@ class SoundcoreHeadphoneRepository(
         appContext, deviceFinder, devicePrefs, scope, SoundcoreLinkFactory(),
         autoConnect = autoConnect,
         demoTransport = demoTransport,
-        demoName = { DEMO_NAME },
+        demoName = demoName,
     )
 
     private val _state = MutableStateFlow(HeadphoneState())
@@ -80,6 +93,16 @@ class SoundcoreHeadphoneRepository(
     override val events: SharedFlow<HeadphoneEvent> = _events.asSharedFlow()
 
     private val commands = Mutex()
+
+    /** The model of the session in progress: the Sleep A30 unless the connection says otherwise. */
+    @Volatile
+    private var model: SoundcoreModel = SoundcoreModel.SLEEP_A30
+
+    /** Newer models: the last state that parsed, which the writes are built from. */
+    @Volatile
+    private var latest: SoundcoreState? = null
+
+    private val sleepA30: Boolean get() = model == SoundcoreModel.SLEEP_A30
 
     init {
         scope.launch {
@@ -122,11 +145,14 @@ class SoundcoreHeadphoneRepository(
     }
 
     private suspend fun runSession(conn: SoundcoreConnection) = coroutineScope {
+        model = conn.model ?: SoundcoreModel.SLEEP_A30
+        latest = null
         launch {
             conn.unsolicited.collect { packet -> applyPush(packet) }
         }
         try {
             readState(conn)
+            if (!sleepA30) sessionInit(conn)
         } catch (e: HeadphoneCommandException) {
             Log.w(TAG, "initial read failed: ${e.message}")
             _events.tryEmit(HeadphoneEvent.Error("Connected, but reading the earbuds failed: ${e.message}", e))
@@ -142,8 +168,10 @@ class SoundcoreHeadphoneRepository(
     }
 
     private suspend fun readState(conn: SoundcoreConnection) {
-        val reply = conn.request(SoundcoreCommands.REQUEST_STATE)
-        applyState(reply.body)
+        var reply = conn.request(SoundcoreCommands.REQUEST_STATE)
+        // Some models answer a first request with a bare ack (soundcorebridge saw it on the Space 2): ask again for the body.
+        if (!sleepA30 && reply.body.isEmpty()) reply = conn.request(SoundcoreCommands.REQUEST_STATE)
+        if (sleepA30) applyState(reply.body) else applyModelState(conn, reply.body)
     }
 
     private fun applyState(body: ByteArray) {
@@ -157,14 +185,70 @@ class SoundcoreHeadphoneRepository(
         _state.update { SoundcoreStateMapping.apply(it, parsed) }
     }
 
+    /**
+     * Every other model: read the state through its table. The connection may write only if the
+     * state matched the layout Earshot knows (size, length byte, serial); otherwise it stays
+     * read-only, and the note says why. The serial and the raw bytes are never logged.
+     */
+    private fun applyModelState(conn: SoundcoreConnection, body: ByteArray) {
+        val parsed = SoundcoreStateReader.read(model, body)
+        if (parsed == null) {
+            Log.w(TAG, "${model.code}: state of ${body.size} bytes matches no layout")
+            latest = null
+            conn.unlockWrites(false)
+            _state.update { SoundcoreModelMapping.unreadable(it, model, body.size) }
+            return
+        }
+        conn.unlockWrites(parsed.writable)
+        latest = parsed
+        Log.d(TAG, "${model.code}: ${body.size} bytes, battery=${parsed.leftPercent}/${parsed.rightPercent}/${parsed.overallPercent}, mode=${parsed.ambient}, writable=${parsed.writable}")
+        _state.update { SoundcoreModelMapping.apply(it, parsed) }
+    }
+
+    /** `05 01` then `05 81` once, for the models whose table asks for it (the app's own session start). */
+    private suspend fun sessionInit(conn: SoundcoreConnection) {
+        if (model.layout?.sessionInit != true || !conn.writesUnlocked) return
+        commands.withLock {
+            try {
+                conn.request(SoundcoreCommands.SESSION_INFO, timeoutsMs = listOf(1_500L))
+                delay(SESSION_INIT_GAP_MS)
+                conn.request(SoundcoreCommands.SESSION_INIT, timeoutsMs = listOf(1_000L))
+            } catch (e: HeadphoneCommandException) {
+                Log.d(TAG, "session init not answered: ${e.message}")
+            }
+        }
+    }
+
     private fun applyPush(packet: SoundcorePacket) {
+        if (sleepA30) {
+            when (packet.command) {
+                SoundcoreCommands.REQUEST_STATE -> applyState(packet.body)
+                SoundcoreCommands.PUSH_BATTERY -> D1301State.parseBattery(packet.body)?.let { (l, r) ->
+                    _state.update { SoundcoreStateMapping.withBattery(it, l, r) }
+                }
+                else -> Log.d(TAG, "push ${SoundcorePacket.commandName(packet.command)} ignored")
+            }
+            return
+        }
+        val conn = connectionManager.connection.value
+        val current = latest
         when (packet.command) {
-            SoundcoreCommands.REQUEST_STATE -> applyState(packet.body)
-            SoundcoreCommands.PUSH_BATTERY -> D1301State.parseBattery(packet.body)?.let { (l, r) ->
-                _state.update { SoundcoreStateMapping.withBattery(it, l, r) }
+            SoundcoreCommands.REQUEST_STATE -> if (conn != null && packet.body.isNotEmpty()) applyModelState(conn, packet.body)
+            SoundcoreCommands.PUSH_BATTERY -> if (current != null) SoundcoreStateReader.batteryPush(model, packet.body)?.let { p ->
+                publish(current.withBattery(p.left, p.right, p.case, p.overall))
+            }
+            SoundcoreCommands.PUSH_CHARGING -> if (current != null) publish(current.withCharging(SoundcoreStateReader.chargingPush(packet.body)))
+            SoundcoreCommands.PUSH_SOUND_MODES -> {
+                val codec = current?.modes?.codec
+                if (current != null && codec != null && packet.body.size == codec.size) publish(current.withModeBlock(SoundModes(codec, packet.body)))
             }
             else -> Log.d(TAG, "push ${SoundcorePacket.commandName(packet.command)} ignored")
         }
+    }
+
+    private fun publish(s: SoundcoreState) {
+        latest = s
+        _state.update { SoundcoreModelMapping.apply(it, s) }
     }
 
     /** One command at a time; afterwards the state is re-read so the UI shows what the earbuds did. */
@@ -182,26 +266,70 @@ class SoundcoreHeadphoneRepository(
         }
     }
 
-    // ---- What the Sleep A30 has ------------------------------------------------------------
+    /**
+     * A change to a newer model, built from the last state that parsed ([SoundcoreWrites] refuses
+     * with a sentence when the model is read-only or the transition isn't one the app makes).
+     * After the write the state is re-read, and a change that did not show up is reported: the
+     * earbuds may acknowledge a write and discard it.
+     */
+    private suspend fun writeModel(name: String, build: (SoundcoreState) -> SoundcorePacket) = commands.withLock {
+        val conn = connectionManager.connection.value ?: throw HeadphoneCommandException("Earbuds not connected")
+        val before = latest ?: throw HeadphoneCommandException("The earbuds haven't reported their state yet")
+        val packet = try {
+            build(before)
+        } catch (e: SoundcoreWriteRefused) {
+            throw HeadphoneCommandException(e.message ?: UNSUPPORTED, e)
+        }
+        _state.update { it.copy(isBusy = true) }
+        try {
+            // Command and size only: the body is the earbuds' own settings and nothing needs logging.
+            Log.i(TAG, "$name → ${SoundcorePacket.commandName(packet.command)} (${packet.body.size} bytes)")
+            conn.request(packet.command, packet.body)
+            readState(conn)
+            if (!took(before, packet)) {
+                delay(VERIFY_DELAY_MS)
+                readState(conn)
+                if (!took(before, packet)) throw HeadphoneCommandException(NOT_APPLIED)
+            }
+        } finally {
+            _state.update { it.copy(isBusy = false) }
+        }
+    }
+
+    private fun took(before: SoundcoreState, packet: SoundcorePacket): Boolean =
+        latest?.let { SoundcoreWrites.confirms(before, it, packet) } == true
+
+    // ---- What the earbuds have --------------------------------------------------------------
 
     override suspend fun refresh() {
         val conn = connectionManager.connection.value ?: throw HeadphoneCommandException("Earbuds not connected")
         commands.withLock { readState(conn) }
     }
 
-    override suspend fun setMode(index: Int) = when (index) {
-        SoundcoreStateMapping.MODE_ANC -> write("noise cancelling", SoundcoreCommands.SET_ANC_D1301, 1)
-        SoundcoreStateMapping.MODE_OFF -> write("noise cancelling", SoundcoreCommands.SET_ANC_D1301, 0)
-        else -> throw HeadphoneCommandException("The Sleep A30 has two modes: noise cancelling and off")
+    override suspend fun setMode(index: Int) {
+        if (sleepA30) return when (index) {
+            SoundcoreStateMapping.MODE_ANC -> write("noise cancelling", SoundcoreCommands.SET_ANC_D1301, 1)
+            SoundcoreStateMapping.MODE_OFF -> write("noise cancelling", SoundcoreCommands.SET_ANC_D1301, 0)
+            else -> throw HeadphoneCommandException("The Sleep A30 has two modes: noise cancelling and off")
+        }
+        val mode = SoundcoreModelMapping.ambientFor(index)
+            ?: throw HeadphoneCommandException("These earbuds have three modes: noise cancelling, transparency and normal")
+        writeModel("mode ${mode.name.lowercase()}") { SoundcoreWrites.setAmbient(it, mode) }
     }
 
-    override suspend fun setNoise(settings: NoiseSettings) =
-        write("noise cancelling", SoundcoreCommands.SET_ANC_D1301, if (settings.ancEnabled) 1 else 0)
+    override suspend fun setNoise(settings: NoiseSettings) {
+        if (sleepA30) return write("noise cancelling", SoundcoreCommands.SET_ANC_D1301, if (settings.ancEnabled) 1 else 0)
+        val mode = if (settings.ancEnabled) AmbientMode.NOISE_CANCELLING else AmbientMode.NORMAL
+        writeModel("noise cancelling") { SoundcoreWrites.setAmbient(it, mode) }
+    }
 
-    override suspend fun setTouchControls(enabled: Boolean) =
+    override suspend fun setTouchControls(enabled: Boolean) {
+        if (!sleepA30) unsupported()
         write("tap controls", SoundcoreCommands.SET_TAP_DISABLED, if (enabled) 0 else 1)
+    }
 
     override suspend fun setVendorControl(id: String, value: Int) {
+        if (!sleepA30) return writeModel(id) { SoundcoreWrites.control(it, id, value) }
         val (command, body) = SoundcoreStateMapping.write(id, value)
             ?: throw HeadphoneCommandException("The Sleep A30 has no setting \"$id\"")
         write(id, command, body)
@@ -231,6 +359,9 @@ class SoundcoreHeadphoneRepository(
         private const val TAG = "Earshot/Soundcore"
         const val DEMO_NAME = "Virtual Sleep A30 (demo)"
         const val UNSUPPORTED = "Earshot's Soundcore driver doesn't support that setting on these earbuds yet"
+        const val NOT_APPLIED = "The earbuds acknowledged that but didn't change. Their firmware may differ from the layout Earshot knows."
         private const val STATE_POLL_MS = 60_000L
+        private const val SESSION_INIT_GAP_MS = 300L
+        private const val VERIFY_DELAY_MS = 500L
     }
 }

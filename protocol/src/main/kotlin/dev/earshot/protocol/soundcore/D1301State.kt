@@ -84,23 +84,3 @@ data class D1301State(
         private fun ByteArray.u8(i: Int): Int = this[i].toInt() and 0xFF
     }
 }
-
-/** Soundcore models Earshot drives, by the Bluetooth name and the vendor UUID's model suffix. */
-enum class SoundcoreModel(val modelId: String, val displayName: String, private val nameHint: Regex) {
-    SLEEP_A30("d1301", "Soundcore Sleep A30", Regex("""sleep\s*a30""", RegexOption.IGNORE_CASE)),
-    ;
-
-    companion object {
-        /** The vendor service: `0cf12d31-fac3-4553-bd80-d6832e7` + the model id in hex (`…d6832e7d1301`). */
-        const val SERVICE_UUID_PREFIX = "0cf12d31-fac3-4553-bd80-d6832e7"
-
-        fun fromName(name: String?): SoundcoreModel? = name?.let { n -> entries.firstOrNull { it.nameHint.containsMatchIn(n) } }
-
-        /** The model a vendor service UUID belongs to, or null for another Soundcore model (not driven yet). */
-        fun fromServiceUuid(uuid: String): SoundcoreModel? {
-            val u = uuid.lowercase()
-            if (!u.startsWith(SERVICE_UUID_PREFIX)) return null
-            return entries.firstOrNull { u.endsWith(it.modelId) }
-        }
-    }
-}
