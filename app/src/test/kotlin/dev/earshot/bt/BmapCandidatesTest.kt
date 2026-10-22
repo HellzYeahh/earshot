@@ -52,9 +52,12 @@ class BmapCandidatesTest {
     }
 
     @Test
-    fun `a forced Bose type on a non-Bose device gets only the SDP lookups, never blind channels`() {
+    fun `a forced Bose type on a non-Bose device gets only the SPP lookup, never blind channels or deca-fade`() {
         val order = BmapCandidates.order(learned = null, guessedChannel = 8, fixedChannels = false)
-        assertEquals(listOf<BmapCandidate>(BmapCandidate.SdpSpp, BmapCandidate.SdpBmap), order)
+        // deca-fade is probably Apple iAP2: a stray frame there powered a Sennheiser Accentum off.
+        assertEquals(listOf<BmapCandidate>(BmapCandidate.SdpSpp), order)
+        // A device that really answered on deca-fade before keeps it.
+        assertEquals(BmapCandidate.SdpBmap, BmapCandidates.order(BmapCandidate.SdpBmap, null, fixedChannels = false).first())
         // A channel this device really answered on before is still tried first.
         assertEquals(BmapCandidate.Channel(2), BmapCandidates.order(BmapCandidate.Channel(2), null, fixedChannels = false).first())
     }

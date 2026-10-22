@@ -1,12 +1,21 @@
 # Changelog
 
-## 0.6.0 — unreleased
+## 0.75.0 — unreleased
 
-**Any headset.** Earshot is becoming the companion app for every Bluetooth headset, not just Bose
-(plan: [docs/roadmap.md](docs/roadmap.md)). Every headset now gets the features that work through
-Android itself; Bose keeps its full control.
+**Any headset, and the first drivers beyond Bose.** Earshot is becoming the companion app for every
+Bluetooth headset, not just Bose (plan: [docs/roadmap.md](docs/roadmap.md)). Every headset now gets
+the features that work through Android itself, a universal remote, and a new look; Sennheiser, Sony,
+more Soundcore models and the Skullcandy Method buds get their own experimental drivers, built from
+protocol research ([docs/research/reports](docs/research/reports)). Bose keeps its full control.
+0.6 was never released: its work ships here.
 
 ### New
+- **Universal remote, for any headset** (Tools → Controls). Link the headset once (one Android
+  dialog, no re-pairing) and Earshot can **connect** and **disconnect** it (Android 17), set the
+  **name this phone shows** (Android 13+) and **forget** it (Android 16), whatever the brand and
+  with or without an Earshot driver. Rows this Android version can't do say which version they need.
+- **Battery straight away on more headsets, without Shizuku:** a headset that speaks Bluetooth LE
+  is asked once for its standard Battery Service level when nothing else knows it yet.
 - **A look of its own: Field.** Olive, sand and ink with a safety-orange indicator; Barlow
   Condensed titles, Barlow text, JetBrains Mono for values and legends (bundled, SIL OFL);
   hairline panels on a dot grid, a tick-marked battery dial, square switches and bar sliders.
@@ -64,6 +73,10 @@ Android itself; Bose keeps its full control.
   text where any headset can be meant. About: not affiliated with any headphone maker.
 
 ### Fixed
+- **A headset forced to "Headphone type: Bose" no longer gets a frame on Apple's accessory
+  channel.** The Bose lookup by the `deca-fade` service ID most likely finds the iPhone accessory
+  (iAP2) channel on other brands, and a stray frame there has switched a Sennheiser Accentum off.
+  Only a headset that looks like or answered as a Bose gets that lookup now.
 - **Call volume boost didn't reach the headset.** Android keeps one call volume per output and
   applies a change to the output the call uses *at that moment*. The boost fired 1 s after the call
   started, often before the Bluetooth call link was up, so it raised the earpiece (seen on a Galaxy:

@@ -142,8 +142,11 @@ class AppContainer(private val appContext: Context) {
         GenericHeadphoneRepository(
             appContext, boseHeadphones.devicePrefs, boseHeadphones.deviceFinder, applicationScope,
             initialBattery = { address ->
+                val device = boseHeadphones.deviceFinder.deviceFor(address)
                 HeadsetBatteryReader.read(privilegedShell, address)
-                    ?: boseHeadphones.deviceFinder.deviceFor(address)?.let(dev.earshot.bt.DeviceBattery::read)
+                    ?: device?.let(dev.earshot.bt.DeviceBattery::read)
+                    // Standard Battery Service over our own GATT client: LE-capable headsets, no Shizuku.
+                    ?: device?.let { dev.earshot.bt.GattBatteryReader.read(appContext, it) }
             },
             appleAdverts = AppleAdvertScanner(appContext, applicationScope),
             demo = { if (demoMode.isEnabledBlocking()) demoMode.deviceBlocking().demoHeadset() else null },

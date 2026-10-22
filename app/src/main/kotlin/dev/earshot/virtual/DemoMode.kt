@@ -26,23 +26,23 @@ enum class DemoDevice(
     val isGeneric: Boolean = false,
     val isSoundcore: Boolean = false,
 ) {
-    QC_ULTRA("QC Ultra Headphones (2nd Gen)"),
-    QC_ULTRA_EARBUDS_2("QC Ultra Earbuds (2nd Gen)"),
-    QC_EARBUDS_2("QC Earbuds II"),
-    QC_EARBUDS("QC Earbuds (2020)"),
-    QC45("QuietComfort 45"),
-    NC700("Noise Cancelling Headphones 700"),
-    ULTRA_OPEN("Ultra Open Earbuds"),
+    QC_ULTRA("Bose QC Ultra Headphones (2nd Gen)"),
+    QC_ULTRA_EARBUDS_2("Bose QC Ultra Earbuds (2nd Gen)"),
+    QC_EARBUDS_2("Bose QC Earbuds II"),
+    QC_EARBUDS("Bose QC Earbuds (2020)"),
+    QC45("Bose QuietComfort 45"),
+    NC700("Bose Noise Cancelling Headphones 700"),
+    ULTRA_OPEN("Bose Ultra Open Earbuds"),
 
     /** Recognised but unsupported: shows how the app explains that. */
-    QC35_II("QuietComfort 35 II"),
-    CRUSHER("Crusher 1080", isCrusher = true),
+    QC35_II("Bose QuietComfort 35 II"),
+    CRUSHER("Skullcandy Crusher 1080", isCrusher = true),
 
     /** A Crusher that asks for the one-time pairing, to try the pairing flow without the headphones. */
-    CRUSHER_SECURE("Crusher (pairing)", isCrusher = true),
+    CRUSHER_SECURE("Skullcandy Crusher (pairing)", isCrusher = true),
 
     /** A headset Earshot has no stack for: shown by name, battery from a canned AirPods advert. */
-    AIRPODS_PRO("AirPods Pro", isGeneric = true),
+    AIRPODS_PRO("Apple AirPods Pro", isGeneric = true),
 
     /** The Soundcore driver against a virtual Sleep A30 (noise cancelling on/off, battery, tap controls). */
     SOUNDCORE_SLEEP_A30("Soundcore Sleep A30", isSoundcore = true),

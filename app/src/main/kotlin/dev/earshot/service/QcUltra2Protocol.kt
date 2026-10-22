@@ -1423,7 +1423,7 @@ class QcUltra2Protocol(
         private const val AUDIO_MODES_BLOCK = 31
         const val MODES_UNAVAILABLE_MESSAGE = "This firmware doesn't expose listening modes to other apps"
         const val LE_AUDIO_ABSENT_MESSAGE =
-            "These headphones' firmware has no LE Audio switch. LE Audio can only come with a Bose firmware update."
+            "These headphones' firmware has no LE Audio switch. LE Audio can only come with a firmware update from the maker's app."
         /** `[4.4]` can list more than the two multipoint links; the UI shows a handful at most. */
         const val MAX_PAIRED_DEVICES = 8
         /** Battery re-read cadence while `[9.2]` pushes are off. */
