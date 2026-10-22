@@ -37,6 +37,7 @@ import dev.earshot.virtual.VirtualCrusherTransport
 import dev.earshot.virtual.VirtualProfile
 import dev.earshot.virtual.VirtualQcUltra2
 import dev.earshot.virtual.VirtualTransport
+import dev.earshot.virtual.soundcoreModel
 import dev.earshot.virtual.virtualProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,6 +65,8 @@ class AppContainer(private val appContext: Context) {
     /** One virtual Crusher per process, for the same reason (and one that asks for the pairing). */
     private val virtualCrusher: VirtualCrusher by lazy { VirtualCrusher() }
     private val virtualCrusherSecure: VirtualCrusher by lazy { VirtualCrusher(authenticatedAccess = true) }
+    private val virtualMethod360: VirtualCrusher by lazy { VirtualCrusher.method360() }
+    private val virtualMethod540: VirtualCrusher by lazy { VirtualCrusher.method540() }
 
     /** Demo transports are device-specific: only the family the demo device belongs to gets one. */
     private val boseDemoTransport: () -> (() -> ByteTransport)? = {
@@ -78,6 +81,8 @@ class AppContainer(private val appContext: Context) {
         else when (demoMode.deviceBlocking()) {
             DemoDevice.CRUSHER -> ({ VirtualCrusherTransport(virtualCrusher) })
             DemoDevice.CRUSHER_SECURE -> ({ VirtualCrusherTransport(virtualCrusherSecure) })
+            DemoDevice.METHOD_360 -> ({ VirtualCrusherTransport(virtualMethod360) })
+            DemoDevice.METHOD_540 -> ({ VirtualCrusherTransport(virtualMethod540) })
             else -> null
         }
     }
@@ -85,9 +90,28 @@ class AppContainer(private val appContext: Context) {
     /** One virtual Sleep A30 per process, so its state survives demo reconnects. */
     private val virtualSleepA30: dev.earshot.virtual.VirtualSleepA30 by lazy { dev.earshot.virtual.VirtualSleepA30() }
 
+    /** One virtual unit per other Soundcore demo device and process (Liberty 4 NC, Space One Pro). */
+    private val virtualSoundcore = ConcurrentHashMap<DemoDevice, dev.earshot.virtual.VirtualSoundcore>()
+
     private val soundcoreDemoTransport: () -> (() -> ByteTransport)? = {
         if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking().isSoundcore) {
-            { dev.earshot.virtual.VirtualSleepA30Transport(virtualSleepA30) }
+            val device = demoMode.deviceBlocking()
+            val model = device.soundcoreModel()
+            if (model == null) {
+                { dev.earshot.virtual.VirtualSleepA30Transport(virtualSleepA30) }
+            } else {
+                val unit = virtualSoundcore.computeIfAbsent(device) { dev.earshot.virtual.VirtualSoundcore(model) }
+                ({ dev.earshot.virtual.VirtualSoundcoreTransport(unit) })
+            }
+        } else null
+    }
+
+    /** One virtual Momentum 4 per process, so its state survives demo reconnects. */
+    private val virtualSennheiser: dev.earshot.virtual.VirtualSennheiser by lazy { dev.earshot.virtual.VirtualSennheiser() }
+
+    private val sennheiserDemoTransport: () -> (() -> ByteTransport)? = {
+        if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking().isSennheiser) {
+            { dev.earshot.virtual.VirtualSennheiserTransport(virtualSennheiser) }
         } else null
     }
 
@@ -115,6 +139,11 @@ class AppContainer(private val appContext: Context) {
         CrusherHeadphoneRepository(
             appContext, CrusherProtocol(), applicationScope, crusherDemoTransport,
             autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+            demoName = {
+                demoMode.deviceBlocking().let { d ->
+                    if (d == DemoDevice.METHOD_360 || d == DemoDevice.METHOD_540) "Virtual ${d.displayName} (demo)" else CrusherHeadphoneRepository.DEMO_NAME
+                }
+            },
         )
     }
 
@@ -122,6 +151,19 @@ class AppContainer(private val appContext: Context) {
     private val soundcoreHeadphones: dev.earshot.service.SoundcoreHeadphoneRepository by lazy {
         dev.earshot.service.SoundcoreHeadphoneRepository(
             appContext, applicationScope, soundcoreDemoTransport,
+            autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+            demoName = {
+                demoMode.deviceBlocking().let { d ->
+                    if (d == DemoDevice.SOUNDCORE_SLEEP_A30) dev.earshot.service.SoundcoreHeadphoneRepository.DEMO_NAME else "Virtual ${d.displayName} (demo)"
+                }
+            },
+        )
+    }
+
+    /** Sennheiser headsets (Momentum 4, Accentum, Momentum True Wireless …) over GAIA v3. Experimental. */
+    private val sennheiserHeadphones: dev.earshot.service.SennheiserHeadphoneRepository by lazy {
+        dev.earshot.service.SennheiserHeadphoneRepository(
+            appContext, applicationScope, sennheiserDemoTransport,
             autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
         )
     }
@@ -167,6 +209,7 @@ class AppContainer(private val appContext: Context) {
                 VendorDriver(DeviceFamily.BOSE, boseHeadphones, boseHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.BRAGI, crusherHeadphones, crusherHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.SOUNDCORE, soundcoreHeadphones, soundcoreHeadphones::releaseConnection),
+                VendorDriver(DeviceFamily.SENNHEISER, sennheiserHeadphones, sennheiserHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.SONY, sonyHeadphones, sonyHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.GENERIC, genericHeadphones, genericHeadphones::releaseConnection),
             ),
@@ -181,6 +224,7 @@ class AppContainer(private val appContext: Context) {
                         device.isCrusher -> DeviceFamily.BRAGI
                         device.isGeneric -> DeviceFamily.GENERIC
                         device.isSoundcore -> DeviceFamily.SOUNDCORE
+                        device.isSennheiser -> DeviceFamily.SENNHEISER
                         device == DemoDevice.SONY_WH1000XM5 -> DeviceFamily.SONY
                         else -> DeviceFamily.BOSE
                     }

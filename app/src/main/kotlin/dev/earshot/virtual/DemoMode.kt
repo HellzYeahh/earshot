@@ -47,6 +47,17 @@ enum class DemoDevice(
     /** The Soundcore driver against a virtual Sleep A30 (noise cancelling on/off, battery, tap controls). */
     SOUNDCORE_SLEEP_A30("Soundcore Sleep A30", isSoundcore = true),
 
+    /** Soundcore models driven from their layout table: three ambient modes, noise-cancelling type and level, settings ([soundcoreModel]). */
+    SOUNDCORE_LIBERTY_4_NC("Soundcore Liberty 4 NC", isSoundcore = true),
+    SOUNDCORE_SPACE_ONE_PRO("Soundcore Space One Pro", isSoundcore = true),
+
+    /** The Skullcandy Method earbuds on the Bragi stack: Quiet / Aware / Off, sidetone, battery; no Crusher bass, no spatial audio. */
+    METHOD_360("Skullcandy Method 360 ANC", isCrusher = true),
+    METHOD_540("Skullcandy Method 540 ANC", isCrusher = true),
+
+    /** The Sennheiser driver (Experimental) against a virtual Momentum 4: modes, noise level, anti-wind, EQ, settings. */
+    SENNHEISER_MOMENTUM_4("Sennheiser MOMENTUM 4"),
+
     /** The Sony driver (Experimental) against a virtual WH-1000XM5; see `isSony` in VirtualSony.kt. */
     SONY_WH1000XM5("Sony WH-1000XM5"),
     ;
@@ -57,6 +68,9 @@ enum class DemoDevice(
         AIRPODS_PRO -> DemoHeadset("AirPods Pro (demo)", byteArrayOf(0x07, 0x19, 0x01, 0x14, 0x20, 0x2B, 0x89.toByte(), 0x46, 0, 0, 0))
         else -> null
     }
+
+    /** Runs the Sennheiser stack against a [VirtualSennheiser]. */
+    val isSennheiser: Boolean get() = this == SENNHEISER_MOMENTUM_4
 }
 
 /** A generic demo headset: its name and the proximity-pairing advert it "sends". */

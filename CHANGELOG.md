@@ -22,6 +22,9 @@ protocol research ([docs/research/reports](docs/research/reports)). Bose keeps i
   It replaces the wallpaper-derived colours as the default. **App preferences → Appearance**
   keeps **System colours** (Android 12+) as an option: Field's type and shapes with the
   wallpaper's palette.
+- **New app icon, "Strike":** a lightning bolt drops through the headband and splits the
+  headphones into an orange left and a green right channel. Ink bolt on sand in light mode,
+  signal yellow on near-black in dark mode, and a themed (monochrome) version for Android 13+.
 - **Soundcore Sleep A30 (experimental, tested on one pair):** Earshot's first non-Bose driver.
   - Home has an **Earbud controls** card: a Noise cancelling switch and the Listening mode
     (Bluetooth or the earbuds' own Local sounds).
@@ -52,13 +55,42 @@ protocol research ([docs/research/reports](docs/research/reports)). Bose keeps i
 - **Codec panel without Shizuku:** the current codec shows from the next codec change Android
   announces (switching still needs Shizuku).
 - **Headphone type: Soundcore (Sleep A30) and Other headset**, for a device that Earshot recognises wrongly.
+- **Soundcore: 35 models recognised (experimental).** Every Soundcore headset on the brand's own
+  Bluetooth service is recognised: Liberty 3 Pro / 4 / 4 NC / 4 Pro / 5, P31i, P40i, R50i NC, A30i,
+  R60i NC, Space A40 / One / One Pro / Q45 / 2, Sport X20, Sleep A20 and more.
+  - All of them show battery (per bud and case), charging, firmware and, where the layout is known,
+    their sound mode.
+  - **Liberty 4 NC, Liberty 5, P40i, R50i NC, A30i, P31i / R60i NC, Space A40, Liberty 3 Pro, Space
+    One, Space One Pro and Space Q45** can change mode (noise cancelling, transparency, normal),
+    noise-cancelling type and level, wind reduction and the settings their layout documents. Earshot
+    only writes after the state it read matches the known layout, and reads each change back.
+  - Space 2, Liberty 4 and Liberty 4 Pro stay read-only until their layouts are confirmed.
+  - Each model has its own allow-list: unpair, pairing mode, power off, the find tone, resets and
+    firmware updates are refused before they leave the phone.
+  - Demo mode has a virtual Liberty 4 NC and Space One Pro.
+- **Sennheiser (experimental):** MOMENTUM 4 and 5, ACCENTUM, ACCENTUM Plus and TW, MOMENTUM True
+  Wireless 3 and 4 and MOMENTUM Sport, over their own Qualcomm GAIA service.
+  - Noise cancelling / transparency / off, the noise ↔ transparency slider (MOMENTUM 4/5, ACCENTUM
+    Plus), adaptive noise cancelling, anti-wind and comfort, and the earbuds' transparency level.
+  - Battery, EQ on current firmware with bass boost, auto-pause, on-head detection, auto-answer,
+    comfort call, sidetone and auto power-off.
+  - Connects only through Sennheiser's own service ID; firmware update, factory reset, pairing
+    deletion and reboot are never sent. CX Plus TW and CX 500BT (Bluetooth LE only) stay generic.
+  - Demo mode has a virtual MOMENTUM 4. Protocol facts from momentum4-control and momentumctl (MIT).
+- **Skullcandy Method 360 ANC and Method 540 ANC (experimental)** run on the same connection as the
+  Crusher 1080: Quiet / Aware / Off, the noise level, sidetone and battery, without the Crusher-only
+  cards. Demo mode has both.
+- **A new app icon, "Strike"** (see above), and **brand-neutral wording**: onboarding, About, the
+  connection screens and the Detect / Call audio hints no longer assume Bose. "Close the … app"
+  names the app that actually holds the connection (Bose, Skullcandy, Soundcore…), the
+  not-affiliated notice covers every brand the app mentions, and demo devices show their brand.
 
 ### Changed
 - **Tools never hide a setting.** Touch controls, voice prompts, rename, power off, LE Audio,
   latency and the Lab stay on screen for any headset and can be tried while it is connected; a
   headset that doesn't support one says so. A Bose-only command can be tried on another headset by
-  setting Headphone type to Bose. Earshot then only looks the Bose service up by its ID and never
-  probes channels blind, since some earbuds keep a firmware-update channel on one of them.
+  setting Headphone type to Bose. Earshot then only looks up the standard serial service by its ID
+  and never probes channels blind, since some earbuds keep a firmware-update channel on one of them.
 - **Calls, automations and the background service follow the headset's audio link**, not only
   Earshot's control link: with the Bose app holding the control channel, or on a headset without a
   driver, the call boost and EQ automations keep working.
@@ -73,6 +105,12 @@ protocol research ([docs/research/reports](docs/research/reports)). Bose keeps i
   text where any headset can be meant. About: not affiliated with any headphone maker.
 
 ### Fixed
+- **A Bluetooth socket the phone won't let go of no longer stalls the connection search** (GitHub
+  #1). Each control-channel candidate has a 6 s limit, but on some phones (a Xiaomi on Android 16)
+  the Bluetooth stack kept a connect blocked for over a minute and the search waited for it. Earshot
+  now drops the stuck socket after the limit and moves on. The reporter's 2024 QuietComfort Earbuds
+  ("QCE (2024)") don't speak BMAP: they are now shown as a generic headset instead of being searched.
+- **Connection reports** no longer show scrambled class names (such as "ea2:") in release builds.
 - **A headset forced to "Headphone type: Bose" no longer gets a frame on Apple's accessory
   channel.** The Bose lookup by the `deca-fade` service ID most likely finds the iPhone accessory
   (iAP2) channel on other brands, and a stray frame there has switched a Sennheiser Accentum off.

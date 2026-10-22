@@ -26,6 +26,7 @@
     <string name="prefs_type_crusher">Skullcandy Crusher</string>
     <string name="prefs_type_generic">Other headset</string>
     <string name="prefs_type_soundcore">Soundcore (Sleep A30)</string>
+    <string name="prefs_type_sennheiser">Sennheiser (Experimental)</string>
     <string name="prefs_type_sony">Sony (Experimental)</string>
     <string name="home_vendor_controls">Headphone controls</string>
     <string name="home_vendor_controls_buds">Earbud controls</string>

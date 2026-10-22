@@ -24,7 +24,7 @@ class AnyHeadsetTest {
     @Test fun `other brands are generic, including look-alikes the old hints caught`() {
         listOf(
             "QCY-T13", "QCY HT05", // a different brand starting with QC
-            "Soundcore Liberty 4 NC", "Galaxy Buds3 Pro", "AirPods Pro", "WH-1000XM4", // Sony MDR v1: no driver
+            "Soundcore Boom 2", "Galaxy Buds3 Pro", "AirPods Pro", "WH-1000XM4", // Sony MDR v1: no driver
             "Nothing Ear (2)", "Redmi Buds 6 Ultra", "Space Ultra", "TWS-X15", "Alex's headphones",
         ).forEach { assertEquals(DeviceFamily.GENERIC, DeviceFamily.forName(it), it) }
     }

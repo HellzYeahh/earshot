@@ -21,3 +21,15 @@ internal object BtLog {
     fun w(msg: String, t: Throwable? = null) { LogRing.add('W', "Bt", msg); sink(Log.WARN, msg, t) }
     fun e(msg: String, t: Throwable? = null) { LogRing.add('E', "Bt", msg); sink(Log.ERROR, msg, t) }
 }
+
+/**
+ * A failure as one line for logs and the connection report: "IOException: read failed" for a
+ * platform exception, just the message for Earshot's own. Release builds are minified (R8), so
+ * an Earshot class prints as its obfuscated name; user reports read "ch8: ea2: Could not open
+ * the control channel" (issue #1) instead of a message anybody could use.
+ */
+internal fun Throwable.describeForReport(): String {
+    val text = message ?: "no message"
+    val own = this is RfcommConnectException || this is UnresponsiveLinkException || javaClass.name.startsWith("dev.earshot.")
+    return if (own) text else "${javaClass.simpleName}: $text"
+}

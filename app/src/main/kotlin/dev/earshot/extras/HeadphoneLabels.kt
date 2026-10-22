@@ -4,6 +4,8 @@ import dev.earshot.core.BatteryLevel
 import dev.earshot.core.DeviceInfo
 import dev.earshot.core.FormFactor
 import dev.earshot.core.HeadphoneState
+import dev.earshot.protocol.bragi.BragiModel
+import dev.earshot.protocol.soundcore.SoundcoreModel
 
 /**
  * Plain-Kotlin naming and battery helpers shared by Home, the widget, the tile, the low-battery
@@ -47,6 +49,11 @@ object HeadphoneLabels {
 
     fun formFactorFromName(name: String?): FormFactor {
         val n = name?.lowercase() ?: return FormFactor.HEADPHONES
+        // Models a brand table knows, whose names don't say "buds" ("Method 360 ANC", "Liberty 4 NC").
+        SoundcoreModel.fromName(name)?.let { return if (it.earbuds) FormFactor.EARBUDS else FormFactor.HEADPHONES }
+        BragiModel.fromBluetoothName(name)?.let { return if (it.features.earbuds) FormFactor.EARBUDS else FormFactor.HEADPHONES }
+        // "MOMENTUM TW 4", "ACCENTUM TW", "MOMENTUM SPORT": Sennheiser's earbud names don't say it either.
+        dev.earshot.protocol.sennheiser.SennheiserModel.fromName(name)?.let { return if (it.earbuds) FormFactor.EARBUDS else FormFactor.HEADPHONES }
         val buds = "bud" in n || EARBUD_WORDS.containsMatchIn(n)
         return when {
             "open" in n && buds -> FormFactor.OPEN_EARBUDS
