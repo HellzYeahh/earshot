@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "dev.earshot"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.earshot"

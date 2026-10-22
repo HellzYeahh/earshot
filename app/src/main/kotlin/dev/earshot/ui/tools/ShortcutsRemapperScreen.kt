@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -290,6 +291,11 @@ fun ShortcutsRemapperContent(
                     .bringIntoViewRequester(touchRequester)
                     .highlighted(highlight == ControlsHighlight.TOUCH_CONTROLS, highlightColor, highlightShape),
             )
+
+            // Any headset, driver or not: connect, disconnect, rename and forget through a CDM link.
+            if (!LocalInspectionMode.current) {
+                UniversalRemoteSection(state.headset?.let { RemoteTarget(it.address, it.name) })
+            }
         }
     }
 

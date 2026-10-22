@@ -41,6 +41,8 @@
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Universal remote: a Companion Device Manager link per headset (connect, rename, forget). -->
+    <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
 
     <!-- Shortcuts remapper: the assistants it can forward to, and the TextToSpeech engine. -->
     <queries>

@@ -604,6 +604,30 @@
     <string name="whats_new_call_link">Call audio shows the headset\'s call volume and mic gain</string>
     <string name="whats_new_done">Got it</string>
 
+    <!-- 0.75: universal remote (Companion Device Manager link, any headset) -->
+    <string name="remote_title">Universal remote</string>
+    <string name="remote_intro">Works with any headset. Link it once and Earshot can connect, disconnect, rename and forget it.</string>
+    <string name="remote_no_headset">Connect a headset, or pick one on Home, to use the universal remote.</string>
+    <string name="remote_link">Link this headset</string>
+    <string name="remote_link_subtitle">One Android dialog. It stays paired as it is.</string>
+    <string name="remote_unavailable">This phone doesn\'t offer companion-device links.</string>
+    <string name="remote_linked">Linked %1$s</string>
+    <string name="remote_link_failed">Linking didn\'t finish: %1$s</string>
+    <string name="remote_connect">Connect</string>
+    <string name="remote_disconnect">Disconnect</string>
+    <string name="remote_needs_android">Needs Android %1$d</string>
+    <string name="remote_rename">Name on this phone</string>
+    <string name="remote_rename_subtitle">Only this phone sees it; the headset keeps its own name.</string>
+    <string name="remote_forget">Forget headset</string>
+    <string name="remote_forget_confirm">Unpair %1$s from this phone? To use it again you\'ll need to pair it in Bluetooth settings.</string>
+    <string name="remote_unlink">Unlink</string>
+    <string name="remote_unlink_subtitle">Earshot stops using the link. The headset stays paired.</string>
+    <string name="remote_connecting">Connecting %1$s…</string>
+    <string name="remote_disconnected">Disconnected %1$s</string>
+    <string name="remote_renamed">Renamed on this phone</string>
+    <string name="remote_forgotten">Forgot %1$s</string>
+    <string name="remote_unlinked">Unlinked</string>
+
     <!-- 0.4.0: low-battery alert -->
     <string name="alert_channel_name">Alerts</string>
     <string name="alert_channel_description">Headphone battery warnings</string>

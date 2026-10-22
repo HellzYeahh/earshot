@@ -106,7 +106,11 @@ object BmapCandidates {
                 PROBED_CHANNELS.forEach { add(BmapCandidate.Channel(it)) }
             }
             add(BmapCandidate.SdpSpp)
-            add(BmapCandidate.SdpBmap)
+            // The deca-fade record is probably Apple's iAP2 accessory channel, not Bose's: GAIA frames
+            // sent there powered a Sennheiser Accentum off (research/Top brand headset protocols).
+            // Only a device that looks like, or answered as, a Bose gets it; a learned SdpBmap
+            // winner is still tried first above.
+            if (fixedChannels) add(BmapCandidate.SdpBmap)
         }.takeIf { hasClassic }.orEmpty()
         val le = listOf(BmapCandidate.LeCoc).takeIf { hasLe }.orEmpty()
         val all = if (preferLe) le + classic else classic + le
