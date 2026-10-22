@@ -42,6 +42,7 @@ class VirtualSennheiser(
     val received = mutableListOf<GaiaFrame>()
 
     var pauseInTransparency = false
+    var transparencyLevel = 100
     var onHead = true
     var smartPause = true
     var autoAnswer = false
@@ -92,6 +93,12 @@ class VirtualSennheiser(
             C.ANC_LEVEL_GET -> listOf(ok(f, level))
             C.ANC_MODE_GET -> listOf(ok(f, *modeTable()))
             C.TH_BEHAVIOUR_GET -> listOf(ok(f, pauseInTransparency.bit()))
+            // A Momentum 4 answers the earbuds' transparency level too (100, sidetone capture).
+            C.TH_LEVEL_GET -> listOf(ok(f, transparencyLevel))
+            C.TH_LEVEL_SET -> {
+                transparencyLevel = v.coerceIn(0, 100)
+                listOf(ok(f), push(C.TH_LEVEL_GET, transparencyLevel))
+            }
             C.ON_HEAD_GET -> listOf(ok(f, onHead.bit()))
             C.SMART_PAUSE_GET -> listOf(ok(f, smartPause.bit()))
             C.AUTO_ANSWER_GET -> listOf(ok(f, autoAnswer.bit()))

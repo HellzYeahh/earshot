@@ -267,7 +267,7 @@ class SennheiserEndToEndTest {
     }
 
     @Test fun `a headset that refuses its feature list is left alone`() = runTest {
-        val unit = object : VirtualSennheiser() {}
+        val unit = VirtualSennheiser()
         // A unit whose Sennheiser feature list answers "command not supported".
         val transport = object : ByteTransport {
             private val inbound = Channel<ByteArray>(Channel.UNLIMITED)
@@ -362,7 +362,7 @@ class SennheiserEndToEndTest {
         val factory = SennheiserLinkFactory()
         assertEquals(DeviceFamily.SENNHEISER, factory.family)
         assertEquals("Sennheiser Smart Control", factory.competingApp)
-        assertTrue(factory.busyMessage.contains("Smart Control"))
+        assertEquals("Close the Sennheiser Smart Control app, then try again", factory.busyMessage)
         // Unknown record: left to SDP. The GAIA v3 record: fine.
         SennheiserLinkFactory.checkServiceRecord(emptyList())
         SennheiserLinkFactory.checkServiceRecord(listOf(SPP, IAP2, SennheiserModel.GAIA3_SERVICE))

@@ -32,7 +32,8 @@ class SennheiserLinkFactory(
 ) : LinkFactory<SennheiserConnection> {
 
     override val family: DeviceFamily get() = DeviceFamily.SENNHEISER
-    override val busyMessage: String get() = MESSAGE_CHANNEL_BUSY
+
+    /** "Close the Sennheiser Smart Control app, then try again" through [LinkFactory.busyMessage]. */
     override val competingApp: String get() = "Sennheiser Smart Control"
 
     override suspend fun open(device: BluetoothDevice, name: String?, prefs: DevicePrefs, scope: CoroutineScope): SennheiserConnection {
@@ -77,8 +78,6 @@ class SennheiserLinkFactory(
     private fun cachedUuids(device: BluetoothDevice): List<UUID> = runCatching { device.uuids }.getOrNull().orEmpty().map { it.uuid }
 
     companion object {
-        const val MESSAGE_CHANNEL_BUSY = "Close Sennheiser Smart Control, then try again"
-
         /**
          * Android's cached SDP record, when it has one, must list the GAIA v3 service; an empty cache
          * is left to SDP at connect time (as Smart Control does). Pure, for the tests.
