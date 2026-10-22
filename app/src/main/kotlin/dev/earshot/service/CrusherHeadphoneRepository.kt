@@ -74,6 +74,8 @@ class CrusherHeadphoneRepository(
     autoConnect: () -> Boolean = { true },
     /** Keys for the secure session some Crusher firmware asks for; see [BragiSession]. */
     private val trust: BragiTrustStore = AndroidBragiTrustStore(context),
+    /** The name shown for the demo device ("Virtual Crusher 1080 (demo)" unless the demo is another Bragi product). */
+    demoName: () -> String = { DEMO_NAME },
 ) : HeadphoneRepository {
 
     private val appContext = context.applicationContext
@@ -84,7 +86,7 @@ class CrusherHeadphoneRepository(
         appContext, deviceFinder, devicePrefs, scope, BragiLinkFactory(),
         autoConnect = autoConnect,
         demoTransport = demoTransport,
-        demoName = { DEMO_NAME },
+        demoName = demoName,
     )
 
     private val _state = MutableStateFlow(HeadphoneState())

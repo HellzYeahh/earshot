@@ -65,6 +65,8 @@ class AppContainer(private val appContext: Context) {
     /** One virtual Crusher per process, for the same reason (and one that asks for the pairing). */
     private val virtualCrusher: VirtualCrusher by lazy { VirtualCrusher() }
     private val virtualCrusherSecure: VirtualCrusher by lazy { VirtualCrusher(authenticatedAccess = true) }
+    private val virtualMethod360: VirtualCrusher by lazy { VirtualCrusher.method360() }
+    private val virtualMethod540: VirtualCrusher by lazy { VirtualCrusher.method540() }
 
     /** Demo transports are device-specific: only the family the demo device belongs to gets one. */
     private val boseDemoTransport: () -> (() -> ByteTransport)? = {
@@ -79,6 +81,8 @@ class AppContainer(private val appContext: Context) {
         else when (demoMode.deviceBlocking()) {
             DemoDevice.CRUSHER -> ({ VirtualCrusherTransport(virtualCrusher) })
             DemoDevice.CRUSHER_SECURE -> ({ VirtualCrusherTransport(virtualCrusherSecure) })
+            DemoDevice.METHOD_360 -> ({ VirtualCrusherTransport(virtualMethod360) })
+            DemoDevice.METHOD_540 -> ({ VirtualCrusherTransport(virtualMethod540) })
             else -> null
         }
     }
@@ -117,6 +121,11 @@ class AppContainer(private val appContext: Context) {
         CrusherHeadphoneRepository(
             appContext, CrusherProtocol(), applicationScope, crusherDemoTransport,
             autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+            demoName = {
+                demoMode.deviceBlocking().let { d ->
+                    if (d == DemoDevice.METHOD_360 || d == DemoDevice.METHOD_540) "Virtual ${d.displayName} (demo)" else CrusherHeadphoneRepository.DEMO_NAME
+                }
+            },
         )
     }
 

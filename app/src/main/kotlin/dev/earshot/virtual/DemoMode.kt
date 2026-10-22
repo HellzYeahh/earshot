@@ -50,6 +50,10 @@ enum class DemoDevice(
     /** Soundcore models driven from their layout table: three ambient modes, noise-cancelling type and level, settings ([soundcoreModel]). */
     SOUNDCORE_LIBERTY_4_NC("Soundcore Liberty 4 NC", isSoundcore = true),
     SOUNDCORE_SPACE_ONE_PRO("Soundcore Space One Pro", isSoundcore = true),
+
+    /** The Skullcandy Method earbuds on the Bragi stack: Quiet / Aware / Off, sidetone, battery; no Crusher bass, no spatial audio. */
+    METHOD_360("Skullcandy Method 360 ANC", isCrusher = true),
+    METHOD_540("Skullcandy Method 540 ANC", isCrusher = true),
     ;
 
     /** The demo headset for a generic entry, or null. */
