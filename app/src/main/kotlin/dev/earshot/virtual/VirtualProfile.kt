@@ -219,4 +219,5 @@ fun DemoDevice.virtualProfile(): VirtualProfile? = when (this) {
     DemoDevice.SOUNDCORE_LIBERTY_4_NC, DemoDevice.SOUNDCORE_SPACE_ONE_PRO -> null
     DemoDevice.METHOD_360, DemoDevice.METHOD_540 -> null
     DemoDevice.SENNHEISER_MOMENTUM_4 -> null
+    DemoDevice.SONY_WH1000XM5 -> null
 }

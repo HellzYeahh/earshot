@@ -57,6 +57,9 @@ enum class DemoDevice(
 
     /** The Sennheiser driver (Experimental) against a virtual Momentum 4: modes, noise level, anti-wind, EQ, settings. */
     SENNHEISER_MOMENTUM_4("Sennheiser MOMENTUM 4"),
+
+    /** The Sony driver (Experimental) against a virtual WH-1000XM5; see `isSony` in VirtualSony.kt. */
+    SONY_WH1000XM5("Sony WH-1000XM5"),
     ;
 
     /** The demo headset for a generic entry, or null. */

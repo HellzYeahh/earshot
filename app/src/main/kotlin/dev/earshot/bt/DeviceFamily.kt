@@ -3,6 +3,7 @@ package dev.earshot.bt
 import dev.earshot.protocol.bragi.BragiModel
 import dev.earshot.protocol.sennheiser.SennheiserModel
 import dev.earshot.protocol.soundcore.SoundcoreModel
+import dev.earshot.protocol.sony.SonyModel
 
 /** Which stack drives a pair of headphones. */
 enum class DeviceFamily {
@@ -14,6 +15,9 @@ enum class DeviceFamily {
 
     /** Anker Soundcore over its RFCOMM vendor service; only the models in `SoundcoreModel` (Sleep A30 first). */
     SOUNDCORE,
+
+    /** Sony MDR v2 (Experimental) over its RFCOMM service by UUID; the v1 WH-1000XM4 stays [GENERIC]. */
+    SONY,
 
     /**
      * Sennheiser's Qualcomm GAIA v3 stack (vendor 0x0495) over its RFCOMM service by UUID:
@@ -55,6 +59,7 @@ enum class DeviceFamily {
             SoundcoreModel.fromName(name) != null -> SOUNDCORE
             // Before the Bose rule: a Sennheiser must never get the BMAP channel walk (its iAP2 record is a power-off risk).
             SennheiserModel.fromName(name) != null -> SENNHEISER
+            SonyModel.isSonyName(name) -> SONY
             looksLikeBose(name) -> BOSE
             else -> GENERIC
         }

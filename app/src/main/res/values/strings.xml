@@ -27,6 +27,7 @@
     <string name="prefs_type_generic">Other headset</string>
     <string name="prefs_type_soundcore">Soundcore (Sleep A30)</string>
     <string name="prefs_type_sennheiser">Sennheiser (Experimental)</string>
+    <string name="prefs_type_sony">Sony (Experimental)</string>
     <string name="home_vendor_controls">Headphone controls</string>
     <string name="home_vendor_controls_buds">Earbud controls</string>
     <string name="settings_generic_headset">Earshot can\'t change this headset\'s own settings yet. Pro EQ, the codec panel, call audio, Controls and automations work with it.</string>

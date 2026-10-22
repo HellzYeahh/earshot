@@ -355,6 +355,13 @@ data class VendorControl(
     val options: List<String>? = null,
     /** Also shown on Home (quick controls); every control is shown in More. */
     val onHome: Boolean = false,
+    /**
+     * A level instead of a switch or a choice: [value] is a number in this range, drawn as a slider
+     * (Sony: ambient sound level, EQ bands). Ignored when [options] is set.
+     */
+    val range: IntRange? = null,
+    /** Shown after a [range] value ("dB"); null for a plain number. */
+    val unit: String? = null,
 )
 
 data class HeadphoneState(
