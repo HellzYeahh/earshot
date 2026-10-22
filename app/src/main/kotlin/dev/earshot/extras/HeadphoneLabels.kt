@@ -52,6 +52,8 @@ object HeadphoneLabels {
         // Models a brand table knows, whose names don't say "buds" ("Method 360 ANC", "Liberty 4 NC").
         SoundcoreModel.fromName(name)?.let { return if (it.earbuds) FormFactor.EARBUDS else FormFactor.HEADPHONES }
         BragiModel.fromBluetoothName(name)?.let { return if (it.features.earbuds) FormFactor.EARBUDS else FormFactor.HEADPHONES }
+        // "MOMENTUM TW 4", "ACCENTUM TW", "MOMENTUM SPORT": Sennheiser's earbud names don't say it either.
+        dev.earshot.protocol.sennheiser.SennheiserModel.fromName(name)?.let { return if (it.earbuds) FormFactor.EARBUDS else FormFactor.HEADPHONES }
         val buds = "bud" in n || EARBUD_WORDS.containsMatchIn(n)
         return when {
             "open" in n && buds -> FormFactor.OPEN_EARBUDS

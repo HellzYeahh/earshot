@@ -218,4 +218,5 @@ fun DemoDevice.virtualProfile(): VirtualProfile? = when (this) {
     DemoDevice.CRUSHER, DemoDevice.CRUSHER_SECURE, DemoDevice.AIRPODS_PRO, DemoDevice.SOUNDCORE_SLEEP_A30 -> null
     DemoDevice.SOUNDCORE_LIBERTY_4_NC, DemoDevice.SOUNDCORE_SPACE_ONE_PRO -> null
     DemoDevice.METHOD_360, DemoDevice.METHOD_540 -> null
+    DemoDevice.SENNHEISER_MOMENTUM_4 -> null
 }

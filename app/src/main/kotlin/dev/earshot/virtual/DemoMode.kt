@@ -54,6 +54,9 @@ enum class DemoDevice(
     /** The Skullcandy Method earbuds on the Bragi stack: Quiet / Aware / Off, sidetone, battery; no Crusher bass, no spatial audio. */
     METHOD_360("Skullcandy Method 360 ANC", isCrusher = true),
     METHOD_540("Skullcandy Method 540 ANC", isCrusher = true),
+
+    /** The Sennheiser driver (Experimental) against a virtual Momentum 4: modes, noise level, anti-wind, EQ, settings. */
+    SENNHEISER_MOMENTUM_4("Sennheiser MOMENTUM 4"),
     ;
 
     /** The demo headset for a generic entry, or null. */
@@ -62,6 +65,9 @@ enum class DemoDevice(
         AIRPODS_PRO -> DemoHeadset("AirPods Pro (demo)", byteArrayOf(0x07, 0x19, 0x01, 0x14, 0x20, 0x2B, 0x89.toByte(), 0x46, 0, 0, 0))
         else -> null
     }
+
+    /** Runs the Sennheiser stack against a [VirtualSennheiser]. */
+    val isSennheiser: Boolean get() = this == SENNHEISER_MOMENTUM_4
 }
 
 /** A generic demo headset: its name and the proximity-pairing advert it "sends". */
