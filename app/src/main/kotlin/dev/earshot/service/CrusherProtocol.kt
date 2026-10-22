@@ -5,6 +5,7 @@ import dev.earshot.bt.BragiRequester
 import dev.earshot.bt.BragiSession
 import dev.earshot.core.CrusherBass
 import dev.earshot.core.DeviceInfo
+import dev.earshot.core.FormFactor
 import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneState
@@ -45,6 +46,12 @@ import kotlin.math.roundToInt
  *  - **Sidetone**: on/off plus a volume 0..max, folded into Off / Low / Medium / High thirds.
  *  - **Crusher bass**: [CrusherBass], a new capability (active, intensity, three feels).
  *
+ * The Skullcandy Method 360 / 540 ANC earbuds run on the same code ([BragiModel], research notes
+ * `skullcandy.md` §5): the model, from the Bluetooth name and then from `dev_info`, picks the
+ * [BragiFeatures] table, which keeps the Crusher bass and the spatial audio calls (and their
+ * screens) away from products that don't have them. Quiet / Aware / Off, their gain, the sidetone
+ * where the firmware answers it, and battery work as on the Crusher.
+ *
  * Reads are tolerant: a call the firmware refuses leaves that field as it was. Subscriptions
  * (`subscribe = true`) are made once per connection in [onConnected]; later refreshes only read.
  */
@@ -55,6 +62,9 @@ class CrusherProtocol {
     @Volatile private var sidetoneMax = 5
     @Volatile private var crusherConfig: Crusher.Config? = null
     @Volatile private var lastNonOffMode = HearingMode.ANC
+
+    /** Which product this connection is: the Bluetooth name at first, `dev_info` once it answers. The Crusher until told otherwise. */
+    @Volatile private var model: BragiModel = BragiModel.SKULLCANDY_CRUSHER_1080
 
     /** The `authenticated_access` flag from `dev_info`: the secure session is required for protected calls. */
     @Volatile var authenticatedAccess: Boolean = false
@@ -71,7 +81,9 @@ class CrusherProtocol {
     suspend fun onConnected(
         c: BragiRequester, current: HeadphoneState, secure: (suspend () -> BragiSession.Outcome)? = null,
     ): HeadphoneState {
-        var s = current.copy(capabilities = CAPABILITIES, livePushEnabled = false, secureSession = SecureSession(), pairing = null)
+        model = BragiModel.fromBluetoothName(current.connection.deviceName) ?: BragiModel.SKULLCANDY_CRUSHER_1080
+        crusherConfig = null
+        var s = current.copy(capabilities = capabilitiesFor(model), livePushEnabled = false, secureSession = SecureSession(), pairing = null)
         optional(c) { s = withDevInfo(s, WireDeviceInfo.parseDevInfo(c.call(BragiServices.DEV_INFO, WireDeviceInfo.devInfo()).payload)) }
         if (authenticatedAccess) {
             val outcome = secure?.invoke() ?: BragiSession.Outcome.Failed("This build cannot set up the secure session")
@@ -81,7 +93,7 @@ class CrusherProtocol {
             Hearing.parseModeInfo(c.call(BragiServices.HEARING_MODE_INFO).payload).let { ancGainMax = it.ancGainMax.coerceAtLeast(1); atGainMax = it.atGainMax.coerceAtLeast(1) }
         }
         optional(c) { sidetoneMax = Hearing.parseSidetoneInfo(c.call(BragiServices.SIDETONE_INFO).payload).coerceAtLeast(1) }
-        optional(c) { crusherConfig = Crusher.parseConfig(c.call(BragiServices.CRUSHER_CONFIG_GET).payload) }
+        if (model.features.crusherBass) optional(c) { crusherConfig = Crusher.parseConfig(c.call(BragiServices.CRUSHER_CONFIG_GET).payload) }
         return read(c, s, subscribe = true)
     }
 
@@ -99,8 +111,13 @@ class CrusherProtocol {
         optional(c) { s = withBattery(s, c.call(BragiServices.BATT_INFO).payload) }
         optional(c) { s = withMode(s, c.call(BragiServices.MODE_READ, Hearing.modeRead(subscribe), streaming = true).payload) }
         optional(c) { s = withSidetone(s, c.call(BragiServices.SIDETONE_READ, Hearing.sidetoneRead(subscribe), streaming = true).payload) }
-        optional(c) { s = withSpatial(s, c.call(BragiServices.SPATIAL_INFO_GET, WireSpatialAudio.infoGet(subscribe), streaming = true).payload) }
-        optional(c) { s = withCrusher(s, c.call(BragiServices.CRUSHER_STATE_GET, Crusher.stateGet(subscribe), streaming = true).payload) }
+        // Only what the product has: a Method earbud is not asked for a Crusher bass or a spatial mode it cannot answer.
+        if (model.features.spatialAudio) {
+            optional(c) { s = withSpatial(s, c.call(BragiServices.SPATIAL_INFO_GET, WireSpatialAudio.infoGet(subscribe), streaming = true).payload) }
+        }
+        if (model.features.crusherBass) {
+            optional(c) { s = withCrusher(s, c.call(BragiServices.CRUSHER_STATE_GET, Crusher.stateGet(subscribe), streaming = true).payload) }
+        }
         return s
     }
 
@@ -138,6 +155,7 @@ class CrusherProtocol {
         val before = current.noise ?: NoiseSettings()
         var s = current
         if (settings.spatialAudio != before.spatialAudio) {
+            if (!model.features.spatialAudio) throw HeadphoneCommandException("The ${model.displayName.removePrefix("Skullcandy ")} has no immersive audio")
             c.call(BragiServices.SPATIAL_MODE_SET, WireSpatialAudio.setMode(settings.spatialAudio.toWire()))
             s = s.copy(noise = (s.noise ?: before).copy(spatialAudio = settings.spatialAudio))
         }
@@ -210,11 +228,15 @@ class CrusherProtocol {
 
     private fun withDevInfo(s: HeadphoneState, d: WireDeviceInfo.DevInfoResponse): HeadphoneState {
         authenticatedAccess = d.authenticatedAccess
-        val model = BragiModel.fromModelNumber(d.modelNumber) ?: BragiModel.SKULLCANDY_CRUSHER_1080
-        return s.copy(info = (s.info ?: DeviceInfo()).copy(
-            productName = d.model, firmwareVersion = d.firmware, serialNumber = d.serial, modelName = model.displayName,
-            bmapVersion = d.bosVersion?.let { "BOS $it" },
-        ))
+        // The SKU says it best, then the codename, then what the Bluetooth name said; a renamed unit keeps the Crusher default.
+        model = BragiModel.fromModelNumber(d.modelNumber) ?: BragiModel.fromCodename(d.model) ?: model
+        return s.copy(
+            capabilities = capabilitiesFor(model),
+            info = (s.info ?: DeviceInfo()).copy(
+                productName = d.model, firmwareVersion = d.firmware, serialNumber = d.serial, modelName = model.displayName,
+                bmapVersion = d.bosVersion?.let { "BOS $it" },
+            ),
+        )
     }
 
     private fun withBattery(s: HeadphoneState, body: ByteArray): HeadphoneState {
@@ -313,5 +335,21 @@ class CrusherProtocol {
             spatialAudio = true, ancToggle = false, liveNoiseControl = true, windExcludesCancelling = false,
             noiseCancelling = true, ancAlwaysOn = false, windBlock = false, editableModes = false, favoriteModes = false, verified = false,
         )
+
+        /**
+         * The Crusher's [CAPABILITIES] as they are; for another Bragi product the same modes and
+         * level slider with what [BragiFeatures] says it lacks taken away (no immersive audio),
+         * its form factor, and a note that it has only been built from the app's feature list.
+         */
+        fun capabilitiesFor(model: BragiModel): HeadphoneCapabilities {
+            if (model == BragiModel.SKULLCANDY_CRUSHER_1080) return CAPABILITIES
+            val f = model.features
+            return CAPABILITIES.copy(
+                spatialAudio = f.spatialAudio,
+                formFactor = if (f.earbuds) FormFactor.EARBUDS else FormFactor.HEADPHONES,
+                supportNote = "Experimental: the ${model.displayName.removePrefix("Skullcandy ")} shares the Crusher 1080's stack and has not " +
+                    "been tried on real earbuds. Noise cancelling, Stay-Aware, sidetone where the earbuds offer it, and battery.",
+            )
+        }
     }
 }
