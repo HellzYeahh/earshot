@@ -77,8 +77,8 @@ class SennheiserWriteGuard(
         const val BUTTON_MAPPING_SET = 0x1600
         val REFUSED_BUTTON_FUNCTIONS: Set<Int> = setOf(8, 19)
 
-        /** The GETs Earshot sends, with their payload (empty unless given). */
-        private val READS: Map<Int, ByteArray> = mapOf(
+        /** The GETs Earshot sends, with their payload (empty unless given). The Lab's read list is built from it. */
+        val READS: Map<Int, ByteArray> = mapOf(
             C.SUPPORTED_FEATURES to ByteArray(0),
             C.ON_HEAD_GET to ByteArray(0),
             C.WEAR_STATE_GET to ByteArray(0),

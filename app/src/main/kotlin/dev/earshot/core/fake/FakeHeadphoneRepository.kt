@@ -17,6 +17,8 @@ import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneCandidate
 import dev.earshot.core.HeadphoneState
+import dev.earshot.core.LabGroup
+import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.LeAudioPreference
 import dev.earshot.core.ListeningMode
@@ -253,9 +255,12 @@ class FakeHeadphoneRepository(
         )
     }
 
-    override fun scanFunctions(blocks: List<Int>, maxFunction: Int): Flow<LabReading> = flow {
-        for (b in blocks) for (f in 0..maxFunction) {
-            emit(LabReading(b, f, knownName = KNOWN_NAMES[b to f], frames = readRaw(b, f)))
+    override fun labProfile(): LabProfile? = if (_state.value.isConnected) LAB_PROFILE else null
+
+    override fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> = flow {
+        val blocks = if (deep) LAB_PROFILE.groups.map { it.id } else groupIds
+        for (b in blocks) for (f in 0..LAB_MAX_FUNCTION) {
+            emit(LabReading(b, f, knownName = KNOWN_NAMES[b to f], frames = readRaw(b, f), groupName = LAB_PROFILE.group(b)?.name))
         }
     }
 
@@ -288,6 +293,26 @@ class FakeHeadphoneRepository(
         val KNOWN_NAMES = mapOf(
             (0 to 5) to "Firmware version", (1 to 7) to "EQ", (2 to 2) to "Battery",
             (31 to 3) to "Current mode", (31 to 10) to "Noise settings",
+        )
+
+        private const val LAB_MAX_FUNCTION = 10
+
+        /** A small BMAP-shaped Lab for previews and UI tests: four blocks, functions 0..10. */
+        val LAB_PROFILE = LabProfile(
+            stack = "Fake BMAP",
+            groupNoun = "Block",
+            groups = listOf(
+                LabGroup(0, "ProductInfo", LAB_MAX_FUNCTION + 1),
+                LabGroup(1, "Settings", LAB_MAX_FUNCTION + 1),
+                LabGroup(2, "Status", LAB_MAX_FUNCTION + 1),
+                LabGroup(31, "AudioModes", LAB_MAX_FUNCTION + 1),
+            ),
+            defaultGroups = setOf(1, 2, 31),
+            scanDescription = "GET on functions 0–$LAB_MAX_FUNCTION of each selected block",
+            deepReadCount = 4 * (LAB_MAX_FUNCTION + 1),
+            deepScanDescription = "Every fake block, functions 0–$LAB_MAX_FUNCTION.",
+            safetyNote = "In-memory fake: nothing leaves the phone.",
+            printConsole = true,
         )
 
         fun connectedState(): HeadphoneState {

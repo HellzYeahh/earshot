@@ -3,6 +3,7 @@ package dev.earshot.core
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * The single source of truth for the headphones. One implementation lives inside the
@@ -144,11 +145,30 @@ interface HeadphoneRepository {
 
     // ---- Lab (read-only exploration) -------------------------------------------------------
 
-    /** Send one GET to [block].[function] and return every frame that came back. Never writes. */
-    suspend fun readRaw(block: Int, function: Int): List<RawFrame>
+    /**
+     * What the Lab can scan on the connected headset: its stack, the groups of documented reads and
+     * what a Deep scan covers. Null when nothing is connected or the headset has no driver (nothing
+     * can be scanned there). May change while connected (a Sennheiser or Sony headset lists its
+     * features first), so callers re-read it when [state] changes.
+     */
+    fun labProfile(): LabProfile? = null
 
-    /** GET every function 0..[maxFunction] in each of [blocks]; emits as results arrive. */
-    fun scanFunctions(blocks: List<Int>, maxFunction: Int = 40): Flow<LabReading>
+    /**
+     * Run the Lab scanner: the reads of [groupIds] (from [labProfile]), or with [deep] every read the
+     * stack documents for this headset. Read-only: every request passes the stack's own write guard
+     * as a read; a command id is never guessed outside the stack's list (Bose's GET sweep excepted,
+     * since a BMAP GET cannot change anything). Emits one [LabReading] per read as it completes.
+     */
+    fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> = emptyFlow()
+
+    /** Bose only: send one GET to [block].[function] and return every frame that came back. Never writes. */
+    suspend fun readRaw(block: Int, function: Int): List<RawFrame> = unsupported()
+
+    /**
+     * The 0.6 Lab entry point, superseded by [scanLab]; nothing calls it any more. Kept with a
+     * default so a driver written against 0.6 still compiles.
+     */
+    fun scanFunctions(blocks: List<Int>, maxFunction: Int = 40): Flow<LabReading> = emptyFlow()
 
     private fun requireNoise(): NoiseSettings =
         state.value.noise ?: throw HeadphoneCommandException("Noise settings not loaded yet")

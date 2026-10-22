@@ -25,158 +25,42 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import dev.earshot.ui.common.FieldProgressBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import dev.earshot.ui.theme.JetBrainsMono
 import dev.earshot.R
-import dev.earshot.core.HeadphoneRepository
+import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.RawFrame
-import dev.earshot.protocol.qcultra2.FunctionNames
+import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.ui.common.EarshotPreview
-import dev.earshot.ui.common.EarshotViewModel
+import dev.earshot.ui.common.FieldProgressBar
 import dev.earshot.ui.common.InfoBanner
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.SectionCard
 import dev.earshot.ui.common.SubScreenScaffold
-import dev.earshot.ui.common.UiMessenger
 import dev.earshot.ui.common.earshotViewModel
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
+import dev.earshot.ui.theme.JetBrainsMono
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-/** Function blocks from the protocol catalogue, offered as scan targets. */
-val LAB_BLOCKS: List<Pair<Int, String>> = FunctionNames.blocks.toList().sortedBy { it.first }
-
-/** The repository's name if it has one, otherwise the catalogue's. */
-fun labFunctionName(reading: LabReading): String? =
-    reading.knownName ?: FunctionNames.functionName(reading.block, reading.function)
-
-data class LabUiState(
-    val selectedBlocks: Set<Int> = setOf(1, 2, 31),
-    val maxFunction: Int = 40,
-    val scanning: Boolean = false,
-    val scanned: Int = 0,
-    val total: Int = 0,
-    val readings: List<LabReading> = emptyList(),
-    /** Print console transcript: "> cmd" lines, reply lines, "! error" lines. */
-    val consoleOutput: List<String> = emptyList(),
-    val consoleBusy: Boolean = false,
-)
-
-class LabViewModel(private val headphones: HeadphoneRepository, messenger: UiMessenger) : EarshotViewModel(messenger) {
-    private val _state = MutableStateFlow(LabUiState())
-    val state: StateFlow<LabUiState> = _state
-    private var scanJob: Job? = null
-
-    fun toggleBlock(block: Int) = _state.update { s ->
-        s.copy(selectedBlocks = if (block in s.selectedBlocks) s.selectedBlocks - block else s.selectedBlocks + block)
-    }
-
-    fun startScan() {
-        val s = _state.value
-        if (s.scanning || s.selectedBlocks.isEmpty()) return
-        scan(s.selectedBlocks.sorted(), s.maxFunction)
-    }
-
-    /**
-     * Discovery sweep: every block 0..63 and every function 0..63, GET only. Unknown blocks
-     * answer FblockNotSupp at once, so most of the ~4000 reads are cheap; a few minutes in all.
-     */
-    fun startDeepScan() {
-        if (_state.value.scanning) return
-        scan((0..DEEP_SCAN_MAX).toList(), DEEP_SCAN_MAX)
-    }
-
-    private fun scan(blocks: List<Int>, maxFunction: Int) {
-        _state.update { it.copy(scanning = true, scanned = 0, total = blocks.size * (maxFunction + 1), readings = emptyList()) }
-        scanJob = viewModelScope.launch {
-            try {
-                headphones.scanFunctions(blocks, maxFunction).collect { reading ->
-                    _state.update { it.copy(readings = it.readings + reading, scanned = it.scanned + 1) }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                messenger.report(e)
-            } finally {
-                _state.update { it.copy(scanning = false) }
-            }
-        }
-    }
-
-    fun stopScan() { scanJob?.cancel(); _state.update { it.copy(scanning = false) } }
-
-    /** One Print-console line; errors land in the transcript rather than the Snackbar so they read in context. */
-    fun sendConsole(command: String) {
-        val line = command.trim()
-        if (line.isEmpty() || _state.value.consoleBusy) return
-        _state.update { it.copy(consoleBusy = true, consoleOutput = it.consoleOutput + "> $line") }
-        viewModelScope.launch {
-            try {
-                val reply = headphones.printConsole(line)
-                _state.update { it.copy(consoleOutput = it.consoleOutput + reply.lines().filter { l -> l.isNotBlank() }) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                _state.update { it.copy(consoleOutput = it.consoleOutput + "! ${e.message ?: e.javaClass.simpleName}") }
-            } finally {
-                _state.update { it.copy(consoleBusy = false) }
-            }
-        }
-    }
-
-    fun clearConsole() = _state.update { it.copy(consoleOutput = emptyList()) }
-
-    val connected: StateFlow<Boolean> get() = _connected
-    private val _connected = MutableStateFlow(headphones.state.value.isConnected)
-
-    init {
-        viewModelScope.launch { headphones.state.collect { _connected.value = it.isConnected } }
-    }
-
-    /** Plain-text dump of the results, one frame per line. */
-    fun exportText(): String = buildString {
-        _state.value.readings.groupBy { it.block }.toSortedMap().forEach { (block, readings) ->
-            appendLine("# Block $block ${FunctionNames.blockName(block).orEmpty()}")
-            readings.forEach { r ->
-                r.frames.forEach { f ->
-                    appendLine("[${r.block}.${r.function}] ${labFunctionName(r).orEmpty()} ${f.operatorName} ${if (f.isError) "ERROR " + f.errorName.orEmpty() + " " + f.payloadHex else f.payloadHex}".trim())
-                }
-            }
-        }
-    }
-
-    override fun onCleared() { scanJob?.cancel() }
-
-    companion object {
-        const val DEEP_SCAN_MAX = 63
-    }
-}
 
 @Composable
 fun LabScreen(onBack: () -> Unit) {
@@ -198,17 +82,15 @@ fun LabScreen(onBack: () -> Unit) {
             }
         }
     }
-    val connected by vm.connected.collectAsStateWithLifecycle()
     LabContent(
         state = state,
         onBack = onBack,
-        onToggleBlock = vm::toggleBlock,
+        onToggleGroup = vm::toggleGroup,
         onStart = vm::startScan,
         onDeepScan = vm::startDeepScan,
         onStop = vm::stopScan,
         onCopy = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Earshot Lab", vm.exportText()))) } },
         onCopyReport = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Earshot connection report", DiagnosticsReport.build(context)))) } },
-        connected = connected,
         onConsoleSend = vm::sendConsole,
         onConsoleClear = vm::clearConsole,
     )
@@ -218,17 +100,16 @@ fun LabScreen(onBack: () -> Unit) {
 fun LabContent(
     state: LabUiState,
     onBack: () -> Unit,
-    onToggleBlock: (Int) -> Unit,
+    onToggleGroup: (Int) -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onCopy: () -> Unit,
     onDeepScan: () -> Unit = {},
     onCopyReport: () -> Unit = {},
-    connected: Boolean = true,
     onConsoleSend: (String) -> Unit = {},
     onConsoleClear: () -> Unit = {},
 ) {
-    val grouped = state.readings.groupBy { it.block }.toSortedMap()
+    val grouped = LabExport.grouped(state.readings)
     SubScreenScaffold(
         title = stringResource(R.string.tools_lab),
         onBack = onBack,
@@ -252,67 +133,139 @@ fun LabContent(
                     }
                 }
             }
-            item {
-                SectionCard(title = stringResource(R.string.lab_blocks)) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LAB_BLOCKS.forEach { (id, name) ->
-                            FilterChip(
-                                selected = id in state.selectedBlocks,
-                                onClick = { onToggleBlock(id) },
-                                label = { Text("$id $name") },
-                                enabled = !state.scanning,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            if (state.total > 0) {
-                                FieldProgressBar(progress = { state.scanned / state.total.toFloat() }, modifier = Modifier.fillMaxWidth())
-                                Text(stringResource(R.string.lab_progress, state.scanned, state.total), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
-                            } else {
-                                Text(stringResource(R.string.lab_functions_hint, state.maxFunction), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        if (state.scanning) {
-                            Button(shape = MaterialTheme.shapes.medium, onClick = onStop, modifier = Modifier.heightIn(min = 48.dp)) {
-                                Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.action_stop))
-                            }
-                        } else {
-                            Button(shape = MaterialTheme.shapes.medium, onClick = onStart, enabled = state.selectedBlocks.isNotEmpty(), modifier = Modifier.heightIn(min = 48.dp)) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.lab_scan))
-                            }
-                        }
-                    }
-                    if (!state.scanning) {
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onDeepScan, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                            Text(stringResource(R.string.lab_deep_scan))
-                        }
-                        Text(stringResource(R.string.lab_deep_scan_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
-                    }
-                }
-            }
+            item(key = "scanner") { ScannerCard(state, onToggleGroup, onStart, onStop, onDeepScan) }
             item(key = "console") {
                 PrintConsoleSection(
                     output = state.consoleOutput,
                     busy = state.consoleBusy,
-                    enabled = connected && !state.scanning,
+                    enabled = state.connected && !state.scanning,
                     onSend = onConsoleSend,
                     onClear = onConsoleClear,
+                    // Bose only; said so only when the connected headset is something else.
+                    note = if (state.connected && state.profile?.printConsole != true) stringResource(R.string.lab_console_bose_only) else null,
                 )
             }
-            grouped.forEach { (block, readings) ->
-                item(key = "h$block") {
+            val from = state.resultProfile
+            if (from != null && grouped.isNotEmpty() && from.stack != state.profile?.stack) {
+                item(key = "from") {
                     Text(
-                        "Block $block · " + (FunctionNames.blockName(block) ?: "?"),
+                        stringResource(R.string.lab_results_from, from.stack),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
+                }
+            }
+            grouped.forEach { (group, readings) ->
+                item(key = "h$group") {
+                    Text(
+                        LabExport.heading(state.resultProfile, group, readings),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp),
                     )
                 }
-                items(readings, key = { "${it.block}.${it.function}" }) { reading -> ReadingRow(reading) }
+                items(readings, key = { "${it.block}.${it.function}.${it.address}" }) { reading -> ReadingRow(reading) }
+            }
+        }
+    }
+}
+
+/** The connected headset's stack, its groups as chips, progress, Scan / Stop and Deep scan. */
+@Composable
+private fun ScannerCard(
+    state: LabUiState,
+    onToggleGroup: (Int) -> Unit,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onDeepScan: () -> Unit,
+) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val profile = state.profile
+    SectionCard(title = stringResource(R.string.lab_scanner_title)) {
+        if (profile == null) {
+            Text(
+                stringResource(if (state.connected) R.string.lab_no_driver else R.string.lab_not_connected),
+                style = MaterialTheme.typography.bodyMedium,
+                color = muted,
+            )
+            // The headset went away mid-scan: keep the Stop button reachable.
+            if (state.scanning) {
+                Spacer(Modifier.height(8.dp))
+                ScanProgress(state, onStart, onStop, startEnabled = false)
+            }
+        } else {
+            ScannerControls(state, profile, onToggleGroup, onStart, onStop, onDeepScan)
+        }
+    }
+}
+
+@Composable
+private fun ScannerControls(
+    state: LabUiState,
+    profile: LabProfile,
+    onToggleGroup: (Int) -> Unit,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onDeepScan: () -> Unit,
+) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column {
+        Text(
+            state.deviceName?.let { stringResource(R.string.lab_stack_line, profile.stack, it) } ?: profile.stack,
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(profile.safetyNote, style = MaterialTheme.typography.bodySmall, color = muted, modifier = Modifier.padding(top = 2.dp))
+        profile.note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = muted, modifier = Modifier.padding(top = 4.dp)) }
+        Spacer(Modifier.height(12.dp))
+        Text(stringResource(R.string.lab_blocks), style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            profile.groups.forEach { g ->
+                FilterChip(
+                    selected = g.id in state.selectedGroups,
+                    onClick = { onToggleGroup(g.id) },
+                    label = { Text("${g.code} ${g.name}") },
+                    enabled = !state.scanning,
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        ScanProgress(state, onStart, onStop, startEnabled = state.selectedGroups.isNotEmpty())
+        if (!state.scanning) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onDeepScan, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.lab_deep_scan, profile.deepReadCount))
+            }
+            Text(
+                stringResource(R.string.lab_deep_scan_hint, profile.deepScanDescription),
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScanProgress(state: LabUiState, onStart: () -> Unit, onStop: () -> Unit, startEnabled: Boolean) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            if (state.total > 0) {
+                FieldProgressBar(progress = { (state.scanned / state.total.toFloat()).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.lab_progress, state.scanned, state.total), style = MaterialTheme.typography.labelMedium, color = muted, modifier = Modifier.padding(top = 4.dp))
+            } else {
+                state.profile?.let { Text(stringResource(R.string.lab_functions_hint, it.scanDescription, state.scanReadCount), style = MaterialTheme.typography.labelMedium, color = muted) }
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        if (state.scanning) {
+            Button(shape = MaterialTheme.shapes.medium, onClick = onStop, modifier = Modifier.heightIn(min = 48.dp)) {
+                Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.action_stop))
+            }
+        } else {
+            Button(shape = MaterialTheme.shapes.medium, onClick = onStart, enabled = startEnabled, modifier = Modifier.heightIn(min = 48.dp)) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.lab_scan))
             }
         }
     }
@@ -325,14 +278,14 @@ private fun ReadingRow(reading: LabReading) {
     SectionCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "[${reading.block}.${reading.function}]",
+                LabExport.address(reading),
                 style = MaterialTheme.typography.labelLarge,
                 fontFamily = JetBrainsMono,
                 color = if (allErrors) muted else MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                labFunctionName(reading) ?: "",
+                LabExport.functionName(reading) ?: "",
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (allErrors) muted else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
@@ -343,7 +296,7 @@ private fun ReadingRow(reading: LabReading) {
 }
 
 @Composable
-private fun FrameLine(frame: RawFrame, muted: androidx.compose.ui.graphics.Color) {
+private fun FrameLine(frame: RawFrame, muted: Color) {
     Text(
         if (frame.isError) "${frame.operatorName} ${frame.errorName ?: "?"} ${frame.payloadHex}".trimEnd() else "${frame.operatorName} ${frame.payloadHex.ifBlank { "(empty)" }}",
         style = MaterialTheme.typography.bodySmall,
@@ -357,16 +310,30 @@ private fun FrameLine(frame: RawFrame, muted: androidx.compose.ui.graphics.Color
 @Composable
 private fun LabPreview() {
     EarshotPreview {
+        val profile = FakeHeadphoneRepository.LAB_PROFILE
         LabContent(
             LabUiState(
-                scanned = 12, total = 82,
+                connected = true,
+                deviceName = FakeHeadphoneRepository.DEVICE_NAME,
+                profile = profile,
+                selectedGroups = profile.defaultGroups,
+                resultProfile = profile,
+                scanned = 12, total = 33,
                 readings = listOf(
-                    LabReading(1, 7, "EQ", listOf(RawFrame(1, 7, "STATUS", "f60a0200f60a0001f60aff02", false))),
-                    LabReading(1, 8, null, listOf(RawFrame(1, 8, "ERROR", "04", true, "FUNC_NOT_SUPPORTED"))),
-                    LabReading(2, 2, "Battery", listOf(RawFrame(2, 2, "STATUS", "48ffff00", false))),
+                    LabReading(1, 7, "EQ", listOf(RawFrame(1, 7, "STATUS", "f60a0200f60a0001f60aff02", false)), groupName = "Settings"),
+                    LabReading(1, 8, null, listOf(RawFrame(1, 8, "ERROR", "04", true, "FUNC_NOT_SUPPORTED")), groupName = "Settings"),
+                    LabReading(2, 2, "Battery", listOf(RawFrame(2, 2, "STATUS", "48ffff00", false)), groupName = "Status"),
                 ),
             ),
             {}, {}, {}, {}, {},
         )
+    }
+}
+
+@LightDarkPreview
+@Composable
+private fun LabNoDriverPreview() {
+    EarshotPreview {
+        LabContent(LabUiState(connected = true, deviceName = "AirPods Pro"), {}, {}, {}, {}, {})
     }
 }

@@ -28,8 +28,8 @@ import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
-import dev.earshot.core.LabReading
 import dev.earshot.core.NoiseSettings
+import dev.earshot.core.LabProfile
 import dev.earshot.core.RawFrame
 import dev.earshot.core.Sidetone
 import dev.earshot.core.VoicePrompts
@@ -39,14 +39,12 @@ import dev.earshot.virtual.DemoHeadset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -307,7 +305,9 @@ class GenericHeadphoneRepository(
     override suspend fun enterPairingMode() = unsupported()
     override suspend fun powerOff() = unsupported()
     override suspend fun readRaw(block: Int, function: Int): List<RawFrame> = unsupported()
-    override fun scanFunctions(blocks: List<Int>, maxFunction: Int): Flow<LabReading> = emptyFlow()
+
+    /** No driver, so no documented reads: the Lab says nothing can be scanned and points to the connection report. */
+    override fun labProfile(): LabProfile? = null
 
     private fun unsupported(): Nothing = throw HeadphoneCommandException(UNSUPPORTED)
 

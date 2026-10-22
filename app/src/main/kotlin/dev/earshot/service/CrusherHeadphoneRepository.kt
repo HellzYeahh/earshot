@@ -20,6 +20,7 @@ import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
+import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.PairingRequest
@@ -27,8 +28,9 @@ import dev.earshot.core.RawFrame
 import dev.earshot.core.Sidetone
 import dev.earshot.core.VoicePrompts
 import dev.earshot.protocol.bragi.BosRpcPacket
+import dev.earshot.protocol.bragi.BragiReads
 import dev.earshot.protocol.bragi.BragiServices
-import dev.earshot.protocol.toHex
+import dev.earshot.service.lab.BragiLab
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +46,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -248,36 +251,23 @@ class CrusherHeadphoneRepository(
     override suspend fun enterPairingMode() = unsupported("Pairing mode")
     override suspend fun powerOff() = unsupported("Power off")
 
-    // ---- Lab (read-only) -------------------------------------------------------------------
+    // ---- Lab (read-only, see BragiLab) -----------------------------------------------------
+
+    override fun labProfile(): LabProfile? =
+        if (connectionManager.connection.value?.isOpen == true) BragiLab.profile(protocol.currentModel) else null
+
+    override fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> = flow {
+        emitAll(BragiLab.scan(requireConnection(), protocol.currentModel, groupIds, deep))
+    }
 
     /**
-     * The Lab's `block.function` is a BOS-RPC `service.method` here. Only reads from
-     * [CrusherProtocol.LAB_READS] go out; anything else is refused, so the Lab can never write.
+     * The Lab's `block.function` is a BOS-RPC `service.method` here. Only the read-only calls in
+     * [BragiReads] go out; anything else is refused, so the Lab can never write.
      */
     override suspend fun readRaw(block: Int, function: Int): List<RawFrame> {
-        val address = BragiServices.Address(block, function)
-        val read = CrusherProtocol.LAB_READS.firstOrNull { it.address == address }
+        val read = BragiReads.find(BragiServices.Address(block, function))
             ?: throw HeadphoneCommandException("Only read-only calls are available in the Lab")
-        return listOf(readOne(requireConnection(), read))
-    }
-
-    override fun scanFunctions(blocks: List<Int>, maxFunction: Int): Flow<LabReading> = flow {
-        val conn = requireConnection()
-        // The Lab's block chips are Bose function blocks; the Crusher's whole read-only list is small, so it is always all of it.
-        for (read in CrusherProtocol.LAB_READS) {
-            emit(LabReading(read.address.service, read.address.method, read.name, listOf(readOne(conn, read))))
-        }
-    }
-
-    private suspend fun readOne(conn: BragiConnection, read: CrusherProtocol.LabRead): RawFrame {
-        val a = read.address
-        return try {
-            val reply = conn.callUnwatched(a, read.body, timeoutMs = LAB_TIMEOUT_MS, streaming = read.streaming)
-            RawFrame(a.service, a.method, "RESPONSE", reply.payload.toHex(), isError = false)
-        } catch (e: HeadphoneCommandException) {
-            if (!conn.isOpen) throw e
-            RawFrame(a.service, a.method, "ERROR", "", isError = true, errorName = e.message)
-        }
+        return listOf(BragiLab.readOne(requireConnection(), read))
     }
 
     // ---- helpers ---------------------------------------------------------------------------
@@ -335,6 +325,5 @@ class CrusherHeadphoneRepository(
         /** A little under [BragiSession.USER_TIMEOUT_MS] so the dialog closes before the headphones give up. */
         private const val PAIRING_TIMEOUT_MS = 115_000L
         private const val BATTERY_POLL_MS = 60_000L
-        private const val LAB_TIMEOUT_MS = 2_000L
     }
 }

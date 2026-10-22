@@ -48,7 +48,8 @@ import dev.earshot.ui.common.SectionCard
 /**
  * Lab → Print console: one line at a time to the firmware's `[22.x]` debug console. The only
  * part of Lab that writes, hence the warning banner. The repository rejects unknown verbs before
- * anything reaches the headphones.
+ * anything reaches the headphones. Bose only: [note] says so when the headset is another make
+ * (the field stays usable, and the refusal comes back in the transcript).
  */
 @Composable
 fun PrintConsoleSection(
@@ -58,6 +59,7 @@ fun PrintConsoleSection(
     onSend: (String) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
+    note: String? = null,
 ) {
     var command by rememberSaveable { mutableStateOf("") }
     val canSend = enabled && !busy && command.isNotBlank()
@@ -71,6 +73,10 @@ fun PrintConsoleSection(
         },
     ) {
         InfoBanner(stringResource(R.string.lab_console_experimental), tone = BannerTone.WARNING)
+        if (note != null) {
+            Spacer(Modifier.height(8.dp))
+            InfoBanner(note)
+        }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(

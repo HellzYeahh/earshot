@@ -499,7 +499,11 @@ class HeadphoneCommandException(message: String, cause: Throwable? = null) : Exc
     }
 }
 
-/** A raw frame, for the Lab explorer. */
+/**
+ * A raw frame, for the Lab explorer. [block] / [function] are the reading's group and command ids
+ * (see [LabReading]); [operatorName] is the stack's word for the frame (BMAP `STATUS` / `ERROR`,
+ * `RESPONSE` elsewhere) and [payloadHex] its body as the vendor's protocol carries it.
+ */
 data class RawFrame(
     val block: Int,
     val function: Int,
@@ -509,10 +513,56 @@ data class RawFrame(
     val errorName: String? = null,
 )
 
-/** One read-only observation from the Lab scanner. */
+/**
+ * One read-only observation from the Lab scanner. [block] is the scan group ([LabGroup.id]: a BMAP
+ * function block, a Sennheiser feature, a Bragi service, a Soundcore category, a Sony function
+ * block) and [function] the command within it, as the stack numbers it. [address] is how the
+ * stack writes the command (`01 05`, `0495/0603`, `2.1`, `T1 66 17`); null means BMAP's `[b.f]`.
+ */
 data class LabReading(
     val block: Int,
     val function: Int,
     val knownName: String?,
     val frames: List<RawFrame>,
+    val address: String? = null,
+    /** The group's name when the stack knows it (a Bose deep scan reaches blocks no chip lists). */
+    val groupName: String? = null,
 )
+
+/** One selectable scan target in the Lab: a group of documented reads. */
+data class LabGroup(
+    val id: Int,
+    val name: String,
+    /** How many reads a Scan of this group sends. */
+    val readCount: Int,
+    /** The vendor's own label for the group ("1", "01", "2"), shown before [name]. */
+    val code: String = id.toString(),
+)
+
+/**
+ * What the Lab can scan on the connected headset; null from [HeadphoneRepository.labProfile] means
+ * no scanner (a headset without a driver, or nothing connected). Each stack builds its own from the
+ * reads its write guard lets out; see `service/lab/` for the recipe.
+ */
+data class LabProfile(
+    /** The protocol stack, as the Lab shows it: "Bose BMAP", "Sennheiser GAIA v3". */
+    val stack: String,
+    /** What a group is called in this protocol: "Block", "Feature", "Service", "Category". */
+    val groupNoun: String,
+    val groups: List<LabGroup>,
+    /** The groups selected when this profile first appears. */
+    val defaultGroups: Set<Int> = groups.map { it.id }.toSet(),
+    /** One line on what Scan sends for the selected groups. */
+    val scanDescription: String,
+    /** How many reads a Deep scan sends (an estimate where it depends on what the headset reports first). */
+    val deepReadCount: Int,
+    val deepScanDescription: String,
+    /** Why the scan cannot write: the guard every request passes. */
+    val safetyNote: String,
+    /** Anything worth knowing about this headset's list (features it reported with nothing to read). */
+    val note: String? = null,
+    /** True on Bose: the firmware debug console in the Lab works only there. */
+    val printConsole: Boolean = false,
+) {
+    fun group(id: Int): LabGroup? = groups.firstOrNull { it.id == id }
+}

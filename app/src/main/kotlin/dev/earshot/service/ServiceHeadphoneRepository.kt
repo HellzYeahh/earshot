@@ -10,7 +10,6 @@ import dev.earshot.bt.ConnectionManager
 import dev.earshot.bt.DeviceCandidate
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
-import dev.earshot.bt.ReplyMode
 import dev.earshot.core.ButtonAction
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneCandidate
@@ -19,6 +18,7 @@ import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
+import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.RawFrame
@@ -27,9 +27,7 @@ import dev.earshot.core.TransportControl
 import dev.earshot.core.VoicePrompts
 import dev.earshot.protocol.BmapException
 import dev.earshot.protocol.BmapPacket
-import dev.earshot.protocol.FunctionAddress
-import dev.earshot.protocol.qcultra2.FunctionNames
-import dev.earshot.protocol.toHex
+import dev.earshot.service.lab.BmapLab
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +42,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -275,32 +274,19 @@ class ServiceHeadphoneRepository(
         if (!connectionManager.isDemoSession) disconnect()
     }
 
-    // ---- Lab (GET only) --------------------------------------------------------------------
+    // ---- Lab (GET only, see BmapLab) ---------------------------------------------------------
 
-    override suspend fun readRaw(block: Int, function: Int): List<RawFrame> {
-        val conn = requireConnection()
-        // MULTI so a function that answers with several frames (battery components, paired
-        // list) is shown whole; costs one quiet gap per read, fine for a single tap.
-        // Unwatched: poking silent functions on purpose must not trip the half-dead watchdog.
-        val frames = conn.requestUnwatched(BmapPacket.get(FunctionAddress(block, function)), ReplyMode.MULTI, timeoutMs = LAB_TIMEOUT_MS)
-        return frames.map { it.toRawFrame() }
+    override fun labProfile(): LabProfile? =
+        if (connectionManager.connection.value?.isOpen == true) BmapLab.profile() else null
+
+    override fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> = flow {
+        emitAll(BmapLab.scan(requireConnection(), groupIds, deep))
     }
 
-    override fun scanFunctions(blocks: List<Int>, maxFunction: Int): Flow<LabReading> = flow {
-        val conn = requireConnection()
-        for (block in blocks) for (function in 0..maxFunction) {
-            val address = FunctionAddress(block, function)
-            // SINGLE keeps a scan fast: unsupported functions answer ERROR 4 immediately, and
-            // the rare multi-frame answer can be re-read with readRaw.
-            val frames = try {
-                conn.requestUnwatched(BmapPacket.get(address), ReplyMode.SINGLE, timeoutMs = LAB_TIMEOUT_MS)
-            } catch (e: HeadphoneCommandException) {
-                if (!conn.isOpen) throw e
-                emptyList() // no reply = silent function, still worth listing
-            }
-            emit(LabReading(block, function, knownName = FunctionNames.functionName(address), frames = frames.map { it.toRawFrame() }))
-        }
-    }
+    // MULTI so a function that answers with several frames (battery components, paired list) is
+    // shown whole; costs one quiet gap per read, fine for a single tap. Unwatched: poking silent
+    // functions on purpose must not trip the half-dead watchdog.
+    override suspend fun readRaw(block: Int, function: Int): List<RawFrame> = BmapLab.readRaw(requireConnection(), block, function)
 
     // ---- helpers ---------------------------------------------------------------------------
 
@@ -356,17 +342,7 @@ class ServiceHeadphoneRepository(
     private fun autoConnectEnabled(): Boolean =
         runCatching { appContext.appContainer.automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true)
 
-    private fun BmapPacket.toRawFrame() = RawFrame(
-        block = block,
-        function = function,
-        operatorName = operator.name,
-        payloadHex = payload.toHex(),
-        isError = isError,
-        errorName = if (isError) error?.name ?: errorCode?.let { "ERROR_$it" } else null,
-    )
-
     private companion object {
         const val TAG = "Earshot/Repo"
-        const val LAB_TIMEOUT_MS = 1_500L
     }
 }
