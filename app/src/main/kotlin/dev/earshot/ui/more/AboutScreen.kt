@@ -57,6 +57,7 @@ fun AboutContent(version: String, onBack: () -> Unit) {
                 CreditLine("soundcorebridge", "github.com/mervin008/soundcorebridge", "MIT")
                 CreditLine("momentum4-control", "github.com/Ariazonaa/momentum4-control", "MIT")
                 CreditLine("momentumctl", "codeberg.org/galen/momentumctl", "MIT")
+                CreditLine("SonyHeadphonesClient", "github.com/mos9527/SonyHeadphonesClient", "MIT")
                 Spacer(Modifier.height(4.dp))
                 Text(stringResource(R.string.about_autoeq_credit), style = MaterialTheme.typography.bodyMedium)
                 Text("github.com/jaakkopasanen/AutoEq", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)

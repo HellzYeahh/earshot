@@ -177,7 +177,7 @@ class AppContainer(private val appContext: Context) {
     }
 
     /**
-     * Any other headset (AirPods, Sony, no-name earbuds): shown by its own name from what Android
+     * Any other headset (AirPods, Galaxy Buds, no-name earbuds): shown by its own name from what Android
      * reports, never sent anything. Shares the Bose repository's prefs and finder, so every stack
      * agrees on which device is picked.
      */

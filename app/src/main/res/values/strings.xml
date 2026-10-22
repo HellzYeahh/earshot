@@ -595,15 +595,16 @@
     <string name="modes_no_custom_buds">These earbuds have no custom modes. Switch between the built-in ones here, on Home, or with a touch and hold on the earbuds.</string>
     <string name="modes_not_editable">Earshot can\'t edit custom modes on this model yet. You can still switch to them.</string>
 
-    <!-- 0.5.0: what's new sheet -->
-    <string name="whats_new_title">What\'s new in Earshot 0.5.0</string>
-    <string name="whats_new_subtitle">Give your headset\'s press-and-hold a new job.</string>
-    <string name="whats_new_controls">Controls, at the top of Tools: remap the shortcut on any Bluetooth headset</string>
-    <string name="whats_new_actions">Cycle EQ presets, record a voice memo or open an app from the headset</string>
-    <string name="whats_new_detect">Detect a button: press a control and Earshot says what it does</string>
-    <string name="whats_new_headphone_controls">Touch controls, voice prompts, devices and power off now live in Controls</string>
-    <string name="whats_new_touch_fix">Fixed: the Touch controls switch turned the touch strip off</string>
-    <string name="whats_new_call_link">Call audio shows the headset\'s call volume and mic gain</string>
+    <!-- 0.75: what's new sheet -->
+    <string name="whats_new_title">What\'s new in Earshot 0.75</string>
+    <string name="whats_new_subtitle">One app for any Bluetooth headset.</string>
+    <string name="whats_new_any_headset">Any headset works: shown by its own name with battery, Pro EQ, codec, calls and Controls</string>
+    <string name="whats_new_drivers">New experimental drivers: Sennheiser, Sony, 35 Soundcore models and Skullcandy Method 360/540</string>
+    <string name="whats_new_remote">Universal remote in Controls: connect, disconnect, rename and forget any headset</string>
+    <string name="whats_new_look">A new look and icon: the Field theme and “Strike”</string>
+    <string name="whats_new_airpods">AirPods and Beats: left, right and case battery</string>
+    <string name="whats_new_lab">Lab scans every supported headset, read-only</string>
+    <string name="whats_new_calls">Fixed: the call boost now reaches the headset</string>
     <string name="whats_new_done">Got it</string>
 
     <!-- 0.75: universal remote (Companion Device Manager link, any headset) -->

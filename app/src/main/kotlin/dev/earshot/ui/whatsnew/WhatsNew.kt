@@ -11,7 +11,7 @@ import androidx.core.content.edit
  */
 object WhatsNew {
     /** The release whose notes the sheet carries. Bump it together with the sheet's text. */
-    const val RELEASE = "0.5.0"
+    const val RELEASE = "0.75.0"
 
     enum class Decision {
         /** Show the sheet; mark it seen once dismissed. */
