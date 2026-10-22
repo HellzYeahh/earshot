@@ -22,6 +22,9 @@ protocol research ([docs/research/reports](docs/research/reports)). Bose keeps i
   It replaces the wallpaper-derived colours as the default. **App preferences → Appearance**
   keeps **System colours** (Android 12+) as an option: Field's type and shapes with the
   wallpaper's palette.
+- **New app icon, "Strike":** a lightning bolt drops through the headband and splits the
+  headphones into an orange left and a green right channel. Ink bolt on sand in light mode,
+  signal yellow on near-black in dark mode, and a themed (monochrome) version for Android 13+.
 - **Soundcore Sleep A30 (experimental, tested on one pair):** Earshot's first non-Bose driver.
   - Home has an **Earbud controls** card: a Noise cancelling switch and the Listening mode
     (Bluetooth or the earbuds' own Local sounds).

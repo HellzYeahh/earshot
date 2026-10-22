@@ -1,22 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Headphones: a headband arc with two ear cups. -->
+<!--
+  Earshot's icon, "Strike": a bolt drops through the headband and splits the headphones into a
+  left (orange) and a right (green) channel. The colours are Field's signal lamps. By day the
+  bolt is ink on sand; drawable-night/ makes it signal yellow on near-black, the way Field
+  itself is ink-led by day and lamp-led at night.
+
+  Geometry is in the 108-unit adaptive canvas, scaled to 86 % so everything sits well inside
+  the 66-unit safe circle. Keep drawable-night/ic_launcher_foreground.xml and
+  ic_launcher_monochrome.xml in step with this file.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:scaleX="0.55" android:scaleY="0.55" android:pivotX="54" android:pivotY="54">
+    <group android:scaleX="0.86" android:scaleY="0.86" android:pivotX="54" android:pivotY="54">
+        <group android:name="band">
+            <!-- The band breaks 3 units either side of the bolt: the canvas minus a strip wound the other way. -->
+            <clip-path android:pathData="M0,0 H108 V108 H0 Z M51.03,18 L42.5,50 L57.93,50 L67.53,18 Z" />
+            <path
+                android:fillColor="#00000000"
+                android:pathData="M35,62 V56 A19,19 0 0 1 54,37"
+                android:strokeWidth="6"
+                android:strokeLineCap="butt">
+                <aapt:attr name="android:strokeColor">
+                    <gradient android:type="linear" android:startX="54" android:startY="34" android:endX="54" android:endY="76"
+                        android:startColor="#FFFF8F45" android:endColor="#FFF2541B" />
+                </aapt:attr>
+            </path>
+            <path
+                android:fillColor="#00000000"
+                android:pathData="M54,37 A19,19 0 0 1 73,56 V62"
+                android:strokeWidth="6"
+                android:strokeLineCap="butt">
+                <aapt:attr name="android:strokeColor">
+                    <gradient android:type="linear" android:startX="54" android:startY="34" android:endX="54" android:endY="76"
+                        android:startColor="#FF4CC27F" android:endColor="#FF1E8E55" />
+                </aapt:attr>
+            </path>
+        </group>
+        <!-- Left ear cup, the same gradient as its half of the band so they read as one piece. -->
+        <path android:pathData="M32.5,56 H37.5 A2.5,2.5 0 0 1 40,58.5 V73.5 A2.5,2.5 0 0 1 37.5,76 H32.5 A2.5,2.5 0 0 1 30,73.5 V58.5 A2.5,2.5 0 0 1 32.5,56 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="54" android:startY="34" android:endX="54" android:endY="76"
+                    android:startColor="#FFFF8F45" android:endColor="#FFF2541B" />
+            </aapt:attr>
+        </path>
+        <path android:pathData="M70.5,56 H75.5 A2.5,2.5 0 0 1 78,58.5 V73.5 A2.5,2.5 0 0 1 75.5,76 H70.5 A2.5,2.5 0 0 1 68,73.5 V58.5 A2.5,2.5 0 0 1 70.5,56 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="54" android:startY="34" android:endX="54" android:endY="76"
+                    android:startColor="#FF4CC27F" android:endColor="#FF1E8E55" />
+            </aapt:attr>
+        </path>
+        <!-- The bolt: Field ink. -->
         <path
-            android:fillColor="#00000000"
-            android:strokeColor="@color/brand"
-            android:strokeWidth="7"
-            android:strokeLineCap="round"
-            android:pathData="M22,66 V54 C22,36.3 36.3,22 54,22 C71.7,22 86,36.3 86,54 V66" />
-        <path
-            android:fillColor="@color/brand"
-            android:pathData="M18,60 h10 a6,6 0 0 1 6,6 v18 a6,6 0 0 1 -6,6 h-10 a6,6 0 0 1 -6,-6 v-18 a6,6 0 0 1 6,-6 z" />
-        <path
-            android:fillColor="@color/brand"
-            android:pathData="M80,60 h10 a6,6 0 0 1 6,6 v18 a6,6 0 0 1 -6,6 h-10 a6,6 0 0 1 -6,-6 v-18 a6,6 0 0 1 6,-6 z" />
+            android:fillColor="#FF1C2316"
+            android:pathData="M52,26 L62,26 L56,46 L64,46 L48,80 L52,56 L44,56 Z" />
     </group>
 </vector>
