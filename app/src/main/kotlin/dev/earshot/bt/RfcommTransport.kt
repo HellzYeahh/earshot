@@ -10,9 +10,7 @@ import dev.earshot.protocol.BmapPacket
 import dev.earshot.protocol.toHex
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -308,7 +306,9 @@ class RfcommTransport private constructor(
                     BtLog.i("connected to ${device.address} via ${strategy.name}")
                     return transport
                 } catch (e: CancellationException) {
-                    runCatching { socket.close() }
+                    // Off this thread: close() on a socket whose connect() is still stuck can block,
+                    // and the whole point of the timeout is to let the walk move on.
+                    thread(name = "Earshot-rfcomm-close", isDaemon = true) { runCatching { socket.close() } }
                     throw e
                 } catch (e: SecurityException) {
                     runCatching { socket.close() }
@@ -328,19 +328,14 @@ class RfcommTransport private constructor(
         }
 
         /**
-         * `BluetoothSocket.connect()` blocks and cannot be interrupted, but it does abort when
-         * the socket is closed from another thread. So on cancellation we close the socket and
-         * let the IO thread fall out of connect() on its own.
+         * `BluetoothSocket.connect()` blocks and cannot be interrupted, but it normally aborts when
+         * the socket is closed from another thread. So on cancellation we close the socket (off the
+         * caller's thread) and give the call a moment to fall out; if the stack still does not
+         * react, the caller is released anyway ([runAbandonable]) so the 6 s connect timeout really
+         * bounds each candidate.
          */
-        private suspend fun BluetoothSocket.connectCancellable() = coroutineScope {
-            val job = async(Dispatchers.IO) { connect() }
-            try {
-                job.await()
-            } catch (e: CancellationException) {
-                runCatching { close() }
-                throw e
-            }
-        }
+        private suspend fun BluetoothSocket.connectCancellable() =
+            runAbandonable("Earshot-rfcomm-connect", abort = { close() }) { connect() }
 
         /**
          * Does a non-empty greeting read as BMAP from the headphones? Every frame that decodes
@@ -364,6 +359,6 @@ class RfcommTransport private constructor(
             return "refused" in msg || "socket might closed" in msg || "read ret: -1" in msg || "connection reset" in msg
         }
 
-        private fun Throwable.describe(): String = "${this::class.simpleName}: ${message ?: "no message"}"
+        private fun Throwable.describe(): String = describeForReport()
     }
 }
