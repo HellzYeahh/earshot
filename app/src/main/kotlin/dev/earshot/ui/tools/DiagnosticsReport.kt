@@ -34,7 +34,7 @@ object DiagnosticsReport {
             appendLine("Saved headphones: ${saved?.name ?: "none"} ${saved?.address ?: ""}".trim())
             appendLine("Headphone type setting: ${family ?: "automatic"}")
             appendLine("Driven by: ${drivenBy?.name?.lowercase() ?: "-"}")
-            appendLine("Learned link: ${profile ?: "-"} / Bose channel ${channel ?: "-"}")
+            appendLine("Learned link: ${profile ?: "-"} / control channel ${channel ?: "-"}")
             appendLine("Connection: ${state.connection.status} ${state.connection.message ?: ""}".trim())
             saved?.address?.let { appendLeAudio(context, it) }
             appendModel(state)

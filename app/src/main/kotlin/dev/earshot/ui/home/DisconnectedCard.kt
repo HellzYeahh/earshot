@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.earshot.R
+import dev.earshot.bt.ConnectionManager
+import dev.earshot.bt.DeviceFamily
 import dev.earshot.core.ConnectionState
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.FormFactor
@@ -108,9 +110,11 @@ fun DisconnectedCard(
             Text(stringResource(R.string.disconnected_tips_title), style = MaterialTheme.typography.titleSmall)
             Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Tip(Icons.Default.PowerSettingsNew, stringResource(if (buds) R.string.tip_power_on_buds else R.string.tip_power_on))
-                // Only Bose has a Bose app to close; for any other headset the tip would mislead.
-                if (heldBy == "Bose" || (heldBy == null && dev.earshot.bt.DeviceFamily.looksLikeBose(connection.deviceName))) {
-                    Tip(Icons.Default.Block, stringResource(R.string.tip_close_bose_app))
+                // Every vendor stack opens a control channel that the maker's own app can hold, so the tip names
+                // the app the manager diagnosed (else the generic phrase). A headset Earshot has no stack for
+                // opens no such channel, and there the tip would mislead.
+                if (heldBy != null || DeviceFamily.forName(connection.deviceName) != DeviceFamily.GENERIC) {
+                    Tip(Icons.Default.Block, stringResource(R.string.tip_close_maker_app, heldBy ?: ConnectionManager.GENERIC_COMPETING_APP))
                 }
                 Tip(Icons.Default.Bluetooth, stringResource(R.string.tip_le_audio))
             }
