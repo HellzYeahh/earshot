@@ -4,14 +4,6 @@ A native Kotlin/Compose replacement for the Bose app, plus a sound-tuning engine
 mic tools and automations. Talks to the headphones directly over Bluetooth RFCOMM (BMAP
 protocol, channel 2). No account, no cloud, **no INTERNET permission**.
 
-## Modules
-
-| Module | What | Depends on |
-|---|---|---|
-| `:protocol` | Pure Kotlin/JVM. BMAP framing (`BmapPacket.kt`, the contract) + `qcultra2/` catalogue, typed parsers/builders, Lab scanner helpers. Unit tests against `docs/reference/bosectl` captures. | nothing |
-| `:dsp` | Pure Kotlin/JVM. `EqModel.kt` (the contract), biquad maths, graphic↔parametric mapping, AutoEq import, limiter/preamp staging. Unit tests. | kotlinx-serialization |
-| `:app` | Android. `core/` contracts, `bt/`, `service/`, `audio/`, `codec/`, `mic/`, `ui/`, `extras/`, `virtual/` (in-process virtual QC Ultra 2 + demo-mode flag; `ConnectionManager` takes a `demoTransport` factory). | `:protocol`, `:dsp` |
-
 Real-hardware facts learned 2026-10-16 on the user's Galaxy (Samsung Galaxy, Android 17): firmware
 10.12.12 connects via the reflection `createInsecureRfcommSocket(2)` strategy, greeting silent,
 `[2.3]` charging → FuncNotSupp, `[1.9]` returns 15 bytes. The headphones only negotiate AAC 44.1 k

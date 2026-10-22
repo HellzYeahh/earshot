@@ -23,5 +23,8 @@ Thumbs.db
 # Agent worktrees and local Claude settings
 .claude/
 
+# Serena (code-navigation MCP server) project config, caches and logs
+.serena/
+
 # Vendor apps downloaded for protocol research: copyrighted, never commit
 apps for research/
