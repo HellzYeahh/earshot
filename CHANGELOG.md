@@ -77,6 +77,16 @@ protocol research ([docs/research/reports](docs/research/reports)). Bose keeps i
   - Connects only through Sennheiser's own service ID; firmware update, factory reset, pairing
     deletion and reboot are never sent. CX Plus TW and CX 500BT (Bluetooth LE only) stay generic.
   - Demo mode has a virtual MOMENTUM 4. Protocol facts from momentum4-control and momentumctl (MIT).
+- **Sony (experimental):** WH-1000XM5 / XM6, WF-1000XM4 / XM5 / XM6, LinkBuds, ULT WEAR, WH-CH720N
+  and WF-C510 / C700N / C710N, over Sony's own protocol (MDR v2).
+  - Noise cancelling / Ambient sound / Off as modes, the ambient level and focus on voice.
+  - Battery (headband, each earbud and case), the headphones' own EQ presets and bands, auto power
+    off, speak-to-chat, pause when taken off, DSEE, connection priority, voice guidance, and the
+    settings the headset describes itself (multipoint, touch controls…).
+  - Features come from what the headset announces, not from its name. Connects only through Sony's
+    service ID, with a refuse-by-default allow-list: firmware update, test and logging modes, resets
+    and unpairing are never sent. The WH-1000XM4 (older protocol) stays a generic headset.
+  - Demo mode has a virtual WH-1000XM5. Protocol facts from SonyHeadphonesClient (MIT).
 - **Skullcandy Method 360 ANC and Method 540 ANC (experimental)** run on the same connection as the
   Crusher 1080: Quiet / Aware / Off, the noise level, sidetone and battery, without the Crusher-only
   cards. Demo mode has both.

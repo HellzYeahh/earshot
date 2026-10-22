@@ -63,7 +63,12 @@ own module. Never edit another area's files, the Gradle files, the version catal
   stores it in `DevicePrefs` (SDP winners as negative codes). Opened-but-mute → `looksBusy`.
   A socket that greets with an AT line (`AT+BRSF=…`, HFP 1.8 §4.2.1.1) is the headset's HFP
   channel: `LivenessProbe.Verdict.Hfp`, closed at once, **not** counted as busy.
-- **Vendor routing (0.6):** `DeviceFamily` = BOSE / BRAGI / **GENERIC**. An unknown name is GENERIC
+- **`deca-fade` is probably Apple's iAP2 accessory channel** (GAIA frames there powered a Sennheiser
+  Accentum off). `BmapCandidates.order(fixedChannels = false)` (a forced "Headphone type: Bose" on a
+  non-Bose name) = learned + SDP SPP only, no SDP BMAP. Every RFCOMM connect runs through
+  `runAbandonable` (`bt/AbandonableCall.kt`): a socket the stack won't release is dropped after its
+  6 s limit instead of stalling the walk (GitHub #1, Xiaomi on Android 16: 78 s stalls).
+- **Vendor routing (0.6/0.75):** `DeviceFamily` = BOSE / BRAGI / SOUNDCORE / SENNHEISER / SONY / **GENERIC**. An unknown name is GENERIC
   (`GenericHeadphoneRepository`: audio link + Android battery broadcast, **never sends anything**),
   not Bose. One rule everywhere: `DevicePrefs.familyFor(address, name)` = that device's "Headphone
   type", else the family whose stack answered on it (`rememberFamily`), else the name ("QC" needs a
@@ -73,7 +78,27 @@ own module. Never edit another area's files, the Gradle files, the version catal
   (`AudioLinkMonitor`) / `HeadphoneState.isAudioActive` drive the service, automations and call boost;
   `HeadphoneCapabilities.ownSettings = false` hides headset-settings UI. AirPods/Beats battery comes
   from BLE adverts (`protocol/apple/ContinuityAdvert`, `AppleAdvertScanner`), read-only.
-- **Soundcore (0.6, Sleep A30 = D1301, tested on the user's pair):**
+- **Universal remote (0.75, any headset):** `bt/CompanionRemote` + `ui/tools/UniversalRemoteSection`
+  (Controls screen). One CDM association per headset (single-device MAC filter, no re-pair), then
+  `BluetoothDevice.connect()/disconnect()` (API 37, needs the association), `setAlias` (13+),
+  `CompanionDeviceManager.removeBond` (36), `disassociate`. `RemoteAbilities.forSdk` gates them;
+  rows stay tappable and explain the version they need. compileSdk 37, targetSdk 36.
+- **Starting battery fallback chain (generic):** Shizuku dumpsys, then `getBatteryLevel()` reflection,
+  then `GattBatteryReader` (own GATT client, BAS `0x180F`/`0x2A19`; LE/dual devices only, 6 s, always
+  closed). AOSP restricts VCS/VOCS/AICS/PACS/ASCS/BASS/HAS/CSIS to apps, not BAS/DIS/MICS.
+- **Soundcore (0.6: Sleep A30 = D1301, tested on the user's pair; 0.75: 35 models, experimental):**
+  - `SoundcoreModel` table: 35 vendor-UUID models with code, name regex, UUID suffix (code as hex
+    with bit 16 set; exceptions `...b395b` R50i NC, `...1202c` R60i NC), header (SLEEP/G2T/G2H/TLV),
+    battery scale and `SoundcoreLayout`. SPP-only gen-1 models and JBL (`...b3850` on the same base)
+    are not driven.
+  - A layout is trusted only when state size, length-byte rule and serial prefix agree; then writes
+    go through `SoundcoreWrites` (read-modify-write, the official app's transitions, read-back
+    `confirms`). Otherwise read-only with a note. `SoundcoreConnection.writesUnlocked` stays false
+    until `SoundcoreHeadphoneRepository` has matched the state.
+  - `SoundcoreWriteGuard.isAllowed(model, packet)` is the per-model allow-list; `NEVER` wins; a null
+    model or `SLEEP_A30` keeps the original list. New-model state: `SoundcoreStateReader` +
+    `SoundcoreModelMapping` (slots 0 NC, 1 Transparency, 2 Normal). Space 2 stays read-only until
+    its `18 85` handshake is understood. The Sleep A30 path below is separate: leave it alone.
   - Frames: `08 EE 00 00 00 | cat code | len u16 LE (whole frame) | body | sum` (inbound
     `09 FF 00 00 01`).
   - Transport: RFCOMM by vendor UUID `0cf12d31-fac3-4553-bd80-d6832e7d1301` only. Never a fixed
@@ -198,6 +223,45 @@ headphones: its facts come from interoperability analysis of the Skullcandy app 
   end-to-end tests run the real connection and protocol against it. In `runTest`, `advanceUntilIdle()`
   ignores `backgroundScope` work: use `testScheduler.runCurrent()`.
 - Do not vendor the Bragi `.proto` files (copyright notice); only field numbers live in the source.
+- **Method 360 ANC / 540 ANC (0.75, experimental):** `BragiModel` SKULLCANDY_METHOD_360 (S2MTW,
+  T99_PLUS) and _540 (S2MFW, T120); `BragiFeatures` hides Crusher bass and spatial for them;
+  `CrusherProtocol` picks the model from the name, then `dev_info`, and never sends `crusher.*` or
+  `spatial_audio.*` to a Method. Secure session and `BragiServices.ALLOWED` unchanged. Crusher ANC 2
+  / Rail ANC (BOS-AT) and the Airoha-based Skullcandy models stay GENERIC.
+
+## Sennheiser (0.75, Experimental, GAIA v3, virtual only)
+
+- Frames `FF ver flags len vendor16 cmd16 payload`, big-endian; version 4 with a two-byte length
+  above 254 bytes; vendor 0x0495, Qualcomm Core 0x001D. Command word `(feature<<9)|(type<<7)|pdu`:
+  response `|0x100`, notification `|0x80`, error `|0x180` with the reason in the first byte. Shared
+  codec in `protocol/gaia` (`GaiaRequestQueue` + `GaiaWritePolicy` is the single write path).
+- Transport: RFCOMM by SDP UUID `a2129ff3-081b-4c45-8afe-469d9c4842ec` only. Never channel numbers
+  (Accentum 15, M4 1 and 2), never `deca-fade`. Probe `001D/0000` replies `03 01`.
+- `SennheiserWriteGuard` is refuse-by-default: only discovery before `0495/0001`, then only reported
+  features and the listed GETs/SETs with checked payloads; feature 8 (EQ) only from version 6.
+- Side effects (M4 captures): `1A04 [01]` switches transparency off and the level to 0; `1804 [01]`
+  sets the level to 100, `[00]` restores it; any `1A00` write switches transparency off; every noise
+  write re-reads `1A05/1805/1A03/1A01` (earbuds `1803`).
+- Families: slider (M4, M5, ACP1), toggles (Accentum; its mode table is never read or written),
+  earbuds. Slots 0 NC, 1 Transparency, 2 Off; cancelling level = (10 - n) x 10. CX Plus TW / CX
+  500BT (BLE only) stay GENERIC.
+
+## Sony (0.75, Experimental, MDR v2, virtual only)
+
+- Transport: RFCOMM by SDP UUID `956C7B26-D49A-4BA8-B03F-B17D393CB6E2` only (Android may cache it
+  byte-reversed as `E2B63C39-...`; both accepted). Never a channel number, never the Bose probe, never
+  the Airoha RACE channel. v1 (`96CC203E-...`, WH-1000XM4) is refused: 4-byte protocol-info reply.
+- Frames `3E | escape(type, seq, len u32 BE, payload, sum8) | 3C`; 3C/3D/3E become `3D 2C/2D/2E` over
+  the whole body incl. length and checksum. Table 1 = type 0x0C, table 2 = 0x0E.
+- `SonyConnection`: one frame in flight, 1-bit seq; the headset ACKs `1 - seq`; resend every
+  750 ms x10, then drop; ACK every received frame; nothing sent for 500 ms after open.
+- Init (`SonySession`): protocol info, device info, support lists (T1, T2), capabilities, values;
+  alerts on with `94 00 00`; never `C4` (logging). Unknown MDR version = read-only.
+- Features come from the support list, never the model name. Noise is a mode (slots 0 NC / 1
+  Ambient / 2 Off); only ambient has a level (range from the `61` capability). EQ
+  `[57, type, preset, n, step x n]`. Confirmation prompts `99 00 msg action` are answered yes only
+  within 5 s of the user's own change. `SonyWriteGuard` refuses by default on [table, command,
+  type] + length/values. `VendorControl` has optional `range`/`unit` (slider, dropdown).
 
 ## Build
 
@@ -217,6 +281,8 @@ Don't run two Gradle builds at once in the same checkout.
 
 ## Credits / licence
 
-Protocol knowledge comes from **bosectl** (github.com/aaronsb/bosectl, MIT) and **Quiet Rebellion**
-(github.com/MadEyez/quietrebellion, MIT); copies of the relevant files and licences are in
-`docs/reference/`. Keep attribution in the About screen. Earshot itself is MIT.
+Protocol knowledge comes from **bosectl** (github.com/aaronsb/bosectl, MIT), **Quiet Rebellion**
+(github.com/MadEyez/quietrebellion, MIT), **soundcorebridge** (MIT), **momentum4-control** and
+**momentumctl** (MIT, Sennheiser) and **SonyHeadphonesClient** (mos9527, MIT); copies of the relevant
+files and licences are in `docs/reference/`. GPL/AGPL references (OpenSCQ30, Gadgetbridge) and the
+makers' apps are facts only, never code. Keep attribution in the About screen. Earshot itself is MIT.

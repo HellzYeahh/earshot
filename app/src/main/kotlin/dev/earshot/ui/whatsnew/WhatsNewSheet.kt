@@ -18,13 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Battery5Bar
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Celebration
-import androidx.compose.material.icons.filled.Equalizer
-import androidx.compose.material.icons.filled.Gesture
+import androidx.compose.material.icons.filled.Earbuds
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.SettingsRemote
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,7 +44,7 @@ import dev.earshot.R
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
 
-/** The 0.5.0 highlights, once after updating. Dismissing (button, swipe or back) marks them seen. */
+/** The 0.75 highlights, once after updating. Dismissing (button, swipe or back) marks them seen. */
 @Composable
 fun WhatsNewSheet(onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -55,12 +56,13 @@ fun WhatsNewSheet(onDismiss: () -> Unit) {
 private data class Highlight(val icon: ImageVector, val text: Int)
 
 private val HIGHLIGHTS = listOf(
-    Highlight(Icons.Default.Gesture, R.string.whats_new_controls),
-    Highlight(Icons.Default.Equalizer, R.string.whats_new_actions),
-    Highlight(Icons.Default.TouchApp, R.string.whats_new_detect),
-    Highlight(Icons.Default.Headphones, R.string.whats_new_headphone_controls),
-    Highlight(Icons.Default.Build, R.string.whats_new_touch_fix),
-    Highlight(Icons.Default.Call, R.string.whats_new_call_link),
+    Highlight(Icons.Default.Headphones, R.string.whats_new_any_headset),
+    Highlight(Icons.Default.Earbuds, R.string.whats_new_drivers),
+    Highlight(Icons.Default.SettingsRemote, R.string.whats_new_remote),
+    Highlight(Icons.Default.Palette, R.string.whats_new_look),
+    Highlight(Icons.Default.Battery5Bar, R.string.whats_new_airpods),
+    Highlight(Icons.Default.Science, R.string.whats_new_lab),
+    Highlight(Icons.Default.Call, R.string.whats_new_calls),
 )
 
 @Composable
