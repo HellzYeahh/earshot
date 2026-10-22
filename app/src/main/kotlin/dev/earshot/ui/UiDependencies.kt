@@ -29,13 +29,15 @@ class UiDependencies(
     val automation: AutomationRepository,
     val callAudio: CallAudioRepository,
     val messenger: UiMessenger = UiMessenger(),
+    /** Per-headset Pro EQ memory; null in previews and tests. */
+    val headsetEq: dev.earshot.audio.HeadsetEqMemory? = null,
 ) {
     companion object {
         fun from(context: Context): UiDependencies {
             val c = context.appContainer
             // Process-wide messenger: ViewModels keep the instance they were built with across
             // configuration changes, so the root must collect from that same one.
-            return UiDependencies(c.headphones, c.tuning, c.codec, c.micCheck, c.automation, c.callAudio, UiMessenger.shared)
+            return UiDependencies(c.headphones, c.tuning, c.codec, c.micCheck, c.automation, c.callAudio, UiMessenger.shared, c.headsetEq)
         }
     }
 }

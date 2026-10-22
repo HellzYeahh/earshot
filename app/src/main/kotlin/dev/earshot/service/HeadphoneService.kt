@@ -66,7 +66,10 @@ class HeadphoneService : LifecycleService() {
                 }
         }
         collectors += lifecycleScope.launch {
-            repository.state.map { it.connection.status }.distinctUntilChanged().collect(::onStatus)
+            // The audio link counts too: a headset playing music or on a call keeps the call boost and
+            // the automations alive even when the control link is down (Bose app holding it).
+            repository.state.map { it.connection.status to (it.connection.audioLinked == true) }.distinctUntilChanged()
+                .collect { (status, audio) -> onStatus(if (audio && status == ConnectionStatus.DISCONNECTED) ConnectionStatus.CONNECTING else status) }
         }
     }
 

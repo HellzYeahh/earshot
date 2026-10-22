@@ -22,3 +22,6 @@ Thumbs.db
 
 # Agent worktrees and local Claude settings
 .claude/
+
+# Vendor apps downloaded for protocol research: copyrighted, never commit
+apps for research/

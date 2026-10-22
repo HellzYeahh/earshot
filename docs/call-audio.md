@@ -8,12 +8,15 @@ apps touch the call microphone signal.
 ## What it does
 
 **Call volume boost.** When a call (phone, WhatsApp, Meet, Teams, Signal...) starts and its audio
-is on the headphones, Earshot raises the phone's call volume to your target (100 % of the maximum
-by default). It does this twice: about 1 s after the call starts, once the headset audio link is
-up, and again at 3 s, because One UI puts back its own saved call volume shortly after a call
-connects. It only ever **raises** the volume. If the call is already louder than your target, it
-leaves it alone, and if you turn it down later in the call (after those first 3 s) it doesn't push
-it back up. "Boost now"
+is on the headphones, any brand, Earshot raises the phone's call volume to your target (100 % of
+the maximum by default). Android keeps one call volume per output and changes the one the call is
+routed to *at that moment*, so Earshot waits until the call audio really reaches the headset (on
+Android 13+ it asks the audio system where voice goes) and then checks again for 12 s: the
+Bluetooth call link can take several seconds to come up, and One UI puts back its own saved call
+volume shortly after a call connects. Until 0.6 the boost fired at 1 s and 3 s only, which on a
+Galaxy raised the earpiece (15/15) and left the headset at 10/15. It only ever **raises** the
+volume. If the call is already louder than your target, it leaves it alone, and if you turn it
+down later in the call (after those first 12 s) it doesn't push it back up. "Boost now"
 sets the volume to exactly your target whenever you press it during a call. If you turn on "also
 raise the headphones", the headphones' own volume is raised too (once that control is available
 for the QC Ultra 2).

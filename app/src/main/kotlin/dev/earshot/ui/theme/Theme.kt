@@ -2,102 +2,58 @@ package dev.earshot.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.ColorScheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import dev.earshot.core.Appearance
 
 /*
- * Material You: dynamic colour on Android 12+, otherwise an indigo/teal palette. The fallback
- * is deliberately calm; the headphones UI is used on the street, so contrast matters more than
- * brand colour.
+ * Field is the app's look (ui/theme/FieldPalette.kt, Type.kt). The "System colours" appearance
+ * keeps the type, shapes and dot grid and only takes the palette from the wallpaper on
+ * Android 12+; below that it is the same as Field.
  */
 
-private val LightColors: ColorScheme = lightColorScheme(
-    primary = Color(0xFF4355B9),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFDEE0FF),
-    onPrimaryContainer = Color(0xFF00105C),
-    secondary = Color(0xFF006A60),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFF74F8E5),
-    onSecondaryContainer = Color(0xFF00201C),
-    tertiary = Color(0xFF00687A),
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFABEDFF),
-    onTertiaryContainer = Color(0xFF001F26),
-    error = Color(0xFFBA1A1A),
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFFBF8FF),
-    onBackground = Color(0xFF1B1B21),
-    surface = Color(0xFFFBF8FF),
-    onSurface = Color(0xFF1B1B21),
-    surfaceVariant = Color(0xFFE2E1EC),
-    onSurfaceVariant = Color(0xFF45464F),
-    outline = Color(0xFF767680),
-    outlineVariant = Color(0xFFC6C5D0),
+/** Squared-off: 8 dp cards, 4 dp chips, 12 dp dialogs and sheets. */
+private val FieldShapes = Shapes(
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(4.dp),
+    medium = RoundedCornerShape(8.dp),
+    large = RoundedCornerShape(8.dp),
+    extraLarge = RoundedCornerShape(12.dp),
 )
 
-private val DarkColors: ColorScheme = darkColorScheme(
-    primary = Color(0xFFBAC3FF),
-    onPrimary = Color(0xFF08218A),
-    primaryContainer = Color(0xFF293CA0),
-    onPrimaryContainer = Color(0xFFDEE0FF),
-    secondary = Color(0xFF53DBC9),
-    onSecondary = Color(0xFF003731),
-    secondaryContainer = Color(0xFF005048),
-    onSecondaryContainer = Color(0xFF74F8E5),
-    tertiary = Color(0xFF55D6F4),
-    onTertiary = Color(0xFF003640),
-    tertiaryContainer = Color(0xFF004E5C),
-    onTertiaryContainer = Color(0xFFABEDFF),
-    error = Color(0xFFFFB4AB),
-    onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF121318),
-    onBackground = Color(0xFFE4E1E9),
-    surface = Color(0xFF121318),
-    onSurface = Color(0xFFE4E1E9),
-    surfaceVariant = Color(0xFF45464F),
-    onSurfaceVariant = Color(0xFFC6C5D0),
-    outline = Color(0xFF90909A),
-    outlineVariant = Color(0xFF45464F),
-)
-
-/** Slightly larger body text than Material defaults: this app is read at arm's length. */
-private val EarshotTypography = Typography().let { base ->
-    base.copy(
-        headlineMedium = base.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
-        titleLarge = base.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-        bodyLarge = base.bodyLarge.copy(fontSize = 17.sp, lineHeight = 24.sp),
-        labelLarge = base.labelLarge.copy(fontSize = 15.sp),
-    )
+/** Accessor for the Field roles Material has no slot for, next to `MaterialTheme.colorScheme`. */
+object EarshotTheme {
+    val colors: EarshotColors
+        @Composable @ReadOnlyComposable get() = LocalEarshotColors.current
 }
 
 @Composable
 fun EarshotTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    appearance: Appearance = Appearance.FIELD,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
+    val dynamic = appearance == Appearance.SYSTEM && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        darkTheme -> DarkColors
-        else -> LightColors
+        dynamic -> if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        darkTheme -> FieldDarkScheme
+        else -> FieldLightScheme
     }
-    MaterialTheme(colorScheme = colorScheme, typography = EarshotTypography, content = content)
+    val colors = when {
+        dynamic -> EarshotColors.fromScheme(colorScheme)
+        darkTheme -> FieldDarkColors
+        else -> FieldLightColors
+    }
+    CompositionLocalProvider(LocalEarshotColors provides colors) {
+        MaterialTheme(colorScheme = colorScheme, shapes = FieldShapes, typography = FieldTypography, content = content)
+    }
 }

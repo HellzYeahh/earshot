@@ -19,12 +19,12 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,6 +37,7 @@ import dev.earshot.core.Trigger
 import dev.earshot.dsp.EqPreset
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.EmptyHint
+import dev.earshot.ui.common.FieldSwitch
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.LocalSnackbarHostState
 import dev.earshot.ui.common.SectionCard
@@ -70,7 +71,8 @@ fun AutomationsContent(
     val fabLift by animateDpAsState(if (snackbarShowing) 72.dp else 0.dp, label = "fabLift")
     SubScreenScaffold(title = stringResource(R.string.settings_automations), onBack = onBack) { padding ->
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
+            // Transparent, like the sub-screen scaffold: the root draws the background and dot grid.
+            containerColor = Color.Transparent,
             floatingActionButton = {
                 ExtendedFloatingActionButton(
                     onClick = { onEdit(null) },
@@ -103,7 +105,7 @@ fun AutomationsContent(
                                 )
                             }
                             Spacer(Modifier.width(8.dp))
-                            Switch(checked = rule.enabled, onCheckedChange = { onSetEnabled(rule, it) })
+                            FieldSwitch(checked = rule.enabled, onCheckedChange = { onSetEnabled(rule, it) })
                         }
                     }
                 }

@@ -58,13 +58,13 @@ internal class A2dpProxyHolder(private val context: Context) {
         emptyList()
     }
 
-    /** Prefers the Bose headphones when several sinks are connected (e.g. a watch or car). */
-    fun pickSink(devices: List<BluetoothDevice>): BluetoothDevice? {
+    /**
+     * The sink to read when several are connected (a car, a speaker): the headset Earshot shows
+     * ([preferred], any brand since 0.6), else the first. It used to prefer names saying Bose.
+     */
+    fun pickSink(devices: List<BluetoothDevice>, preferred: String? = null): BluetoothDevice? {
         if (devices.isEmpty()) return null
-        return devices.firstOrNull { d ->
-            val name = runCatching { d.name }.getOrNull()?.lowercase() ?: return@firstOrNull false
-            "bose" in name || "qc" in name || "quietcomfort" in name
-        } ?: devices.first()
+        return preferred?.let { p -> devices.firstOrNull { it.address.equals(p, ignoreCase = true) } } ?: devices.first()
     }
 
     /**

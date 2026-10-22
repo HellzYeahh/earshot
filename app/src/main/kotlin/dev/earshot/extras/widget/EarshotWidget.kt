@@ -1,11 +1,10 @@
 package dev.earshot.extras.widget
 
+import dev.earshot.ui.theme.FieldDarkScheme
+import dev.earshot.ui.theme.FieldLightScheme
 import android.content.Context
 import android.os.Build
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -229,19 +228,7 @@ class EarshotWidget : GlanceAppWidget() {
  * because the `system_accent*` resources do not exist there.
  */
 internal object WidgetColors {
-    private val light = lightColorScheme(
-        primary = Color(0xFF3F5F9A), onPrimary = Color.White,
-        secondaryContainer = Color(0xFFDCE4F4), onSecondaryContainer = Color(0xFF1A2742),
-        surface = Color(0xFFF7F8FC), onSurface = Color(0xFF191C21), surfaceVariant = Color(0xFFE0E3EB),
-        onSurfaceVariant = Color(0xFF44474F), error = Color(0xFFBA1A1A),
-    )
-    private val dark = darkColorScheme(
-        primary = Color(0xFFAAC7FF), onPrimary = Color(0xFF0B305F),
-        secondaryContainer = Color(0xFF3B4759), onSecondaryContainer = Color(0xFFD8E2F9),
-        surface = Color(0xFF131519), onSurface = Color(0xFFE2E2E9), surfaceVariant = Color(0xFF2F3137),
-        onSurfaceVariant = Color(0xFFC4C6D0), error = Color(0xFFFFB4AB),
-    )
-
+    /** Field's own schemes (ui/theme/FieldPalette.kt), so the widget can't drift from the app. */
     @Composable
-    fun providers() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) GlanceTheme.colors else ColorProviders(light, dark)
+    fun providers() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) GlanceTheme.colors else ColorProviders(FieldLightScheme, FieldDarkScheme)
 }

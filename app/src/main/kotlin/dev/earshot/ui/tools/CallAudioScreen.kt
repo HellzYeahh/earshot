@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
@@ -24,7 +23,7 @@ import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import dev.earshot.ui.common.FieldProgressBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -154,7 +153,7 @@ private fun LiveCallCard(state: CallAudioState, onBoostNow: () -> Unit) {
             )
         }
         Spacer(Modifier.height(6.dp))
-        LinearProgressIndicator(
+        FieldProgressBar(
             progress = { if (state.callVolumeMax > 0) (state.callVolume.toFloat() / state.callVolumeMax).coerceIn(0f, 1f) else 0f },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -182,7 +181,7 @@ private fun LiveCallCard(state: CallAudioState, onBoostNow: () -> Unit) {
                 }
             }
             Spacer(Modifier.width(12.dp))
-            Button(onClick = onBoostNow, modifier = Modifier.heightIn(min = 48.dp)) {
+            Button(shape = MaterialTheme.shapes.medium, onClick = onBoostNow, modifier = Modifier.heightIn(min = 48.dp)) {
                 Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.call_boost_now))
@@ -344,7 +343,7 @@ private fun CodecChip(codec: CallCodecLabel) {
     Surface(
         color = container,
         contentColor = content,
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.small,
         border = BorderStroke(1.dp, if (codec.narrowband) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant),
     ) {
         Text(

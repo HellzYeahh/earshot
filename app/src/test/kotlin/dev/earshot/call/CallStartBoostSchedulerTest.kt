@@ -16,7 +16,10 @@ class CallStartBoostSchedulerTest {
     /** (attempt, virtual time) of every fire. */
     private class Harness(scope: TestScope) {
         val fired = mutableListOf<Pair<Int, Long>>()
-        val scheduler = CallStartBoostScheduler(scope.backgroundScope) { attempt -> fired += attempt to scope.testScheduler.currentTime }
+        // The mechanics are tested on a two-fire schedule; the default's shape has its own test.
+        val scheduler = CallStartBoostScheduler(scope.backgroundScope, fireAtMs = listOf(1_000L, 3_000L)) { attempt ->
+            fired += attempt to scope.testScheduler.currentTime
+        }
     }
 
     private fun TestScope.advance(ms: Long) { advanceTimeBy(ms); runCurrent() }
@@ -33,6 +36,14 @@ class CallStartBoostSchedulerTest {
         assertFalse(h.scheduler.isPending)
         advance(10_000)
         assertEquals(2, h.fired.size) // nothing more for the same call
+    }
+
+    @Test fun `the default schedule keeps checking for 12 s, the first check after 1 s`() {
+        val d = CallStartBoostScheduler.DEFAULT_FIRE_AT_MS
+        assertEquals(1_000L, d.first())
+        assertEquals(12_000L, d.last())
+        assertTrue(d.zipWithNext().all { (a, b) -> b > a })
+        assertTrue(d.size >= 5, "late Bluetooth call links and One UI's reset need more than two checks")
     }
 
     @Test fun `repeating the same signal does not restart the schedule`() = runTest {

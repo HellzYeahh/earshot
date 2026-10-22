@@ -62,9 +62,10 @@ class AutomationEngine(
             }
         }
 
-        // Wi-Fi watcher lives only while connected.
+        // Wi-Fi watcher lives only while the headset is in use (control link, or linked for audio:
+        // an EQ rule works on any headset, a mode rule fails quietly without the control link).
         scope.launch {
-            headphones.state.map { it.isConnected }.distinctUntilChanged().collect { connected ->
+            headphones.state.map { it.isAudioActive }.distinctUntilChanged().collect { connected ->
                 if (connected) wifi.start() else wifi.stop()
             }
         }
@@ -73,7 +74,7 @@ class AutomationEngine(
         // itself is re-checked inside the watcher so granting it later needs no restart.
         scope.launch {
             combine(
-                headphones.state.map { it.isConnected }.distinctUntilChanged(),
+                headphones.state.map { it.isAudioActive }.distinctUntilChanged(),
                 automation.rules.map { rules -> rules.any { it.enabled && it.trigger is Trigger.ForegroundApp } }.distinctUntilChanged(),
             ) { connected, wanted -> connected && wanted }
                 .distinctUntilChanged()
@@ -101,7 +102,7 @@ class AutomationEngine(
         val rule = automation.rules.value.firstOrNull { it.id == ruleId }
         if (rule == null) { alarms.cancel(ruleId); return }
         try {
-            if (rule.enabled && headphones.state.value.isConnected) runAndRefresh(rule)
+            if (rule.enabled && headphones.state.value.isAudioActive) runAndRefresh(rule)
             else Log.i(TAG, "Schedule $ruleId skipped (disabled or disconnected)")
         } finally {
             alarms.arm(rule)
@@ -109,12 +110,12 @@ class AutomationEngine(
     }
 
     private suspend fun onSsid(ssid: String?) {
-        if (ssid == null || !headphones.state.value.isConnected) return
+        if (ssid == null || !headphones.state.value.isAudioActive) return
         fireAll { it is Trigger.WifiNetwork && Ssid.matches(it.ssid, ssid) }
     }
 
     private suspend fun onForegroundApp(packageName: String) {
-        if (!headphones.state.value.isConnected) return
+        if (!headphones.state.value.isAudioActive) return
         fireAll { it is Trigger.ForegroundApp && it.packageName == packageName }
     }
 

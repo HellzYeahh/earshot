@@ -1,6 +1,7 @@
 package dev.earshot.bt
 
 import dev.earshot.protocol.bragi.BragiModel
+import dev.earshot.protocol.soundcore.SoundcoreModel
 
 /** Which stack drives a pair of headphones. */
 enum class DeviceFamily {
@@ -9,6 +10,9 @@ enum class DeviceFamily {
 
     /** Bragi BOS-RPC: the Skullcandy Crusher 1080 ANC ("Sound by Bose"). */
     BRAGI,
+
+    /** Anker Soundcore over its RFCOMM vendor service; only the models in `SoundcoreModel` (Sleep A30 first). */
+    SOUNDCORE,
 
     /**
      * Any other headset: Earshot doesn't speak its control protocol (yet), so it is shown by its
@@ -40,6 +44,7 @@ enum class DeviceFamily {
          */
         fun forName(name: String?): DeviceFamily = when {
             BragiModel.isBragiName(name) -> BRAGI
+            SoundcoreModel.fromName(name) != null -> SOUNDCORE
             looksLikeBose(name) -> BOSE
             else -> GENERIC
         }

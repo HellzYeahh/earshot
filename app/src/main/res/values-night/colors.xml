@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="window_background">#FF121218</color>
+    <!-- Field night: the dark window background and splash. -->
+    <color name="window_background">#FF0F130E</color>
 </resources>

@@ -59,8 +59,8 @@ fun DisconnectedCard(
     val demo = connection.deviceName?.contains("(demo)") == true
     // "Close the Bose app" leads only when the manager actually diagnosed a busy channel; otherwise the
     // headphones are simply off, out of range or not linked, and that hint would mislead.
-    val channelBusy = connection.message == dev.earshot.bt.ConnectionManager.MESSAGE_CHANNEL_BUSY
-    val skullcandyBusy = connection.message == dev.earshot.bt.BragiLinkFactory.MESSAGE_CHANNEL_BUSY
+    val heldBy = (connection.problem as? dev.earshot.core.ConnectionProblem.ChannelHeld)?.appName
+    val channelBusy = heldBy != null
     SectionCard(modifier = modifier) {
         Text(
             stringResource(if (buds) R.string.disconnected_title_buds else R.string.disconnected_title),
@@ -71,16 +71,16 @@ fun DisconnectedCard(
             stringResource(
                 when {
                     demo -> R.string.disconnected_body_demo
-                    skullcandyBusy -> R.string.disconnected_body_skullcandy
-                    channelBusy -> R.string.disconnected_body
+                    heldBy != null -> R.string.disconnected_body_held
                     else -> R.string.disconnected_body_generic
                 },
+                heldBy ?: "",
             ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         // The manager's own diagnosis, unless the body above already is that diagnosis.
-        if (connection.message != null && connection.status == ConnectionStatus.DISCONNECTED && !channelBusy && !skullcandyBusy) {
+        if (connection.message != null && connection.status == ConnectionStatus.DISCONNECTED && !channelBusy) {
             Text(
                 connection.message,
                 style = MaterialTheme.typography.bodySmall,
@@ -90,7 +90,7 @@ fun DisconnectedCard(
         }
         Spacer(Modifier.size(12.dp))
         // Stacked full-width buttons: two side by side would ellipsize "Choose headphones" at phone width.
-        Button(onClick = onConnect, enabled = !connecting, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+        Button(shape = MaterialTheme.shapes.medium, onClick = onConnect, enabled = !connecting, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             if (connecting) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = LocalContentColor.current)
                 Spacer(Modifier.width(10.dp))
@@ -98,7 +98,7 @@ fun DisconnectedCard(
             Text(stringResource(if (connecting) R.string.status_connecting else R.string.action_connect))
         }
         Spacer(Modifier.size(8.dp))
-        OutlinedButton(onClick = onChooseHeadphones, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+        OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onChooseHeadphones, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             Text(stringResource(R.string.action_choose_headphones))
         }
         if (!demo) {
@@ -109,7 +109,7 @@ fun DisconnectedCard(
             Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Tip(Icons.Default.PowerSettingsNew, stringResource(if (buds) R.string.tip_power_on_buds else R.string.tip_power_on))
                 // Only Bose has a Bose app to close; for any other headset the tip would mislead.
-                if (channelBusy || dev.earshot.bt.DeviceFamily.looksLikeBose(connection.deviceName)) {
+                if (heldBy == "Bose" || (heldBy == null && dev.earshot.bt.DeviceFamily.looksLikeBose(connection.deviceName))) {
                     Tip(Icons.Default.Block, stringResource(R.string.tip_close_bose_app))
                 }
                 Tip(Icons.Default.Bluetooth, stringResource(R.string.tip_le_audio))

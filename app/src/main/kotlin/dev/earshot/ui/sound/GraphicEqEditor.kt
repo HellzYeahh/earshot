@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +24,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import dev.earshot.dsp.GraphicEq
 import dev.earshot.dsp.ParametricBand
+import dev.earshot.ui.common.FieldSlider
 import kotlin.math.roundToInt
 
 /**
@@ -83,7 +83,8 @@ private fun VerticalGainSlider(
             textAlign = TextAlign.Center,
             maxLines = 1,
         )
-        Slider(
+        // Field's bar thumb, turned on its side by vertical(), reads as a fader cap.
+        FieldSlider(
             value = drag,
             onValueChange = { drag = it },
             onValueChangeFinished = { onGainChange(drag.roundToInt().toDouble()) },

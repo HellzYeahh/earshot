@@ -2,10 +2,14 @@ package dev.earshot
 
 import android.content.Context
 import dev.earshot.audio.AudioTuningRepositoryImpl
+import dev.earshot.audio.HeadsetEqMemory
+import dev.earshot.bt.AppleAdvertScanner
+import dev.earshot.bt.AudioLinkMonitor
 import dev.earshot.bt.ByteTransport
 import dev.earshot.bt.DeviceFamily
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.call.CallAudioRepositoryImpl
+import dev.earshot.call.HeadsetBatteryReader
 import dev.earshot.call.HeadsetVolumeControl
 import dev.earshot.codec.CodecRepositoryImpl
 import dev.earshot.core.AudioTuningRepository
@@ -23,6 +27,7 @@ import dev.earshot.service.HeadphoneProtocol
 import dev.earshot.service.QcUltra2Protocol
 import dev.earshot.service.RoutingHeadphoneRepository
 import dev.earshot.service.ServiceHeadphoneRepository
+import dev.earshot.service.VendorDriver
 import dev.earshot.shortcut.ShortcutEngine
 import dev.earshot.shortcut.ShortcutPrefs
 import dev.earshot.virtual.DemoDevice
@@ -77,6 +82,15 @@ class AppContainer(private val appContext: Context) {
         }
     }
 
+    /** One virtual Sleep A30 per process, so its state survives demo reconnects. */
+    private val virtualSleepA30: dev.earshot.virtual.VirtualSleepA30 by lazy { dev.earshot.virtual.VirtualSleepA30() }
+
+    private val soundcoreDemoTransport: () -> (() -> ByteTransport)? = {
+        if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking().isSoundcore) {
+            { dev.earshot.virtual.VirtualSleepA30Transport(virtualSleepA30) }
+        } else null
+    }
+
     /** The QC Ultra 2 command layer (BMAP addresses, payloads and state mapping). */
     private val headphoneProtocol: HeadphoneProtocol by lazy { QcUltra2Protocol() }
 
@@ -95,14 +109,33 @@ class AppContainer(private val appContext: Context) {
         )
     }
 
+    /** Soundcore earbuds (Sleep A30 first) over their RFCOMM vendor service. */
+    private val soundcoreHeadphones: dev.earshot.service.SoundcoreHeadphoneRepository by lazy {
+        dev.earshot.service.SoundcoreHeadphoneRepository(
+            appContext, applicationScope, soundcoreDemoTransport,
+            autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+        )
+    }
+
     /**
      * Any other headset (AirPods, Sony, no-name earbuds): shown by its own name from what Android
      * reports, never sent anything. Shares the Bose repository's prefs and finder, so every stack
      * agrees on which device is picked.
      */
     private val genericHeadphones: GenericHeadphoneRepository by lazy {
-        GenericHeadphoneRepository(appContext, boseHeadphones.devicePrefs, boseHeadphones.deviceFinder, applicationScope)
+        GenericHeadphoneRepository(
+            appContext, boseHeadphones.devicePrefs, boseHeadphones.deviceFinder, applicationScope,
+            initialBattery = { address ->
+                HeadsetBatteryReader.read(privilegedShell, address)
+                    ?: boseHeadphones.deviceFinder.deviceFor(address)?.let(dev.earshot.bt.DeviceBattery::read)
+            },
+            appleAdverts = AppleAdvertScanner(appContext, applicationScope),
+            demo = { if (demoMode.isEnabledBlocking()) demoMode.deviceBlocking().demoHeadset() else null },
+        )
     }
+
+    /** Shizuku shell for the few reads Android keeps from apps (dumpsys); optional everywhere. */
+    private val privilegedShell: dev.earshot.call.PrivilegedShell by lazy { dev.earshot.call.ShizukuPrivilegedShell(appContext) }
 
     /** The saved headphones and what Earshot has learned about how to reach them. */
     val devicePrefs: dev.earshot.bt.DevicePrefs get() = boseHeadphones.devicePrefs
@@ -110,21 +143,36 @@ class AppContainer(private val appContext: Context) {
     /** What the app talks to: forwards to the Bose, Crusher or generic repository for the headset in use. */
     val headphones: HeadphoneRepository by lazy {
         RoutingHeadphoneRepository(
-            bose = boseHeadphones,
-            crusher = crusherHeadphones,
-            generic = genericHeadphones,
+            drivers = listOf(
+                VendorDriver(DeviceFamily.BOSE, boseHeadphones, boseHeadphones::releaseConnection),
+                VendorDriver(DeviceFamily.BRAGI, crusherHeadphones, crusherHeadphones::releaseConnection),
+                VendorDriver(DeviceFamily.SOUNDCORE, soundcoreHeadphones, soundcoreHeadphones::releaseConnection),
+                VendorDriver(DeviceFamily.GENERIC, genericHeadphones, genericHeadphones::releaseConnection),
+            ),
             prefs = boseHeadphones.devicePrefs,
             finder = boseHeadphones.deviceFinder,
             scope = applicationScope,
+            audioLink = AudioLinkMonitor(appContext, boseHeadphones.deviceFinder, applicationScope),
             demoFamily = {
                 if (demoMode.isEnabledBlocking()) {
-                    if (demoMode.deviceBlocking().isCrusher) DeviceFamily.BRAGI else DeviceFamily.BOSE
+                    val device = demoMode.deviceBlocking()
+                    when {
+                        device.isCrusher -> DeviceFamily.BRAGI
+                        device.isGeneric -> DeviceFamily.GENERIC
+                        device.isSoundcore -> DeviceFamily.SOUNDCORE
+                        else -> DeviceFamily.BOSE
+                    }
                 } else null
             },
         )
     }
     val tuning: AudioTuningRepository by lazy { AudioTuningRepositoryImpl(appContext, applicationScope) }
-    val codec: CodecRepository by lazy { CodecRepositoryImpl(appContext, applicationScope) }
+
+    /** Pro EQ preset per headset, applied when that headset connects. Started by [EarshotApp]. */
+    val headsetEq: HeadsetEqMemory by lazy { HeadsetEqMemory(appContext, headphones, tuning, applicationScope) }
+    val codec: CodecRepository by lazy {
+        CodecRepositoryImpl(appContext, applicationScope, preferredAddress = { headphones.state.value.connection.deviceAddress })
+    }
     val micCheck: MicCheckRepository by lazy { MicCheckRepositoryImpl(appContext, applicationScope) }
     val automation: AutomationRepository by lazy { AutomationRepositoryImpl(appContext, applicationScope) }
 

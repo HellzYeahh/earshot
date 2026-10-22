@@ -1,7 +1,9 @@
 # Earshot
 
-**A faster, more capable, account-free Android app for Bose QuietComfort and Ultra headphones and
-earbuds.** Built around the QC Ultra Headphones (2nd Gen), it adapts to whichever model you connect:
+**A faster, more capable, account-free Android companion app for your Bluetooth headphones, with
+deep support for Bose QuietComfort and Ultra headphones and earbuds.** Any headset gets Earshot's
+pro EQ, codec panel, louder calls, Controls and automations (see [Any headset](#any-headset)); on
+Bose it goes all the way. Built around the QC Ultra Headphones (2nd Gen), it adapts to whichever Bose model you connect:
 QC Ultra Headphones and Earbuds (1st and 2nd Gen), QC Headphones (1st and 2nd Gen), QC SC, QC45,
 QC SE, QC Earbuds II, Ultra Open Earbuds (1st and 2nd Gen), basic support for the QC Earbuds (2020)
 and Noise Cancelling Headphones 700, and, experimentally, the Skullcandy Crusher 1080 ANC
@@ -105,6 +107,19 @@ research: [docs/bose-models.md](docs/bose-models.md).
 | QC Earbuds (2020) | **Basic**, layout verified by bosectl | Direct level (0–10) | Battery, EQ, settings, noise level, mode switching; saving custom modes untested |
 | Noise Cancelling Headphones 700 | **Basic**, best guess | Direct level (0–10) | Battery, EQ, settings and noise level; no listening modes |
 | **Skullcandy Crusher 1080 ANC** | **Experimental, never run on real headphones** | Quiet / Aware / Off, with a gain slider | A different protocol (Bragi BOS-RPC, not Bose BMAP): Immersive Audio (Still / Motion), sidetone and the **Crusher bass** card. See [docs/crusher-1080.md](docs/crusher-1080.md) |
+
+### Any headset
+
+Since 0.6 every other Bluetooth headset (AirPods, Sony, Samsung, Soundcore, no-name earbuds...) is
+shown by its own name. Earshot never sends it anything, so nothing can go wrong. What works through
+Android itself:
+
+- **Pro EQ** with a preset remembered per headset, the **codec panel**, **louder calls**, the
+  **Controls** remapper (press-and-hold) and **automations**.
+- **Battery**, as the headset reports it to Android. **AirPods and Beats:** left, right and case
+  battery and charging, read from the Bluetooth adverts they broadcast (needs "Nearby devices").
+- Its own settings (noise modes, its EQ, touch controls) need a driver for its protocol: AirPods,
+  JieLi-based earbuds and Soundcore are next on the [roadmap](docs/roadmap.md).
 
 **Not supported:** QuietComfort 35 and 35 II (Bose Connect era; Earshot recognises them and shows
 the battery only) and the 2024 QuietComfort Earbuds (a different protocol and a separate Bose app).

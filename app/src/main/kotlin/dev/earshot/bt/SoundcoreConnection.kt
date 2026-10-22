@@ -1,0 +1,138 @@
+package dev.earshot.bt
+
+import dev.earshot.core.HeadphoneCommandException
+import dev.earshot.protocol.soundcore.SoundcoreFrameBuffer
+import dev.earshot.protocol.soundcore.SoundcorePacket
+import dev.earshot.protocol.soundcore.SoundcoreWriteGuard
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.ContinuationInterceptor
+
+/**
+ * One session with a Soundcore headset. Requests go one at a time: each waits for a frame with the
+ * same command id (the headset echoes it, usually with an empty body; `01 01` comes back as the
+ * full state). Unknown commands get no answer at all, so a request retries three times with
+ * growing waits (500 / 1000 / 1500 ms, as OpenSCQ30 does) before failing. Frames nobody asked
+ * for (state and battery pushes) go to [unsolicited].
+ *
+ * Every outgoing frame passes [SoundcoreWriteGuard] first: unpair, pairing mode, power off and
+ * any unknown write never leave the phone.
+ */
+class SoundcoreConnection(
+    private val transport: ByteTransport,
+    parentScope: CoroutineScope,
+    private val minWriteGapMs: Long = MIN_WRITE_GAP_MS,
+) : ManagedLink {
+    private val scope = CoroutineScope(
+        parentScope.coroutineContext +
+            SupervisorJob(parentScope.coroutineContext[Job]) +
+            (parentScope.coroutineContext[ContinuationInterceptor] ?: Dispatchers.Default),
+    )
+    private val frames = SoundcoreFrameBuffer(onJunk = { n -> BtLog.w("soundcore: dropped $n undecodable bytes") })
+    private val requests = Mutex()
+    private val pending = ConcurrentHashMap<Int, CompletableDeferred<SoundcorePacket>>()
+    private val closed = CompletableDeferred<Throwable?>()
+
+    private val _unsolicited = MutableSharedFlow<SoundcorePacket>(extraBufferCapacity = 32)
+    val unsolicited: SharedFlow<SoundcorePacket> = _unsolicited.asSharedFlow()
+
+    @Volatile
+    override var isOpen: Boolean = true
+        private set
+
+    /** True once a valid frame arrived: the far end speaks this protocol. */
+    @Volatile
+    var hasFramed: Boolean = false
+        private set
+
+    init {
+        scope.launch {
+            try {
+                transport.incoming.collect { chunk -> frames.feed(chunk).forEach(::dispatch) }
+                finish(null)
+            } catch (e: Throwable) {
+                finish(e)
+                if (e is CancellationException) throw e
+            }
+        }
+    }
+
+    private fun dispatch(packet: SoundcorePacket) {
+        if (!packet.inbound) return // an echo of our own frame
+        hasFramed = true
+        // Command and size only: some frames carry other people's data (the `0b 01` host list has the
+        // phone's name and address), and logs hold nothing personal beyond the headset's address.
+        BtLog.d("<- soundcore ${SoundcorePacket.commandName(packet.command)} (${packet.body.size} bytes)")
+        pending.remove(packet.command)?.complete(packet) ?: _unsolicited.tryEmit(packet)
+    }
+
+    /**
+     * Send [command] with [body] and return the headset's answer. Throws [HeadphoneCommandException]
+     * when the command is not on the allow-list, the link is closed, or nothing answers.
+     */
+    suspend fun request(
+        command: Int,
+        body: ByteArray = ByteArray(0),
+        timeoutsMs: List<Long> = DEFAULT_TIMEOUTS_MS,
+    ): SoundcorePacket {
+        val packet = SoundcorePacket(command, body)
+        if (!SoundcoreWriteGuard.isAllowed(packet)) {
+            throw HeadphoneCommandException("Earshot doesn't send that command to Soundcore headsets (${SoundcorePacket.commandName(command)})")
+        }
+        return requests.withLock {
+            for (timeout in timeoutsMs) {
+                if (!isOpen) throw HeadphoneCommandException("Headphones not connected")
+                val answer = CompletableDeferred<SoundcorePacket>()
+                pending[command] = answer
+                BtLog.d("-> soundcore ${SoundcorePacket.commandName(command)} (${body.size} bytes)")
+                try {
+                    transport.write(packet.encode())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    pending.remove(command)
+                    throw HeadphoneCommandException("Connection to the headphones was lost", e)
+                }
+                withTimeoutOrNull(timeout) { answer.await() }?.let { reply ->
+                    if (minWriteGapMs > 0) delay(minWriteGapMs)
+                    return@withLock reply
+                }
+                pending.remove(command)
+            }
+            throw HeadphoneCommandException("The headphones didn't answer (${SoundcorePacket.commandName(command)})")
+        }
+    }
+
+    override suspend fun awaitClosed(): Throwable? = closed.await()
+
+    override fun close() = finish(null)
+
+    private fun finish(cause: Throwable?) {
+        if (!isOpen) return
+        isOpen = false
+        runCatching { transport.close() }
+        pending.values.forEach { it.cancel() }
+        pending.clear()
+        closed.complete(cause)
+        scope.cancel()
+    }
+
+    companion object {
+        val DEFAULT_TIMEOUTS_MS = listOf(500L, 1_000L, 1_500L)
+        const val MIN_WRITE_GAP_MS = 60L
+    }
+}

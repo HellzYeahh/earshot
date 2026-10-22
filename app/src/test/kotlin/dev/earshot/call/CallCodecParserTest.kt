@@ -309,6 +309,25 @@ class CallCodecParserTest {
         assertNull(link.phoneNrec)
     }
 
+    @Test fun `the battery the headset reported over HFP, where One UI prints it`() {
+        val text = """
+            Profile: HeadsetService
+              ==== StateMachine for 4C:87:5D:AA:BB:CC ====
+                mCurrentDevice: 4C:87:5D:AA:BB:CC
+                mCurrentState: Connected
+                mBatteryLevel: 70
+              ==== StateMachine for 11:22:33:44:55:66 ====
+                mCurrentDevice: 11:22:33:44:55:66
+                mBatteryLevel: -1
+        """.trimIndent()
+        val devices = CallCodecParser.parse(text).hfpDevices
+        assertEquals(70, devices[0].batteryLevel)
+        assertNull(devices[1].batteryLevel)
+        assertEquals(70, HeadsetBatteryReader.fromDump(text, "4c:87:5d:aa:bb:cc"))
+        assertNull(HeadsetBatteryReader.fromDump(text, "11:22:33:44:55:66"))
+        assertNull(HeadsetBatteryReader.fromDump(text, "99:99:99:99:99:99"))
+    }
+
     @Test fun `no HFP link while the call is on LE Audio`() {
         val parsed = CallCodecParser.parse(dump(headsetSection(wbs = true, state = "Connected", audioState = 10), leSectionInCall))
         assertNull(CallCodecParser.hfpLink(parsed, CallRoute.LE_AUDIO))

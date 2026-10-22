@@ -20,7 +20,12 @@ private val Context.demoModeDataStore: DataStore<Preferences> by preferencesData
  * the UI lists [entries], so a new entry appears there without UI changes. The Bose entries run
  * a [VirtualQcUltra2] with the matching [VirtualProfile] ([virtualProfile]).
  */
-enum class DemoDevice(val displayName: String, val isCrusher: Boolean = false) {
+enum class DemoDevice(
+    val displayName: String,
+    val isCrusher: Boolean = false,
+    val isGeneric: Boolean = false,
+    val isSoundcore: Boolean = false,
+) {
     QC_ULTRA("QC Ultra Headphones (2nd Gen)"),
     QC_ULTRA_EARBUDS_2("QC Ultra Earbuds (2nd Gen)"),
     QC_EARBUDS_2("QC Earbuds II"),
@@ -35,8 +40,24 @@ enum class DemoDevice(val displayName: String, val isCrusher: Boolean = false) {
 
     /** A Crusher that asks for the one-time pairing, to try the pairing flow without the headphones. */
     CRUSHER_SECURE("Crusher (pairing)", isCrusher = true),
+
+    /** A headset Earshot has no stack for: shown by name, battery from a canned AirPods advert. */
+    AIRPODS_PRO("AirPods Pro", isGeneric = true),
+
+    /** The Soundcore driver against a virtual Sleep A30 (noise cancelling on/off, battery, tap controls). */
+    SOUNDCORE_SLEEP_A30("Soundcore Sleep A30", isSoundcore = true),
     ;
+
+    /** The demo headset for a generic entry, or null. */
+    fun demoHeadset(): DemoHeadset? = when (this) {
+        // Left 90 %, right 80 %, case 60 % and charging, as the advert would say it (see ContinuityAdvert).
+        AIRPODS_PRO -> DemoHeadset("AirPods Pro (demo)", byteArrayOf(0x07, 0x19, 0x01, 0x14, 0x20, 0x2B, 0x89.toByte(), 0x46, 0, 0, 0))
+        else -> null
+    }
 }
+
+/** A generic demo headset: its name and the proximity-pairing advert it "sends". */
+class DemoHeadset(val name: String, val advert: ByteArray)
 
 /**
  * The "Demo mode" switch: when on, the connection manager talks to a [VirtualQcUltra2] through

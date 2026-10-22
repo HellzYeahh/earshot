@@ -9,12 +9,26 @@ package dev.earshot.core
 enum class ConnectionStatus { NO_PERMISSION, NO_PAIRED_DEVICE, DISCONNECTED, CONNECTING, CONNECTED }
 
 data class ConnectionState(
+    /** Earshot's own control link (BMAP, Bragi; for a generic headset: its audio link). */
     val status: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val deviceName: String? = null,
     val deviceAddress: String? = null,
     /** Human-readable reason for the last failure, if any. */
     val message: String? = null,
+    /** Why the control link is down, typed: the UI words it without matching [message]. */
+    val problem: ConnectionProblem? = null,
+    /**
+     * The headset is connected to the phone for audio (A2DP, HFP or LE Audio), whatever the control
+     * link does; null while unknown. Music, calls, the call boost, EQ and automations need only this.
+     */
+    val audioLinked: Boolean? = null,
 )
+
+/** What keeps the control link down, when Earshot knows. */
+sealed interface ConnectionProblem {
+    /** The control channel opens but stays silent: another app holds it ("Bose", "Skullcandy"). */
+    data class ChannelHeld(val appName: String) : ConnectionProblem
+}
 
 enum class SpatialAudio(val wire: Int, val label: String) {
     OFF(0, "Off"),
@@ -264,6 +278,19 @@ data class HeadphoneCapabilities(
     val listeningModes: Boolean = true,
     /** False while the model's layout is a best guess rather than confirmed on hardware. */
     val verified: Boolean = true,
+    /**
+     * The headset's own settings can be reached over its protocol: touch controls, prompts,
+     * sidetone, rename, power off, its EQ, LE Audio and latency, the Lab. False for a headset
+     * Earshot has no stack for (generic): those sections are hidden rather than greyed out, since
+     * no connection would ever enable them. Rows within still hide on their own null values.
+     */
+    val ownSettings: Boolean = true,
+    /**
+     * Home shows the listening-mode carousel. False where the modes are only a stand-in for a
+     * switch (Sleep A30: "Noise cancelling" / "Off"): Home shows the vendor controls instead, while
+     * the modes still drive the tile, widget, notification and automations.
+     */
+    val modesOnHome: Boolean = true,
     /** What kind of product this is (icon, battery layout, wording). */
     val formFactor: FormFactor = FormFactor.HEADPHONES,
     /**
@@ -310,6 +337,25 @@ data class ButtonAssignment(
 )
 
 data class VoicePrompts(val enabled: Boolean, val languageId: Int)
+
+/**
+ * A setting only one maker's headsets have, described so one generic card draws it (roadmap F1):
+ * a switch when [options] is null (value 0/1), else a choice (value = option index). Drivers fill
+ * [HeadphoneState.vendorControls] and take changes in [HeadphoneRepository.setVendorControl], so a
+ * new brand's settings need no new screen and no new core field.
+ */
+data class VendorControl(
+    /** The driver's own key ("listening_mode"). */
+    val id: String,
+    val title: String,
+    val subtitle: String? = null,
+    /** 0/1 for a switch, the option index for a choice; null = the headset didn't report it. */
+    val value: Int?,
+    /** Option labels for a choice; null for a switch. */
+    val options: List<String>? = null,
+    /** Also shown on Home (quick controls); every control is shown in More. */
+    val onHome: Boolean = false,
+)
 
 data class HeadphoneState(
     val connection: ConnectionState = ConnectionState(),
@@ -399,8 +445,19 @@ data class HeadphoneState(
      * [shortcutButton] is known (older producers); use [allShortcutButtons] to read either.
      */
     val shortcutButtons: List<ButtonAssignment> = emptyList(),
+
+    // ---- Added for 0.6 (vendor drivers) ----
+
+    /** Settings only this maker's headsets have; see [VendorControl]. Empty for Bose (its settings have their own fields). */
+    val vendorControls: List<VendorControl> = emptyList(),
 ) {
     val isConnected: Boolean get() = connection.status == ConnectionStatus.CONNECTED
+
+    /**
+     * The headset is in use: control link up, or at least linked for audio. What the call boost,
+     * EQ automations and the foreground service go by; the headset's own settings need [isConnected].
+     */
+    val isAudioActive: Boolean get() = isConnected || connection.audioLinked == true
     val currentMode: ListeningMode? get() = currentModeIndex?.let { i -> modes.firstOrNull { it.index == i } }
     val favoriteModes: List<ListeningMode> get() = modes.filter { it.isFavorite }
 

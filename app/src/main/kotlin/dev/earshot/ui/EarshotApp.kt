@@ -2,12 +2,11 @@ package dev.earshot.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -26,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
@@ -37,6 +37,8 @@ import androidx.navigation.compose.rememberNavController
 import dev.earshot.R
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneEvent
+import dev.earshot.ui.common.FieldNavigationBar
+import dev.earshot.ui.common.FieldNavigationBarItem
 import dev.earshot.ui.common.LocalSnackbarHostState
 import dev.earshot.ui.home.PairingDialog
 import dev.earshot.ui.nav.EarshotNavHost
@@ -45,6 +47,7 @@ import dev.earshot.ui.nav.navigateToTab
 import dev.earshot.ui.onboarding.OnboardingScreen
 import dev.earshot.ui.onboarding.Permissions
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.dotGrid
 import dev.earshot.ui.whatsnew.WhatsNew
 import dev.earshot.ui.whatsnew.WhatsNewSheet
 import dev.earshot.ui.whatsnew.WhatsNewStore
@@ -61,8 +64,9 @@ import kotlinx.coroutines.withContext
 fun EarshotApp(tabRequests: StateFlow<Tab?>, onTabRequestHandled: () -> Unit) {
     val context = LocalContext.current
     val dependencies = remember { UiDependencies.from(context) }
+    val preferences by dependencies.automation.preferences.collectAsStateWithLifecycle()
     CompositionLocalProvider(LocalUiDependencies provides dependencies) {
-        EarshotTheme {
+        EarshotTheme(appearance = preferences.appearance) {
             EarshotRoot(tabRequests = tabRequests, onTabRequestHandled = onTabRequestHandled)
         }
     }
@@ -86,6 +90,12 @@ fun EarshotRoot(tabRequests: StateFlow<Tab?>, onTabRequestHandled: () -> Unit) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(hasBluetooth) { if (hasBluetooth) deps.headphones.connect() }
+    // Nearby-devices scan rides on the connect grant (same permission group: no dialog), for the
+    // AirPods per-bud battery. Asked once per launch at most; a refusal changes nothing else.
+    val scanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(hasBluetooth) {
+        if (hasBluetooth && !Permissions.has(context, Permissions.bluetoothScan)) Permissions.bluetoothScan?.let(scanLauncher::launch)
+    }
     // Set after a denied request when Android will no longer show the dialog; only app settings can help then.
     var bluetoothDeniedForGood by rememberSaveable { mutableStateOf(false) }
 
@@ -135,20 +145,24 @@ fun EarshotRoot(tabRequests: StateFlow<Tab?>, onTabRequestHandled: () -> Unit) {
     val status = headphoneState.connection.status
     val gated = !hasBluetooth || status == ConnectionStatus.NO_PERMISSION || status == ConnectionStatus.NO_PAIRED_DEVICE
 
+    // The dot grid is drawn once here, under everything; the sub-screen scaffolds stay transparent.
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .dotGrid(EarshotTheme.colors.dotGrid),
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (!gated) {
-                NavigationBar {
+                FieldNavigationBar {
                     Tab.entries.forEach { tab ->
                         val selected = tab == currentTab
-                        NavigationBarItem(
+                        FieldNavigationBarItem(
                             selected = selected,
                             onClick = { navController.navigateToTab(tab) },
                             icon = { Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = null) },
-                            label = { Text(stringResource(tab.label)) },
+                            label = stringResource(tab.label),
                         )
                     }
                 }

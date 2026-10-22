@@ -149,7 +149,7 @@ fun AutomationEditorContent(
                 AddActionButtons(existing = actions) { actions = actions + it }
             }
 
-            Button(onClick = {
+            Button(shape = MaterialTheme.shapes.medium, onClick = {
                 onSave(AutomationRule(id = existing?.id ?: UUID.randomUUID().toString(), name = name.trim(), enabled = existing?.enabled ?: true, trigger = trigger, actions = actions))
             }, enabled = canSave, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 Text(stringResource(R.string.action_save))
@@ -242,7 +242,7 @@ private fun TriggerEditor(
                     Text(trigger.appLabel.ifBlank { stringResource(R.string.trigger_app_none) }, style = MaterialTheme.typography.bodyLarge)
                     if (trigger.packageName.isNotBlank()) Text(trigger.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.trigger_app_pick)) }
+                OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { showPicker = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.trigger_app_pick)) }
             }
             if (!hasUsageAccess()) {
                 Spacer(Modifier.height(8.dp))
@@ -265,7 +265,7 @@ private fun ScheduleEditor(trigger: Trigger.Schedule, onChange: (Trigger) -> Uni
     var showTime by rememberSaveable { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(R.string.trigger_schedule_time), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        OutlinedButton(onClick = { showTime = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+        OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { showTime = true }, modifier = Modifier.heightIn(min = 48.dp)) {
             Text(String.format(Locale.getDefault(), "%02d:%02d", trigger.hour, trigger.minute), style = MaterialTheme.typography.titleMedium)
         }
     }

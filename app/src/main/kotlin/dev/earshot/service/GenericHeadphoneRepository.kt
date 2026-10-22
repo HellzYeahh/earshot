@@ -10,12 +10,16 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
 import androidx.core.content.ContextCompat
+import dev.earshot.bt.AppleAdvertScanner
 import dev.earshot.bt.DeviceCandidate
 import dev.earshot.bt.DeviceFamily
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
 import dev.earshot.bt.FindResult
+import dev.earshot.core.BatteryDetail
+import dev.earshot.core.BatteryLevel
 import dev.earshot.core.ButtonAction
+import dev.earshot.core.ConnectionState
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneCandidate
 import dev.earshot.core.HeadphoneCapabilities
@@ -30,6 +34,8 @@ import dev.earshot.core.RawFrame
 import dev.earshot.core.Sidetone
 import dev.earshot.core.VoicePrompts
 import dev.earshot.extras.HeadphoneLabels
+import dev.earshot.protocol.apple.ContinuityAdvert
+import dev.earshot.virtual.DemoHeadset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -62,6 +68,15 @@ class GenericHeadphoneRepository(
     private val prefs: DevicePrefs,
     private val finder: DeviceFinder,
     private val scope: CoroutineScope,
+    /**
+     * The battery the headset last reported, read once when it connects (Shizuku dumpsys where
+     * available), so Home has a figure before the next change broadcast. Null = unknown.
+     */
+    private val initialBattery: suspend (address: String) -> Int? = { null },
+    /** Per-bud and case battery of AirPods / Beats from their BLE adverts; null = off. */
+    private val appleAdverts: AppleAdvertScanner? = null,
+    /** Demo mode's headset, read at every connect; null = real Bluetooth. */
+    private val demo: () -> DemoHeadset? = { null },
 ) : HeadphoneRepository {
 
     private val appContext = context.applicationContext
@@ -104,6 +119,7 @@ class GenericHeadphoneRepository(
     // ---- Connection ------------------------------------------------------------------------
 
     override fun connect() {
+        demo()?.let { showDemo(it); return }
         following = true
         // The foreground service keeps automations and the notification alive, as for Bose.
         if (finder.hasConnectPermission()) HeadphoneService.start(appContext)
@@ -114,6 +130,7 @@ class GenericHeadphoneRepository(
     override fun disconnect() {
         following = false
         locateJob?.cancel()
+        appleAdverts?.stop()
         // The audio link is Android's: "disconnect" only stops following it.
         setConnection(ConnectionStatus.DISCONNECTED, message = null)
         HeadphoneService.stop(appContext)
@@ -123,6 +140,7 @@ class GenericHeadphoneRepository(
     fun releaseConnection() {
         following = false
         locateJob?.cancel()
+        appleAdverts?.stop()
         address = null
         _state.value = HeadphoneState(capabilities = capabilitiesFor(null))
     }
@@ -187,13 +205,61 @@ class GenericHeadphoneRepository(
         val now = _state.value.isConnected
         if (now && !was) {
             Log.i(TAG, "headset connected for audio: $a")
+            if (_state.value.batteryPercent == null) {
+                runCatching { initialBattery(a) }.getOrNull()?.let { level ->
+                    Log.d(TAG, "battery from the last HFP report: $level")
+                    _state.update { it.copy(batteryPercent = level) }
+                }
+            }
+            startAppleAdverts(_state.value.connection.deviceName)
             _events.tryEmit(HeadphoneEvent.Connected)
         } else if (!now && was) {
+            appleAdverts?.stop()
             Log.i(TAG, "headset no longer connected: $a")
             // Yesterday's battery is not today's.
-            _state.update { it.copy(batteryPercent = null, isCharging = null) }
+            _state.update { it.copy(batteryPercent = null, isCharging = null, battery = null) }
             _events.tryEmit(HeadphoneEvent.Disconnected)
         }
+    }
+
+    /** AirPods and Beats advertise each bud's battery: listen while they are the connected headset. */
+    private fun startAppleAdverts(name: String?) {
+        val scanner = appleAdverts ?: return
+        if (!looksApple(name)) return
+        scanner.start(name) { advert -> scope.launch(serial) { applyAdvert(advert) } }
+    }
+
+    private fun applyAdvert(advert: ContinuityAdvert) {
+        if (!_state.value.isConnected) return
+        _state.update { s ->
+            s.copy(
+                batteryPercent = advert.headlinePercent ?: s.batteryPercent,
+                isCharging = advert.leftCharging || advert.rightCharging || (advert.isHeadphones && advert.caseCharging),
+                battery = if (advert.isHeadphones) {
+                    BatteryDetail(overall = BatteryLevel(advert.headlinePercent))
+                } else {
+                    BatteryDetail(
+                        left = BatteryLevel(advert.leftPercent),
+                        right = BatteryLevel(advert.rightPercent),
+                        case = advert.casePercent?.let { BatteryLevel(it) },
+                    )
+                },
+                lastUpdatedMillis = System.currentTimeMillis(),
+            )
+        }
+    }
+
+    /** Demo mode: a virtual AirPods Pro, its battery from a canned advert through the real parser. */
+    private fun showDemo(headset: DemoHeadset) {
+        following = false
+        address = DEMO_ADDRESS
+        _state.value = HeadphoneState(
+            connection = ConnectionState(ConnectionStatus.CONNECTED, headset.name, DEMO_ADDRESS, audioLinked = true),
+            capabilities = capabilitiesFor(headset.name),
+            lastUpdatedMillis = System.currentTimeMillis(),
+        )
+        ContinuityAdvert.parse(headset.advert)?.let(::applyAdvert)
+        _events.tryEmit(HeadphoneEvent.Connected)
     }
 
     private fun setConnection(status: ConnectionStatus, message: String?) {
@@ -252,7 +318,11 @@ class GenericHeadphoneRepository(
         const val ACTION_BATTERY_LEVEL_CHANGED = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
         const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"
 
-        const val UNSUPPORTED = "Earshot can't change this headset's own settings yet"
+        const val UNSUPPORTED = "Earshot has no driver for this headset yet, so nothing was sent. To try Bose commands on it anyway: " +
+            "More → App preferences → Headphone type → Bose."
+        const val DEMO_ADDRESS = "00:00:00:DE:A1:01"
+
+        fun looksApple(name: String?): Boolean = name != null && Regex("""airpods|beats""", RegexOption.IGNORE_CASE).containsMatchIn(name)
 
         /** Shown on Home: what works, so the screen is not just a name. */
         const val SUPPORT_NOTE =
@@ -268,6 +338,7 @@ class GenericHeadphoneRepository(
             editableModes = false,
             favoriteModes = false,
             listeningModes = false,
+            ownSettings = false,
             formFactor = HeadphoneLabels.formFactorFromName(name),
             supportNote = SUPPORT_NOTE,
         )

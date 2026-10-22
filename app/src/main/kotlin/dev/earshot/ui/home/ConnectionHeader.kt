@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Bolt
@@ -36,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -48,6 +47,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.earshot.R
 import dev.earshot.core.BatteryLevel
 import dev.earshot.core.ConnectionState
@@ -59,10 +59,12 @@ import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.SectionCard
+import dev.earshot.ui.theme.EarshotTheme
+import kotlin.math.PI
 
 /**
  * Top of Home: the user's name for the product (big), the model and generation, the status and
- * time left, and the battery: one ring for headphones, L / R / case for earbuds. Tapping the
+ * time left, and the battery: one dial for headphones, L / R / case for earbuds. Tapping the
  * card opens the device switcher ([onSwitch]).
  */
 @Composable
@@ -85,7 +87,7 @@ fun ConnectionHeader(
         if (connected) HeadphoneLabels.minutesLeft(state)?.let { timeLeftLabel(it) } else null,
     ).joinToString(" · ")
     val switchLabel = stringResource(R.string.header_switch_action)
-    val shape = RoundedCornerShape(20.dp)
+    val shape = MaterialTheme.shapes.medium
 
     SectionCard(
         modifier = modifier
@@ -102,7 +104,7 @@ fun ConnectionHeader(
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        name,
+                        name.uppercase(),
                         style = MaterialTheme.typography.titleLarge,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -144,16 +146,17 @@ fun ConnectionHeader(
     }
 }
 
+/** The model and status lines: small monospace capitals, like the legend on a panel. */
 @Composable
 private fun MetaLine(text: String, icon: ImageVector?, iconDescription: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
         if (icon != null) {
             Icon(icon, contentDescription = iconDescription, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
         Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
+            text.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -161,10 +164,10 @@ private fun MetaLine(text: String, icon: ImageVector?, iconDescription: String) 
     }
 }
 
-/** Earbuds: the battery moves to the row of small rings below, so the big slot shows what they are. */
+/** Earbuds: the battery moves to the row of small dials below, so the big slot shows what they are. */
 @Composable
 private fun FormFactorBadge(formFactor: FormFactor) {
-    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(72.dp)) {
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.size(72.dp)) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 formFactorIcon(formFactor),
@@ -207,10 +210,10 @@ private fun BudBatteries(state: HeadphoneState) {
 @Composable
 private fun BudBattery(level: BatteryLevel?, label: String, description: String, modifier: Modifier = Modifier) {
     Column(modifier.clearAndSetSemantics { contentDescription = description }, horizontalAlignment = Alignment.CenterHorizontally) {
-        BatteryRing(percent = level?.percent, charging = false, size = 52.dp, stroke = 5.dp, textStyle = MaterialTheme.typography.labelLarge)
+        BatteryRing(percent = level?.percent, charging = false, size = 52.dp, stroke = 5.dp, textStyle = MaterialTheme.typography.labelMedium)
         Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
+            label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -249,27 +252,31 @@ private fun statusLabel(connection: ConnectionState): String = when (connection.
     ConnectionStatus.NO_PERMISSION -> stringResource(R.string.status_no_permission)
 }
 
-/** Circular battery gauge; `percent == null` draws an empty ring. */
+/**
+ * Battery dial: a 270° square-ended arc inside a ring of tick marks, like a level meter.
+ * `percent == null` draws the ticks and an empty arc.
+ */
 @Composable
 fun BatteryRing(
     percent: Int?,
     charging: Boolean,
     modifier: Modifier = Modifier,
     size: Dp = 72.dp,
-    stroke: Dp = 7.dp,
-    textStyle: TextStyle = MaterialTheme.typography.titleMedium,
+    stroke: Dp = 6.dp,
+    textStyle: TextStyle = MaterialTheme.typography.labelMedium.copy(fontSize = 19.sp, lineHeight = 22.sp),
 ) {
     val fraction by animateFloatAsState(
         targetValue = (percent ?: 0).coerceIn(0, 100) / 100f,
         animationSpec = tween(600),
         label = "battery",
     )
-    val track = MaterialTheme.colorScheme.surfaceVariant
+    val track = EarshotTheme.colors.track
+    val ticks = MaterialTheme.colorScheme.onSurfaceVariant
     val fill = when {
         percent == null -> MaterialTheme.colorScheme.outline
         percent <= 15 -> MaterialTheme.colorScheme.error
         percent <= 30 -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.primary
+        else -> EarshotTheme.colors.dial
     }
     val description = when {
         percent == null -> stringResource(R.string.battery_unknown)
@@ -278,12 +285,25 @@ fun BatteryRing(
     }
     Box(modifier.size(size).semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size)) {
+            // Proportions from the 72 dp design: ticks on the rim, the arc at three quarters of the radius.
+            val radius = this.size.minDimension / 2
+            val tickWidth = radius * (3f / 36f)
+            val tickRadius = radius - tickWidth / 2
+            val tickLength = radius * (1.5f / 36f)
+            val tickGap = (2 * PI.toFloat() * tickRadius) / TICK_COUNT - tickLength
+            drawCircle(
+                ticks,
+                radius = tickRadius,
+                style = Stroke(tickWidth, cap = StrokeCap.Butt, pathEffect = PathEffect.dashPathEffect(floatArrayOf(tickLength, tickGap))),
+                alpha = 0.75f,
+            )
             val strokePx = stroke.toPx()
-            val inset = strokePx / 2
-            val arcSize = Size(this.size.width - strokePx, this.size.height - strokePx)
-            drawArc(track, startAngle = 135f, sweepAngle = 270f, useCenter = false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(strokePx, cap = StrokeCap.Round))
+            val arcRadius = radius * 0.75f
+            val arcTopLeft = Offset(center.x - arcRadius, center.y - arcRadius)
+            val arcSize = Size(arcRadius * 2, arcRadius * 2)
+            drawArc(track, startAngle = 135f, sweepAngle = 270f, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(strokePx, cap = StrokeCap.Butt))
             if (percent != null) {
-                drawArc(fill, startAngle = 135f, sweepAngle = 270f * fraction, useCenter = false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(strokePx, cap = StrokeCap.Round))
+                drawArc(fill, startAngle = 135f, sweepAngle = 270f * fraction, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(strokePx, cap = StrokeCap.Butt))
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -298,6 +318,9 @@ fun BatteryRing(
         }
     }
 }
+
+/** Tick marks around the dial's rim. */
+private const val TICK_COUNT = 36
 
 // ---- Previews ---------------------------------------------------------------------------------
 

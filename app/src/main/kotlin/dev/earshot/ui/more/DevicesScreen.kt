@@ -2,6 +2,9 @@
 
 package dev.earshot.ui.more
 
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.BorderStroke
+import dev.earshot.ui.theme.EarshotTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -94,7 +97,7 @@ fun DevicesContent(
                 }
             }
             InfoBanner(stringResource(R.string.devices_switch_hint))
-            OutlinedButton(onClick = onPairingMode, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onPairingMode, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Icon(Icons.AutoMirrored.Filled.BluetoothSearching, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.devices_pairing_mode))
@@ -157,13 +160,16 @@ private fun DeviceRow(device: PairedDevice, enabled: Boolean, onSwitch: (String)
     }
 }
 
+/** A 4 dp tag in monospace capitals. Material's Badge is always a pill, so this is a Surface. */
 @Composable
 private fun SmallBadge(text: String, tonal: Boolean) {
-    Badge(
-        containerColor = if (tonal) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = if (tonal) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+    Surface(
+        shape = MaterialTheme.shapes.extraSmall,
+        color = if (tonal) EarshotTheme.colors.chip else MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = if (tonal) EarshotTheme.colors.onChip else MaterialTheme.colorScheme.onSurfaceVariant,
+        border = if (tonal) null else BorderStroke(1.dp, EarshotTheme.colors.hairline),
     ) {
-        Text(text, modifier = Modifier.padding(horizontal = 4.dp))
+        Text(text.uppercase(), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }
 

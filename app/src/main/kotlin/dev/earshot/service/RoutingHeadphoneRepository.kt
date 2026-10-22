@@ -1,5 +1,6 @@
 package dev.earshot.service
 
+import dev.earshot.bt.AudioLinkMonitor
 import dev.earshot.bt.DeviceFamily
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
@@ -18,14 +19,19 @@ import dev.earshot.core.Sidetone
 import dev.earshot.core.TransportControl
 import dev.earshot.core.VoicePrompts
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.shareIn
@@ -46,37 +52,48 @@ import kotlinx.coroutines.sync.withLock
  * sends it anything. The other repositories stay idle: their connection managers stand down for
  * devices they do not handle.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class RoutingHeadphoneRepository(
-    private val bose: ServiceHeadphoneRepository,
-    private val crusher: CrusherHeadphoneRepository,
-    private val generic: GenericHeadphoneRepository,
+    /** One per vendor stack; must include [DeviceFamily.GENERIC]. See [VendorDriver]. */
+    drivers: List<VendorDriver>,
     private val prefs: DevicePrefs,
     private val finder: DeviceFinder,
     private val scope: CoroutineScope,
     /** Demo mode's device: null when demo mode is off. Read at every connect. */
     private val demoFamily: () -> DeviceFamily? = { null },
+    /** Fills [ConnectionState.audioLinked] for the shown headset; null in tests and previews. */
+    private val audioLink: AudioLinkMonitor? = null,
 ) : HeadphoneRepository {
 
     private val active = MutableStateFlow(DeviceFamily.BOSE)
 
-    private fun repo(family: DeviceFamily): HeadphoneRepository = when (family) {
-        DeviceFamily.BOSE -> bose
-        DeviceFamily.BRAGI -> crusher
-        DeviceFamily.GENERIC -> generic
+    private val byFamily: Map<DeviceFamily, VendorDriver> = drivers.associateBy { it.family }
+
+    init {
+        require(DeviceFamily.GENERIC in byFamily) { "the generic driver is the fallback for every unclaimed device" }
     }
+
+    /** The driver for [family]; a family without one (not wired in this build) falls back to generic. */
+    private fun driver(family: DeviceFamily): VendorDriver = byFamily[family] ?: byFamily.getValue(DeviceFamily.GENERIC)
+    private fun repo(family: DeviceFamily): HeadphoneRepository = driver(family).repository
     private val current: HeadphoneRepository get() = repo(active.value)
 
+    private val activeState = active.flatMapLatest { repo(it).state }
+
     override val state: StateFlow<HeadphoneState> =
-        combine(active, bose.state, crusher.state, generic.state) { family, b, c, g ->
-            when (family) {
-                DeviceFamily.BOSE -> b
-                DeviceFamily.BRAGI -> c
-                DeviceFamily.GENERIC -> g
-            }
-        }.stateIn(scope, SharingStarted.Eagerly, bose.state.value)
+        combine(activeState, audioLink?.linked ?: flowOf(null)) { s, linked ->
+            if (s.connection.audioLinked == linked) s else s.copy(connection = s.connection.copy(audioLinked = linked))
+        }.stateIn(scope, SharingStarted.Eagerly, repo(active.value).state.value)
+
+    init {
+        // The monitor follows whichever headset the active stack shows.
+        audioLink?.let { monitor ->
+            scope.launch { activeState.map { it.connection.deviceAddress }.distinctUntilChanged().collect { monitor.follow(it) } }
+        }
+    }
 
     override val events: SharedFlow<HeadphoneEvent> =
-        merge(bose.events, crusher.events, generic.events).shareIn(scope, SharingStarted.Eagerly)
+        merge(*drivers.map { it.repository.events }.toTypedArray()).shareIn(scope, SharingStarted.Eagerly)
 
     /** The family currently in charge (for the Lab and the diagnostics screen). */
     val family: StateFlow<DeviceFamily> get() = active
@@ -101,11 +118,7 @@ class RoutingHeadphoneRepository(
     private suspend fun select(family: DeviceFamily) = selectLock.withLock {
         if (active.value == family) return@withLock
         // Free the other family's connection (not the foreground service) before the new one starts.
-        when (active.value) {
-            DeviceFamily.BOSE -> bose.releaseConnection()
-            DeviceFamily.BRAGI -> crusher.releaseConnection()
-            DeviceFamily.GENERIC -> generic.releaseConnection()
-        }
+        driver(active.value).release()
         active.value = family
     }
 
@@ -191,6 +204,7 @@ class RoutingHeadphoneRepository(
     override suspend fun setVolume(level: Int) = current.setVolume(level)
     override suspend fun transport(control: TransportControl) = current.transport(control)
     override suspend fun setCrusherBass(active: Boolean?, intensity: Int?, mode: Int?) = current.setCrusherBass(active, intensity, mode)
+    override suspend fun setVendorControl(id: String, value: Int) = current.setVendorControl(id, value)
     override suspend fun answerPairing(accept: Boolean) = current.answerPairing(accept)
     override suspend fun forgetPairing() = current.forgetPairing()
     override suspend fun printConsole(command: String): String = current.printConsole(command)

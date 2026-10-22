@@ -60,6 +60,7 @@ class HomeViewModel(
 
     /** [31.10] applies immediately; the noise panel sends the whole struct after each gesture. */
     fun setNoise(settings: NoiseSettings) = launchCatching { headphones.setNoise(settings) }
+    fun setVendorControl(id: String, value: Int) = launchCatching { headphones.setVendorControl(id, value) }
 
     fun transport(control: TransportControl) = launchCatching { headphones.transport(control) }
     fun setVolume(level: Int) = launchCatching { headphones.setVolume(level) }

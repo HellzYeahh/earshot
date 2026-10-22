@@ -41,6 +41,7 @@ import dev.earshot.ui.LocalUiDependencies
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.SectionCard
+import dev.earshot.ui.common.VendorControlsCard
 import dev.earshot.ui.common.earshotViewModel
 import dev.earshot.ui.tools.DiagnosticsReport
 import kotlinx.coroutines.launch
@@ -67,6 +68,7 @@ fun HomeScreen(contentPadding: PaddingValues, onEditModes: () -> Unit) {
         onTransport = vm::transport,
         onVolume = vm::setVolume,
         onCrusher = vm::setCrusherBass,
+        onVendorControl = vm::setVendorControl,
         onOpenSwitcher = { showSwitcher = true },
         onCopyReport = {
             scope.launch {
@@ -114,6 +116,7 @@ fun HomeContent(
     onTransport: (TransportControl) -> Unit = {},
     onVolume: (Int) -> Unit = {},
     onCrusher: (active: Boolean?, intensity: Int?, mode: Int?) -> Unit = { _, _, _ -> },
+    onVendorControl: (id: String, value: Int) -> Unit = { _, _ -> },
     onOpenSwitcher: () -> Unit = {},
     onCopyReport: () -> Unit = {},
 ) {
@@ -150,6 +153,7 @@ fun HomeContent(
             onTransport = onTransport,
             onVolume = onVolume,
             onCrusher = onCrusher,
+            onVendorControl = onVendorControl,
         )
         Spacer(Modifier.height(8.dp))
     }
@@ -167,6 +171,7 @@ private fun ConnectedControls(
     onTransport: (TransportControl) -> Unit,
     onVolume: (Int) -> Unit,
     onCrusher: (active: Boolean?, intensity: Int?, mode: Int?) -> Unit,
+    onVendorControl: (id: String, value: Int) -> Unit,
 ) {
     val caps = state.capabilities
     caps.supportNote?.let { SupportNoteCard(it) }
@@ -185,7 +190,16 @@ private fun ConnectedControls(
     // Firmware that refuses the whole AudioModes block (bosectl #44) has no modes to show: a
     // carousel of placeholders whose every tap fails helped nobody. The support note, when the
     // model has one, already says so.
-    if (!caps.listeningModes) {
+    // Quick vendor controls (Sleep A30: noise cancelling switch, listening mode) take the carousel's place.
+    VendorControlsCard(
+        title = stringResource(if (buds) R.string.home_vendor_controls_buds else R.string.home_vendor_controls),
+        controls = state.vendorControls.filter { it.onHome },
+        enabled = controlsEnabled,
+        onChange = onVendorControl,
+    )
+    if (!caps.modesOnHome) {
+        // Modes stand in for a switch here; the vendor controls above show it.
+    } else if (!caps.listeningModes) {
         if (caps.supportNote == null) Text(
             stringResource(if (buds) R.string.home_modes_unavailable_buds else R.string.home_modes_unavailable),
             style = MaterialTheme.typography.bodyMedium,
@@ -206,8 +220,8 @@ private fun ConnectedControls(
             customActive = state.noise != null && state.currentMode == null,
         )
         Text(
-            stringResource(if (caps.favoriteModes) R.string.home_modes_hint else R.string.home_modes_hint_tap),
-            style = MaterialTheme.typography.labelMedium,
+            stringResource(if (caps.favoriteModes) R.string.home_modes_hint else R.string.home_modes_hint_tap).uppercase(),
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 4.dp, top = 2.dp),
         )

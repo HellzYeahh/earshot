@@ -29,7 +29,6 @@ import dev.earshot.ui.common.DropdownField
 import dev.earshot.ui.common.NavRow
 import dev.earshot.ui.common.SectionCard
 import dev.earshot.ui.common.SwitchRow
-import dev.earshot.ui.common.rememberSettingsLoaded
 import dev.earshot.ui.more.VOICE_PROMPT_LANGUAGES
 
 /** The headphone commands behind the Controls screen's "Headphone controls" (a `SettingsViewModel`). */
@@ -55,45 +54,41 @@ fun HeadphoneControlsSection(
     modifier: Modifier = Modifier,
     touchModifier: Modifier = Modifier,
 ) {
+    // Tools never hide a setting and let anyone try it while a headset is connected (user decision,
+    // 0.6): a value the headset didn't report shows its default, and a refusal comes back as a message.
     val enabled = state.isConnected && !state.isBusy
     var showRename by rememberSaveable { mutableStateOf(false) }
     var showPowerOff by rememberSaveable { mutableStateOf(false) }
     val buds = HeadphoneLabels.isEarbuds(HeadphoneLabels.formFactor(state))
-    val loaded = rememberSettingsLoaded(state)
-    fun has(value: Any?) = !loaded || value != null
     val prompts = state.voicePrompts
 
     SectionCard(modifier = modifier, title = stringResource(if (buds) R.string.tools_earbud_controls else R.string.tools_headphone_controls)) {
         // [1.34]: wire bit 1 = touch on (the name "DisableCaptouch" is misleading); the state is already "enabled".
-        if (has(state.touchControlsEnabled)) {
-            SwitchRow(
-                stringResource(R.string.settings_touch_controls),
-                state.touchControlsEnabled ?: true,
-                callbacks.onTouchControls,
-                subtitle = stringResource(if (buds) R.string.settings_touch_controls_subtitle_buds else R.string.settings_touch_controls_subtitle),
-                enabled = enabled && state.touchControlsEnabled != null,
-                modifier = touchModifier,
-            )
-            HorizontalDivider()
-        }
-        if (has(prompts)) {
-            SwitchRow(
-                title = stringResource(R.string.settings_voice_prompts),
-                checked = prompts?.enabled ?: false,
-                enabled = enabled && prompts != null,
-                onCheckedChange = { callbacks.onVoicePrompts(VoicePrompts(it, prompts?.languageId ?: 1)) },
-            )
-            DropdownField(
-                label = stringResource(R.string.settings_voice_language),
-                options = VOICE_PROMPT_LANGUAGES,
-                selected = VOICE_PROMPT_LANGUAGES.firstOrNull { it.first == prompts?.languageId },
-                onSelect = { callbacks.onVoicePrompts(VoicePrompts(prompts?.enabled ?: true, it.first)) },
-                optionLabel = { it.second },
-                enabled = enabled && prompts != null,
-                modifier = Modifier.padding(vertical = 6.dp),
-            )
-            HorizontalDivider()
-        }
+        SwitchRow(
+            stringResource(R.string.settings_touch_controls),
+            state.touchControlsEnabled ?: true,
+            callbacks.onTouchControls,
+            subtitle = stringResource(if (buds) R.string.settings_touch_controls_subtitle_buds else R.string.settings_touch_controls_subtitle),
+            enabled = enabled,
+            modifier = touchModifier,
+        )
+        HorizontalDivider()
+        SwitchRow(
+            title = stringResource(R.string.settings_voice_prompts),
+            checked = prompts?.enabled ?: false,
+            enabled = enabled,
+            onCheckedChange = { callbacks.onVoicePrompts(VoicePrompts(it, prompts?.languageId ?: 1)) },
+        )
+        DropdownField(
+            label = stringResource(R.string.settings_voice_language),
+            options = VOICE_PROMPT_LANGUAGES,
+            selected = VOICE_PROMPT_LANGUAGES.firstOrNull { it.first == prompts?.languageId },
+            onSelect = { callbacks.onVoicePrompts(VoicePrompts(prompts?.enabled ?: true, it.first)) },
+            optionLabel = { it.second },
+            enabled = enabled,
+            modifier = Modifier.padding(vertical = 6.dp),
+        )
+        HorizontalDivider()
         NavRow(
             title = stringResource(R.string.settings_devices),
             value = state.pairedDevices.firstOrNull { it.isActiveSource }?.name,

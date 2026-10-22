@@ -25,6 +25,9 @@ interface LinkFactory<C : ManagedLink> {
     /** What to tell the user when the control connection is silent: usually another app holds it. */
     val busyMessage: String get() = ConnectionManager.MESSAGE_CHANNEL_BUSY
 
+    /** The maker's app that holds the control channel when it is silent ("Bose"), for [ConnectionProblem.ChannelHeld]. */
+    val competingApp: String get() = "Bose"
+
     /** The family this stack drives; the manager stands down for a device [DeviceFamily.resolve] puts in another one. */
     val family: DeviceFamily
 
@@ -77,6 +80,7 @@ class BoseLinkFactory internal constructor(
             learned,
             BoseModel.fromName(name)?.rfcommChannel,
             hasClassic = route.classic != null,
+            fixedChannels = DeviceFamily.looksLikeBose(name) || learned != null || prefs.knownFamily(address) == DeviceFamily.BOSE,
             hasLe = route.le != null,
             preferLe = route.preferLe,
         )

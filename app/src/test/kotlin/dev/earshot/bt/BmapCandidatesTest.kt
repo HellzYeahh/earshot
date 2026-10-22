@@ -50,4 +50,12 @@ class BmapCandidatesTest {
         assertNull(BmapCandidate.fromPref(0))
         assertNull(BmapCandidate.fromPref(-7))
     }
+
+    @Test
+    fun `a forced Bose type on a non-Bose device gets only the SDP lookups, never blind channels`() {
+        val order = BmapCandidates.order(learned = null, guessedChannel = 8, fixedChannels = false)
+        assertEquals(listOf<BmapCandidate>(BmapCandidate.SdpSpp, BmapCandidate.SdpBmap), order)
+        // A channel this device really answered on before is still tried first.
+        assertEquals(BmapCandidate.Channel(2), BmapCandidates.order(BmapCandidate.Channel(2), null, fixedChannels = false).first())
+    }
 }

@@ -9,6 +9,13 @@
     <string name="lab_deep_scan">Deep scan (all 64 blocks)</string>
     <string name="lab_deep_scan_hint">Reads every block 0–63 and function 0–63 once. Takes a few minutes; results are also saved under Android/data/dev.earshot/files/lab.</string>
 
+    <!-- Appearance -->
+    <string name="prefs_appearance">Appearance</string>
+    <string name="prefs_appearance_subtitle">Field is Earshot\'s own look. System colours keeps it but takes the palette from your wallpaper.</string>
+    <string name="prefs_appearance_field">Field</string>
+    <string name="prefs_appearance_system">System colours</string>
+    <string name="about_fonts_credit">Typefaces, bundled under the SIL Open Font License 1.1:</string>
+
     <!-- Demo mode -->
     <string name="prefs_headphone_type">Headphone type</string>
     <string name="prefs_headphone_type_subtitle">Earshot recognises your headphones by their Bluetooth name. If you renamed them, choose the type here. Other headset: Earshot shows it and never sends it anything.</string>
@@ -18,6 +25,10 @@
     <string name="prefs_type_bose">Bose</string>
     <string name="prefs_type_crusher">Skullcandy Crusher</string>
     <string name="prefs_type_generic">Other headset</string>
+    <string name="prefs_type_soundcore">Soundcore (Sleep A30)</string>
+    <string name="home_vendor_controls">Headphone controls</string>
+    <string name="home_vendor_controls_buds">Earbud controls</string>
+    <string name="settings_generic_headset">Earshot can\'t change this headset\'s own settings yet. Pro EQ, the codec panel, call audio, Controls and automations work with it.</string>
     <string name="prefs_demo">Demo</string>
     <string name="prefs_demo_mode">Demo mode</string>
     <string name="onboarding_try_demo">Try demo mode — no headphones needed</string>
@@ -242,6 +253,7 @@
     <string name="tools_lab">Lab</string>
     <string name="tools_lab_subtitle">Protocol explorer (scanner reads only)</string>
     <string name="disconnected_body_skullcandy">Close the Skullcandy app, then tap Connect. Only one app at a time can use the headphones\' control connection.</string>
+    <string name="disconnected_body_held">Close the %1$s app, then tap Connect. Only one app at a time can use the headphones\' control channel. Music and calls keep working meanwhile.</string>
     <string name="disconnected_body_generic">Make sure the headphones are on and connected to this phone\'s Bluetooth, then tap Connect.</string>
     <string name="tools_call_audio">Call audio</string>
     <string name="tools_call_audio_subtitle">Louder calls, call codec</string>
@@ -428,7 +440,7 @@
     <string name="settings_automations">Automations</string>
     <string name="settings_automations_subtitle">Rules that change modes or sound on their own</string>
     <string name="settings_preferences">App preferences</string>
-    <string name="settings_preferences_subtitle">Alerts, notification, tile</string>
+    <string name="settings_preferences_subtitle">Appearance, alerts, notification, tile</string>
     <string name="settings_about">About</string>
 
     <!-- Devices -->
@@ -498,8 +510,8 @@
 
     <!-- About -->
     <string name="about_version">Version %1$s</string>
-    <string name="about_tagline">A native controller for Bose QC Ultra Headphones (1st and 2nd Gen), QC Headphones (1st and 2nd Gen), QC SC, QC45, QC SE and Ultra Open Earbuds: no account, no cloud, no internet permission.</string>
-    <string name="about_not_affiliated">Not affiliated with, endorsed by or supported by Bose Corporation. Bose and QuietComfort are trademarks of Bose Corporation.</string>
+    <string name="about_tagline">A native companion for your Bluetooth headphones, with full control of Bose QC Ultra Headphones (1st and 2nd Gen), QC Headphones (1st and 2nd Gen), QC SC, QC45, QC SE and Ultra Open Earbuds: no account, no cloud, no internet permission.</string>
+    <string name="about_not_affiliated">Not affiliated with, endorsed by or supported by Bose, Apple, Skullcandy or any other headphone maker. Bose and QuietComfort are trademarks of Bose Corporation; AirPods and Beats of Apple Inc.; Crusher of Skullcandy, Inc. Other product names belong to their owners.</string>
     <string name="about_control_channel">Only one app can use the headphones\' control channel at a time. Close the Bose app while Earshot is connected (and vice versa).</string>
     <string name="about_credits">Credits</string>
     <string name="about_credits_body">Protocol knowledge comes from two open-source projects, both MIT licensed:</string>

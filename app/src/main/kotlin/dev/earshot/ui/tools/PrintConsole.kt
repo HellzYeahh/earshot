@@ -1,5 +1,7 @@
 package dev.earshot.ui.tools
 
+import androidx.compose.foundation.BorderStroke
+import dev.earshot.ui.theme.EarshotTheme
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Science
@@ -31,12 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import dev.earshot.ui.theme.JetBrainsMono
 import dev.earshot.R
 import dev.earshot.ui.common.BannerTone
 import dev.earshot.ui.common.EarshotPreview
@@ -76,17 +77,17 @@ fun PrintConsoleSection(
                 value = command,
                 onValueChange = { command = it },
                 label = { Text(stringResource(R.string.lab_console_label)) },
-                placeholder = { Text(stringResource(R.string.lab_console_hint), fontFamily = FontFamily.Monospace) },
-                supportingText = { Text(stringResource(R.string.lab_console_hint), fontFamily = FontFamily.Monospace) },
+                placeholder = { Text(stringResource(R.string.lab_console_hint), fontFamily = JetBrainsMono) },
+                supportingText = { Text(stringResource(R.string.lab_console_hint), fontFamily = JetBrainsMono) },
                 singleLine = true,
                 enabled = enabled,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = JetBrainsMono),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { send() }),
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(8.dp))
-            Button(onClick = send, enabled = canSend, modifier = Modifier.heightIn(min = 48.dp)) {
+            Button(shape = MaterialTheme.shapes.medium, onClick = send, enabled = canSend, modifier = Modifier.heightIn(min = 48.dp)) {
                 if (busy) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
@@ -99,7 +100,8 @@ fun PrintConsoleSection(
         Spacer(Modifier.height(8.dp))
         Surface(
             color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            shape = RoundedCornerShape(12.dp),
+            shape = MaterialTheme.shapes.small,
+            border = BorderStroke(1.dp, EarshotTheme.colors.hairline),
             modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
         ) {
             Column(Modifier.padding(12.dp).horizontalScroll(rememberScrollState())) {
@@ -107,7 +109,7 @@ fun PrintConsoleSection(
                     Text(
                         stringResource(R.string.lab_console_empty),
                         style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = JetBrainsMono,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -115,7 +117,7 @@ fun PrintConsoleSection(
                     Text(
                         line,
                         style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = JetBrainsMono,
                         color = when {
                             line.startsWith("> ") -> MaterialTheme.colorScheme.primary
                             line.startsWith("! ") -> MaterialTheme.colorScheme.error

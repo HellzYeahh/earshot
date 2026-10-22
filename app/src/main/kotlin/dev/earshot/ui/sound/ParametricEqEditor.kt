@@ -1,5 +1,6 @@
 package dev.earshot.ui.sound
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -18,7 +18,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,8 +28,10 @@ import androidx.compose.ui.unit.dp
 import dev.earshot.R
 import dev.earshot.dsp.FilterType
 import dev.earshot.dsp.ParametricBand
+import dev.earshot.ui.common.FieldSwitch
 import dev.earshot.ui.common.SegmentedChoice
 import dev.earshot.ui.common.ValueSlider
+import dev.earshot.ui.theme.EarshotTheme
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.pow
@@ -84,8 +85,9 @@ private fun ParametricBandCard(
 ) {
     val active = enabled && band.enabled
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, EarshotTheme.colors.hairline),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -95,7 +97,7 @@ private fun ParametricBandCard(
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                 )
-                Switch(checked = band.enabled, onCheckedChange = { onChange(band.copy(enabled = it)) }, enabled = enabled)
+                FieldSwitch(checked = band.enabled, onCheckedChange = { onChange(band.copy(enabled = it)) }, enabled = enabled)
                 IconButton(onClick = onRemove, enabled = enabled && removable, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.sound_remove_band))
                 }

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
@@ -83,6 +84,8 @@ class CallAudioRepositoryImpl(
     private var codecReadInFlight = false
     private var diagnosticsLoggedThisCall = false
     private var noShellLogged = false
+    /** "Waiting for the route" is logged once per call, not on every check. */
+    private var routeWaitLogged = false
     private var lastLoggedGain: Int? = null
     private var lastLoggedNrec: Boolean? = null
     private var lastVolumeReports: Int? = null
@@ -204,6 +207,7 @@ class CallAudioRepositoryImpl(
             if (inCall) {
                 Log.i(TAG, "call started (${modeName(mode)}), route ${newRoute.route}${newRoute.name?.let { " \"$it\"" } ?: ""}, volume ${_state.value.callVolume}/${_state.value.callVolumeMax}")
                 diagnosticsLoggedThisCall = false
+                routeWaitLogged = false
                 lastLoggedGain = null
                 lastLoggedNrec = null
                 lastVolumeReports = null
@@ -261,11 +265,34 @@ class CallAudioRepositoryImpl(
         currentCoroutineContext().ensureActive() // the scheduler cancels us if the call just left the headphones
         val s = _state.value
         if (!s.inCall || !s.onHeadphones) return
+        // Android keeps one call volume per output and changes the one the call is routed to *now*.
+        // Until the Bluetooth call link is up that is the earpiece: boosting then raised the
+        // earpiece and left the headset where it was. Wait for the route; a later fire catches it.
+        if (voiceRoutedToHeadset() == false) {
+            if (!routeWaitLogged) Log.i(TAG, "auto boost #${attempt + 1}: call audio not on the headset yet, waiting")
+            routeWaitLogged = true
+            return
+        }
         try {
             applyBoost(prefs, onlyRaise = true, reason = "auto boost #${attempt + 1}")
         } catch (e: HeadphoneCommandException) {
             Log.w(TAG, "auto boost failed: ${e.message}")
         }
+    }
+
+    /**
+     * Where Android sends call audio right now (API 33+: the audio policy's own answer for voice
+     * communication). True for Bluetooth SCO or an LE Audio headset, false for anything else, null
+     * when it can't tell (older Android: then the communication device decided).
+     */
+    private fun voiceRoutedToHeadset(): Boolean? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
+        val devices = runCatching { audioManager.getAudioDevicesForAttributes(attributes) }.getOrNull() ?: return null
+        return devices.any { CallSignals.isHeadsetRoute(CallSignals.routeFor(it.type)) }
     }
 
     /** Throws [HeadphoneCommandException] (and records [CallAudioState.lastError]) on failure. */
@@ -287,7 +314,9 @@ class CallAudioRepositoryImpl(
             }
         }
         val after = audioManager.getStreamVolume(stream)
-        Log.i(TAG, "$reason: call volume $before → $after (target $target, range $min..$max)${if (!changed) ", already loud enough" else ""}")
+        // Six checks per call: only a change (or a manual boost) is worth an info line.
+        val line = "$reason: call volume $before → $after (target $target, range $min..$max), output ${voiceOutputName()}${if (!changed) ", already loud enough" else ""}"
+        if (changed || !onlyRaise) Log.i(TAG, line) else Log.d(TAG, line)
         if (changed && after < target) Log.w(TAG, "Android kept the call volume at $after < $target; One UI or another app may be capping it")
 
         val headsetSent = maybeRaiseHeadset(prefs, reason)
@@ -327,6 +356,13 @@ class CallAudioRepositoryImpl(
             Log.w(TAG, "$reason: headphones volume failed: ${t.message}")
             false
         }
+    }
+
+    /** The output call audio goes to now, for the log ("BT_SCO", "EARPIECE"…); "?" before API 33. */
+    private fun voiceOutputName(): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "?"
+        val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).build()
+        return runCatching { audioManager.getAudioDevicesForAttributes(attributes).joinToString { typeName(it.type) } }.getOrDefault("?").ifEmpty { "none" }
     }
 
     // ---- Codec ---------------------------------------------------------------------------------

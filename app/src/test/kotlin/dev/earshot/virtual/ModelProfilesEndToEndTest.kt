@@ -271,7 +271,9 @@ class ModelProfilesEndToEndTest {
     fun `every Bose demo device has a virtual profile and QC Ultra stays the default`() {
         assertEquals(DemoDevice.QC_ULTRA, DemoDevice.entries.first())
         for (d in DemoDevice.entries) {
-            assertEquals(!d.isCrusher, d.virtualProfile() != null, d.name)
+            // Bose demo devices have a virtual BMAP unit; the Crusher, Soundcore and generic ones (AirPods) don't.
+            assertEquals(!d.isCrusher && !d.isGeneric && !d.isSoundcore, d.virtualProfile() != null, d.name)
+            assertEquals(d.isGeneric, d.demoHeadset() != null, d.name)
             assertTrue(d.displayName.isNotBlank())
         }
         assertEquals(VirtualProfile.QC_ULTRA_2, DemoDevice.QC_ULTRA.virtualProfile())

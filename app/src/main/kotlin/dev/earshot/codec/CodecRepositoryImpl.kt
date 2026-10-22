@@ -5,12 +5,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.ContextCompat
 import dev.earshot.codec.shizuku.CodecServiceClient
+import dev.earshot.bt.DeviceFinder
 import dev.earshot.core.CODEC_SWITCH_UNSUPPORTED_MESSAGE
 import dev.earshot.core.CodecInfo
 import dev.earshot.core.CodecOption
@@ -47,6 +49,8 @@ import rikka.shizuku.Shizuku
 class CodecRepositoryImpl(
     private val context: Context,
     private val scope: CoroutineScope,
+    /** The headset Earshot shows, so the panel reads that one when a car or speaker is connected too. */
+    private val preferredAddress: () -> String? = { null },
 ) : CodecRepository {
 
     // canSwitch follows Shizuku (running + permission), re-evaluated on every refresh.
@@ -67,6 +71,28 @@ class CodecRepositoryImpl(
 
     /** Phone-side codec names learned on the last refresh (service list, dumpsys table, public API). */
     @Volatile private var lastExtraPhoneCodecs: List<String> = emptyList()
+
+    /**
+     * The codec Android last broadcast per device address (upper case). Since Android 13 the A2DP
+     * service sends `CODEC_CONFIG_CHANGED` with the full `BluetoothCodecStatus` to any app holding
+     * BLUETOOTH_CONNECT, so the current codec is readable without Shizuku, from the next change on
+     * (the broadcast is not sticky). Its `toString()` is the same text the legacy reflective call
+     * returned, so [CodecStatusText] parses it.
+     */
+    private val broadcastStatus = java.util.concurrent.ConcurrentHashMap<String, ParsedA2dpDevice>()
+
+    private val codecConfigReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, intent: Intent) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+            val address = DeviceFinder.deviceAddressFrom(intent) ?: return
+            val status = runCatching { intent.getParcelableExtra(EXTRA_CODEC_STATUS, android.bluetooth.BluetoothCodecStatus::class.java) }.getOrNull()
+                ?: return
+            val parsed = CodecStatusText.parse(status.toString(), address) ?: return
+            broadcastStatus[address.uppercase()] = parsed
+            Log.i(TAG, "codec from broadcast for $address: ${parsed.current?.codecName ?: "?"}")
+            scheduleRefresh(DEBOUNCE_MS)
+        }
+    }
 
     private val a2dpReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, intent: Intent) {
@@ -96,6 +122,9 @@ class CodecRepositoryImpl(
                 addAction(BluetoothA2dp.ACTION_PLAYING_STATE_CHANGED)
             },
             ContextCompat.RECEIVER_EXPORTED, // sent by the Bluetooth app, not by us
+        )
+        ContextCompat.registerReceiver(
+            context, codecConfigReceiver, IntentFilter(ACTION_CODEC_CONFIG_CHANGED), ContextCompat.RECEIVER_EXPORTED,
         )
         // Shizuku hands us its binder asynchronously; re-evaluate privilege whenever that changes.
         runCatching {
@@ -154,7 +183,7 @@ class CodecRepositoryImpl(
 
         val (address, status) = withContext(Dispatchers.IO) {
             val a2dp = proxies.get() ?: throw HeadphoneCommandException("Bluetooth is off.")
-            val device = proxies.pickSink(proxies.connectedDevices(a2dp))
+            val device = proxies.pickSink(proxies.connectedDevices(a2dp), preferredAddress())
                 ?: throw HeadphoneCommandException("The headphones aren't connected for audio (A2DP).")
             Log.i(TAG, "requesting $request through the codec service")
             val result = try {
@@ -242,7 +271,7 @@ class CodecRepositoryImpl(
         val privilege = ShizukuPrivilege.current(context)
         val ready = privilege == PrivilegeState.GRANTED
         val a2dp = proxies.get()
-        val device = a2dp?.let { proxies.pickSink(proxies.connectedDevices(it)) }
+        val device = a2dp?.let { proxies.pickSink(proxies.connectedDevices(it), preferredAddress()) }
         val phoneCodecs = a2dp?.let { proxies.phoneCodecNames(it) } ?: emptyList()
 
         if (a2dp == null || device == null) {
@@ -283,6 +312,7 @@ class CodecRepositoryImpl(
                 dump.exceptionOrNull()?.let { error = "Shizuku shell failed: ${it.message}" }
             }
             proxies.codecStatusLegacy(a2dp, device)?.let { CodecStatusText.parse(it.toString(), device.address) }
+                ?: broadcastStatus[device.address.uppercase()]
         }
 
         if (parsed != null) {
@@ -367,6 +397,10 @@ class CodecRepositoryImpl(
     }
 
     companion object {
+        /** `BluetoothA2dp.ACTION_CODEC_CONFIG_CHANGED` / `BluetoothCodecStatus.EXTRA_CODEC_STATUS`. */
+        private const val ACTION_CODEC_CONFIG_CHANGED = "android.bluetooth.a2dp.profile.action.CODEC_CONFIG_CHANGED"
+        private const val EXTRA_CODEC_STATUS = "android.bluetooth.extra.CODEC_STATUS"
+
         private const val TAG = "Earshot/Codec"
         private const val REQUEST_CODE = 0xEA12
         private const val DEBOUNCE_MS = 700L

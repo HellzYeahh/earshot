@@ -1,30 +1,74 @@
 # Changelog
 
-## Unreleased (0.6 in progress)
+## 0.6.0 — unreleased
 
 **Any headset.** Earshot is becoming the companion app for every Bluetooth headset, not just Bose
-(plan: [docs/roadmap.md](docs/roadmap.md)). First step:
+(plan: [docs/roadmap.md](docs/roadmap.md)). Every headset now gets the features that work through
+Android itself; Bose keeps its full control.
 
 ### New
+- **A look of its own: Field.** Olive, sand and ink with a safety-orange indicator; Barlow
+  Condensed titles, Barlow text, JetBrains Mono for values and legends (bundled, SIL OFL);
+  hairline panels on a dot grid, a tick-marked battery dial, square switches and bar sliders.
+  It replaces the wallpaper-derived colours as the default. **App preferences → Appearance**
+  keeps **System colours** (Android 12+) as an option: Field's type and shapes with the
+  wallpaper's palette.
+- **Soundcore Sleep A30 (experimental, tested on one pair):** Earshot's first non-Bose driver.
+  - Home has an **Earbud controls** card: a Noise cancelling switch and the Listening mode
+    (Bluetooth or the earbuds' own Local sounds).
+  - More has the rest:
+    - the mode they start in;
+    - switch once asleep, and what to do then (pause, or play local sounds);
+    - incoming calls in Bluetooth mode;
+    - low-battery, noise-cancelling, listening-mode and auto power-off prompts.
+  - Tap controls are on Tools → Controls. Per-bud battery and firmware show too.
+  - It talks only on the earbuds' Soundcore service: unpair, pairing mode, power off, the
+    find-device tone and any unknown command are refused before they leave the phone. Close the
+    soundcore app while Earshot is connected (only one app can hold the connection).
+  - Protocol facts from OpenSCQ30 (GPL, facts only) and soundcorebridge (MIT).
+  - Demo mode has a virtual Sleep A30.
 - **Headsets without an Earshot driver are shown as themselves.** AirPods, Sony, Soundcore,
   no-name earbuds and the rest appear by their own Bluetooth name. Home shows "Connected" while the
-  headset is linked for audio, its battery when it reports one to Android, and a note on what works
-  with it (Pro EQ, codec, call audio, Controls, automations). Earshot never sends anything to them.
+  headset is linked for audio, its battery as it reports it to Android (straight away with Shizuku),
+  and what works with it: Pro EQ, codec, call audio, Controls, automations. Earshot never sends
+  anything to them, and screens hide the settings only a driver could change.
+- **AirPods and Beats: left, right and case battery and charging**, read from the Bluetooth adverts
+  they broadcast. No connection, nothing sent. Needs "Nearby devices", which Android grants together
+  with the permission Earshot already has. Demo mode has a virtual AirPods Pro.
 - **The connected headset is the one shown.** Opening Earshot with AirPods on shows the AirPods
   instead of waiting for the Bose you used last. A headset you turn on later takes over too. Picking
   a device in the switcher keeps it until another headset links up or the app restarts.
-- **Headphone type: Other headset**, for a device that Earshot mistakes for a Bose.
+- **Pro EQ remembers a preset per headset** and applies it when that headset connects: the Bose
+  correction doesn't follow you to the Soundcore.
+- **Codec panel without Shizuku:** the current codec shows from the next codec change Android
+  announces (switching still needs Shizuku).
+- **Headphone type: Soundcore (Sleep A30) and Other headset**, for a device that Earshot recognises wrongly.
 
 ### Changed
+- **Tools never hide a setting.** Touch controls, voice prompts, rename, power off, LE Audio,
+  latency and the Lab stay on screen for any headset and can be tried while it is connected; a
+  headset that doesn't support one says so. A Bose-only command can be tried on another headset by
+  setting Headphone type to Bose. Earshot then only looks the Bose service up by its ID and never
+  probes channels blind, since some earbuds keep a firmware-update channel on one of them.
+- **Calls, automations and the background service follow the headset's audio link**, not only
+  Earshot's control link: with the Bose app holding the control channel, or on a headset without a
+  driver, the call boost and EQ automations keep working.
 - Bose detection by name is stricter: "QCY" earbuds and "… Ultra" names no longer count as Bose. A
   Bose you renamed stays Bose once Earshot has talked to it, and existing setups carry over.
 - The "Headphone type" setting now belongs to the device it was set for.
 - The device switcher lists every paired headset, not only the Bose products. Car kits, speakers and
   watches are left out.
+- "Close the … app" names the app that actually holds the channel (Bose or Skullcandy) and says
+  music and calls keep working meanwhile; the tip only shows for Bose.
 - Wording: "Headphones", "No paired headphones found", "Your headphones" instead of Bose-specific
-  text where any headset can be meant. The "close the Bose app" tip only shows for Bose.
+  text where any headset can be meant. About: not affiliated with any headphone maker.
 
 ### Fixed
+- **Call volume boost didn't reach the headset.** Android keeps one call volume per output and
+  applies a change to the output the call uses *at that moment*. The boost fired 1 s after the call
+  started, often before the Bluetooth call link was up, so it raised the earpiece (seen on a Galaxy:
+  earpiece 15/15, headset 10/15). It now waits until call audio really reaches the headset and checks
+  again for 12 s (catching One UI putting its saved volume back), for any headset, not only Bose.
 - **Unknown headsets got the Bose connection search.** Earshot used to treat any headset it didn't
   recognise as a Bose and opened Bose control-channel sockets on it.
 - **Controls named the watch as your headset:** a smartwatch that takes calls (Galaxy Watch) is

@@ -2,6 +2,8 @@
 
 package dev.earshot.ui.sound
 
+import androidx.compose.foundation.BorderStroke
+import dev.earshot.ui.theme.EarshotTheme
 import android.os.Build
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -22,7 +24,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -85,7 +86,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun SoundScreen(contentPadding: PaddingValues) {
-    val vm = earshotViewModel { SoundViewModel(it.headphones, it.tuning, it.messenger) }
+    val vm = earshotViewModel { SoundViewModel(it.headphones, it.tuning, it.messenger, it.headsetEq) }
     val headphoneState by vm.headphoneState.collectAsStateWithLifecycle()
     val headphoneEq by vm.headphoneEq.collectAsStateWithLifecycle()
     val tuningState by vm.tuningState.collectAsStateWithLifecycle()
@@ -163,10 +164,10 @@ fun SoundContent(
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { Text(stringResource(R.string.tab_sound), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)) }
+        item { Text(stringResource(R.string.tab_sound).uppercase(), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)) }
         // The headphones' own EQ only where the model has one ([1.7] answered); the Pro EQ below is
         // phone-side and works with any headphones, so it always stays.
-        if (!settingsLoaded || headphoneState.eq != null) item {
+        if (headphoneState.capabilities.ownSettings && (!settingsLoaded || headphoneState.eq != null)) item {
             HeadphoneEqSection(headphoneState, headphoneEq, callbacks.onHeadphoneEq)
         }
         item { ProEqSection(tuningState, bands, presets, callbacks) }
@@ -301,10 +302,10 @@ private fun ProEqSection(state: TuningState, bands: List<ParametricBand>, preset
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-            OutlinedButton(onClick = { showImportDialog = true }, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp)) {
+            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { showImportDialog = true }, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.sound_import_autoeq))
             }
-            OutlinedButton(onClick = { showSaveDialog = true }, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp)) {
+            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = { showSaveDialog = true }, enabled = enabled, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.sound_save_preset))
             }
         }
@@ -340,10 +341,12 @@ private fun PresetChips(
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         presets.sortedByDescending { it.isBuiltIn }.forEach { preset ->
             val selected = preset.id == activeId
+            // The mode chips' smaller sibling: orange with an ink outline when chosen, a hairline tile otherwise.
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+                shape = MaterialTheme.shapes.small,
+                color = if (selected) EarshotTheme.colors.accent else MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = if (selected) EarshotTheme.colors.onAccent else MaterialTheme.colorScheme.onSurface,
+                border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.onSurface else EarshotTheme.colors.hairline),
                 modifier = Modifier
                     .defaultMinSize(minHeight = 40.dp)
                     .combinedClickable(
@@ -353,17 +356,18 @@ private fun PresetChips(
                     ),
             ) {
                 Text(
-                    preset.name,
-                    style = MaterialTheme.typography.labelLarge,
+                    preset.name.uppercase(),
+                    style = MaterialTheme.typography.titleSmall,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 )
             }
         }
     }
+    // A sentence, so body text: the monospace label styles are for short legends and values.
     Text(
         stringResource(R.string.sound_presets_hint),
-        style = MaterialTheme.typography.labelSmall,
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 4.dp),
     )
@@ -543,7 +547,7 @@ private fun AppProfilesSection(
                 }
             },
             confirmButton = {
-                Button(onClick = { chosen?.let { onSet(AppSoundProfile(pkg, label, it.id)) }; pendingApp = null }, enabled = chosen != null) {
+                Button(shape = MaterialTheme.shapes.medium, onClick = { chosen?.let { onSet(AppSoundProfile(pkg, label, it.id)) }; pendingApp = null }, enabled = chosen != null) {
                     Text(stringResource(R.string.action_save))
                 }
             },

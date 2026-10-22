@@ -33,6 +33,12 @@ data class AutomationRule(
     val actions: List<AutomationAction>,
 )
 
+/**
+ * Where the app's colours come from. The Field look (type, shapes, the dot grid) stays either
+ * way; [SYSTEM] only swaps the palette for the wallpaper-derived one on Android 12+.
+ */
+enum class Appearance { FIELD, SYSTEM }
+
 /** App-wide preferences that are not headphone state. */
 data class AppPreferences(
     /** Battery percentage that triggers the low-battery alert; null = off. */
@@ -41,6 +47,7 @@ data class AppPreferences(
     val autoConnectOnBluetooth: Boolean = true,
     /** Which modes the Quick Settings tile cycles through. Empty = favourites, or presets if none. */
     val tileCycleModes: List<Int> = emptyList(),
+    val appearance: Appearance = Appearance.FIELD,
 )
 
 interface AutomationRepository {

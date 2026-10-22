@@ -15,8 +15,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import dev.earshot.ui.theme.JetBrainsMono
 import dev.earshot.R
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.InfoBanner
@@ -57,11 +57,15 @@ fun AboutContent(version: String, onBack: () -> Unit) {
                 Spacer(Modifier.height(4.dp))
                 Text(stringResource(R.string.about_autoeq_credit), style = MaterialTheme.typography.bodyMedium)
                 Text("github.com/jaakkopasanen/AutoEq", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.about_fonts_credit), style = MaterialTheme.typography.bodyMedium)
+                CreditLine("Barlow, Barlow Condensed", "github.com/jpt/barlow", "OFL 1.1")
+                CreditLine("JetBrains Mono", "github.com/JetBrains/JetBrainsMono", "OFL 1.1")
             }
             SectionCard(title = stringResource(R.string.about_licence)) {
                 Text(stringResource(R.string.about_licence_body), style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(8.dp))
-                Text(MIT_TEXT, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(MIT_TEXT, style = MaterialTheme.typography.bodySmall, fontFamily = JetBrainsMono, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             SectionCard(title = stringResource(R.string.about_privacy)) {
                 Text(stringResource(R.string.about_privacy_body), style = MaterialTheme.typography.bodyMedium)

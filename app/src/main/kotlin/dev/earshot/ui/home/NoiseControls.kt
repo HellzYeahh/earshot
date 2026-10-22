@@ -20,6 +20,7 @@ import dev.earshot.R
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.SpatialAudio
+import dev.earshot.ui.common.DashedDivider
 import dev.earshot.ui.common.SegmentedChoice
 import dev.earshot.ui.common.SwitchRow
 import dev.earshot.ui.common.ValueSlider
@@ -83,6 +84,7 @@ fun NoiseControls(
                 enabled = enabled,
                 onCheckedChange = { onChange(settings.copy(ancEnabled = it)) },
             )
+            if (capabilities.ancToggle && capabilities.windBlock) DashedDivider()
             if (capabilities.windBlock) SwitchRow(
                 title = stringResource(R.string.noise_wind_block),
                 checked = settings.windBlock,
@@ -97,6 +99,7 @@ fun NoiseControls(
                 enabled = enabled,
                 onCheckedChange = { onChange(settings.copy(ancEnabled = it)) },
             )
+            if (capabilities.ancToggle && capabilities.windBlock) DashedDivider()
             if (capabilities.windBlock) SwitchRow(
                 title = stringResource(R.string.noise_wind_block),
                 subtitle = stringResource(R.string.noise_wind_block_subtitle),

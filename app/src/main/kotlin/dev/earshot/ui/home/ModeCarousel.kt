@@ -3,6 +3,7 @@
 package dev.earshot.ui.home
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -31,6 +31,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -43,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.earshot.R
 import dev.earshot.core.ListeningMode
+import dev.earshot.ui.theme.EarshotTheme
 
 /**
  * Big chips for every preset and every configured custom slot. Tap = switch mode; long-press =
@@ -68,9 +71,19 @@ fun ModeCarousel(
 ) {
     val visible = modes.filter { it.isPreset || it.isConfigured }
     Row(modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(stringResource(R.string.home_modes_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.home_modes_title).uppercase(), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         if (canEdit) TextButton(onClick = onEditModes, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text(stringResource(R.string.action_edit_modes))
+            // A monospace label underlined in orange: Field's link.
+            val underline = EarshotTheme.colors.accent
+            Text(
+                stringResource(R.string.action_edit_modes).uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.drawBehind {
+                    val y = size.height + 3.dp.toPx()
+                    drawLine(underline, Offset(0f, y), Offset(size.width, y), strokeWidth = 2.dp.toPx())
+                },
+            )
         }
     }
     val listState = rememberLazyListState()
@@ -103,20 +116,22 @@ fun ModeCarousel(
 private fun CustomChip() {
     val currentLabel = stringResource(R.string.mode_current)
     Surface(
-        color = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        shape = RoundedCornerShape(18.dp),
+        color = EarshotTheme.colors.accent,
+        contentColor = EarshotTheme.colors.onAccent,
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface),
         modifier = Modifier
             .heightIn(min = 56.dp)
             .semantics { selected = true; stateDescription = currentLabel },
     ) {
-        Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.Center) {
-            Text(stringResource(R.string.mode_custom), style = MaterialTheme.typography.titleMedium, maxLines = 1)
-            Text(stringResource(R.string.mode_custom_subtitle), style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.Center) {
+            Text(stringResource(R.string.mode_custom).uppercase(), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+            Text(stringResource(R.string.mode_custom_subtitle), style = MaterialTheme.typography.bodySmall, maxLines = 1)
         }
     }
 }
 
+/** Selected: orange with an ink outline. Otherwise a card-coloured tile with a hairline. */
 @Composable
 private fun ModeChip(
     mode: ListeningMode,
@@ -126,20 +141,26 @@ private fun ModeChip(
     onLongClick: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    val colors = EarshotTheme.colors
     val container by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+        if (selected) colors.accent else MaterialTheme.colorScheme.surfaceContainer,
         label = "chipBg",
     )
     val content by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+        if (selected) colors.onAccent else MaterialTheme.colorScheme.onSurface,
         label = "chipFg",
+    )
+    val outline by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.onSurface else colors.hairline,
+        label = "chipBorder",
     )
     val favouriteLabel = stringResource(R.string.mode_favourite)
     val currentLabel = stringResource(R.string.mode_current)
     Surface(
         color = container,
         contentColor = content,
-        shape = RoundedCornerShape(18.dp),
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, outline),
         modifier = Modifier
             .heightIn(min = 56.dp)
             .semantics {
@@ -160,15 +181,15 @@ private fun ModeChip(
             ),
     ) {
         Row(
-            Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (mode.isFavorite) {
-                Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(6.dp))
             }
             Text(
-                mode.name.ifBlank { stringResource(R.string.mode_slot_number, mode.index) },
+                mode.name.ifBlank { stringResource(R.string.mode_slot_number, mode.index) }.uppercase(),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

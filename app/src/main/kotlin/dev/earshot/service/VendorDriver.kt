@@ -1,0 +1,20 @@
+package dev.earshot.service
+
+import dev.earshot.bt.DeviceFamily
+import dev.earshot.core.HeadphoneRepository
+
+/**
+ * One vendor stack as the router sees it: the [family] it drives, its [repository], and how to
+ * [release] its connection when another stack takes over (without stopping the foreground
+ * service, which the next stack keeps using).
+ *
+ * Adding a vendor is: a [DeviceFamily] value with its name rule, a repository (usually a
+ * `ConnectionManager` with a `LinkFactory`), and one entry in `AppContainer`'s driver list. The
+ * router has no per-vendor code; the [DeviceFamily.GENERIC] driver must always be present, since
+ * every device nobody else claims ends up there.
+ */
+class VendorDriver(
+    val family: DeviceFamily,
+    val repository: HeadphoneRepository,
+    val release: () -> Unit,
+)

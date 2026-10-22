@@ -69,6 +69,13 @@ data class HfpDeviceDump(
      * ring buffer, so only a change between two reads means something; used for the log only.
      */
     val headsetVolumeReports: Int = 0,
+    /**
+     * Battery the headset last reported over HFP (AT+BIEV / Apple's +IPHONEACCEV), 0..100, from
+     * `mBatteryLevel` where the build prints it (One UI does; -1 = unknown → null). The only way
+     * to read the *current* value: Android's own getter is a SystemApi, its broadcast only fires on
+     * a change.
+     */
+    val batteryLevel: Int? = null,
 )
 
 
@@ -129,6 +136,7 @@ object CallCodecParser {
     private val SPEAKER_GAIN = Regex("""^\s*mSpeakerVolume\s*[:=]\s*(-?\d+)""")
     private val MIC_GAIN = Regex("""^\s*mMicVolume\s*[:=]\s*(-?\d+)""")
     private val NREC = Regex("""^\s*m?(?:Has|Is)?Nrec\w*\s*[:=]\s*(true|false)""", RegexOption.IGNORE_CASE)
+    private val BATTERY = Regex("""^\s*mBatteryLevel\s*[:=]\s*(-?\d+)""")
     private val HEADSET_VOLUME_EVENT = Regex("""EVENT_TYPE_VOLUME_CHANGED|AT\+VG[SM]""")
     private val FLAG = Regex("""^\s*m?(?:Has|Is)?(SwbLc3|SwbAptX|Wbs)\w*\s*[:=]\s*(true|false)""", RegexOption.IGNORE_CASE)
     // Key may contain spaces ("Current SCO codec: CVSD"); A2DP-style `{codecName:` blocks are excluded where used.
@@ -150,6 +158,7 @@ object CallCodecParser {
         var micGain: Int? = null
         var nrec: Boolean? = null
         var volumeReports = 0
+        var battery: Int? = null
         val flags = mutableMapOf<String, Boolean>()
         fun build(): HfpDeviceDump {
             val fromFlags = when {
@@ -159,7 +168,7 @@ object CallCodecParser {
                 flags["wbs"] == false -> VoiceCodec.CVSD
                 else -> null
             }
-            return HfpDeviceDump(address, audioOn, explicitCodec ?: fromFlags, speakerGain, micGain, nrec, volumeReports)
+            return HfpDeviceDump(address, audioOn, explicitCodec ?: fromFlags, speakerGain, micGain, nrec, volumeReports, battery)
         }
     }
 
@@ -216,6 +225,7 @@ object CallCodecParser {
                         SPEAKER_GAIN.find(line)?.let { d.speakerGain = gain(it.groupValues[1]) }
                         MIC_GAIN.find(line)?.let { d.micGain = gain(it.groupValues[1]) }
                         NREC.find(line)?.let { d.nrec = it.groupValues[1].equals("true", true) }
+                        BATTERY.find(line)?.let { d.battery = it.groupValues[1].toIntOrNull()?.takeIf { v -> v in 0..100 } }
                     }
                     CODEC_LINE.find(line)?.let { m ->
                         if (line.contains("{codecName:")) return@let // an A2DP config block, not voice

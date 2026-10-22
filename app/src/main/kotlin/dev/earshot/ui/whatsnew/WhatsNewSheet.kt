@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
@@ -73,7 +72,7 @@ fun WhatsNewContent(onDone: () -> Unit, modifier: Modifier = Modifier) {
             .padding(horizontal = 24.dp)
             .padding(bottom = 16.dp),
     ) {
-        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(56.dp)) {
+        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(56.dp)) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Celebration, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(28.dp))
             }
@@ -96,7 +95,7 @@ fun WhatsNewContent(onDone: () -> Unit, modifier: Modifier = Modifier) {
             }
         }
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onDone, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+        Button(shape = MaterialTheme.shapes.medium, onClick = onDone, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             Text(stringResource(R.string.whats_new_done))
         }
         Spacer(Modifier.height(8.dp))

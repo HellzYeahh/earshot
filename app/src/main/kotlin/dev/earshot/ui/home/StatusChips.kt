@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.MicOff
@@ -40,6 +41,7 @@ import dev.earshot.core.OperationMode
 import dev.earshot.core.SecureSessionStatus
 import dev.earshot.ui.common.BannerTone
 import dev.earshot.ui.common.InfoBanner
+import dev.earshot.ui.theme.EarshotTheme
 
 /**
  * Small status chips under the Home header: mic muted, charging, live updates. Renders nothing
@@ -90,25 +92,26 @@ fun StatusChips(state: HeadphoneState, modifier: Modifier = Modifier) {
     }
 }
 
+/** An inverted tag: ink on sand by day, sand on ink at night, monospace capitals. */
 @Composable
 private fun StatusChip(label: String, icon: ImageVector? = null, dot: Boolean = false, description: String? = null) {
     Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(4.dp),
+        color = EarshotTheme.colors.chip,
+        contentColor = EarshotTheme.colors.onChip,
         modifier = if (description != null) Modifier.semantics { contentDescription = "$label. $description" } else Modifier,
     ) {
-        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
             if (icon != null) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
+                Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(7.dp))
             }
             if (dot) {
-                // A plain green-ish dot: "live" without needing an icon that reads as a warning.
-                androidx.compose.foundation.layout.Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-                Spacer(Modifier.width(6.dp))
+                // The orange lamp: "live" without an icon that reads as a warning.
+                androidx.compose.foundation.layout.Box(Modifier.size(8.dp).background(EarshotTheme.colors.accent, CircleShape))
+                Spacer(Modifier.width(7.dp))
             }
-            Text(label, style = MaterialTheme.typography.labelMedium)
+            Text(label.uppercase(), style = MaterialTheme.typography.labelSmall)
         }
     }
 }

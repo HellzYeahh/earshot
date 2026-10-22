@@ -1,5 +1,6 @@
 package dev.earshot.ui.tools
 
+import dev.earshot.ui.theme.EarshotTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -26,7 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import dev.earshot.ui.common.FieldProgressBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -44,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -137,12 +137,12 @@ fun DetectSheetContent(session: DetectionSession, info: DetectSheetInfo, callbac
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             if (session.listening) {
-                OutlinedButton(onClick = callbacks.onStop) { Text(stringResource(R.string.detect_stop)) }
+                OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = callbacks.onStop) { Text(stringResource(R.string.detect_stop)) }
             } else {
-                OutlinedButton(onClick = callbacks.onRestart) { Text(stringResource(R.string.detect_again)) }
+                OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = callbacks.onRestart) { Text(stringResource(R.string.detect_again)) }
             }
             Spacer(Modifier.weight(1f))
-            Button(onClick = callbacks.onClose) { Text(stringResource(R.string.detect_done)) }
+            Button(shape = MaterialTheme.shapes.medium, onClick = callbacks.onClose) { Text(stringResource(R.string.detect_done)) }
         }
     }
 }
@@ -162,7 +162,7 @@ private fun Countdown(session: DetectionSession) {
     if (session.listening && start != null && end != null) {
         val leftMs = (end - now).coerceAtLeast(0)
         Text(stringResource(R.string.detect_listening, ((leftMs + 999) / 1000).toInt()), style = MaterialTheme.typography.bodyMedium)
-        LinearProgressIndicator(progress = { leftMs.toFloat() / (end - start).coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
+        FieldProgressBar(progress = { leftMs.toFloat() / (end - start).coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
     } else {
         Text(stringResource(R.string.detect_stopped), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -387,10 +387,9 @@ internal fun detectedSummary(detected: DetectedShortcut?): String? {
     return name?.let { stringResource(R.string.shortcut_detected_named, it) } ?: stringResource(R.string.shortcut_detected)
 }
 
-/** A green readable on the current surface (the theme has no success colour of its own). */
+/** The theme's "it worked" green (Material 3 has no success role; Field adds one). */
 @Composable
-internal fun successColor(): Color =
-    if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) Color(0xFF7DD99A) else Color(0xFF1B7F3B)
+internal fun successColor(): Color = EarshotTheme.colors.ok
 
 private const val TICK_MS = 1_000L
 private const val MAX_NAME = 40

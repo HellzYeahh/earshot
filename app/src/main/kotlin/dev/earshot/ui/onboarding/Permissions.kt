@@ -17,6 +17,13 @@ object Permissions {
     val bluetoothConnect: String? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Manifest.permission.BLUETOOTH_CONNECT else null
 
+    /**
+     * For the AirPods / Beats per-bud battery (BLE adverts). Same "Nearby devices" group as
+     * [bluetoothConnect], so once that is granted Android grants this without showing a dialog.
+     */
+    val bluetoothScan: String? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Manifest.permission.BLUETOOTH_SCAN else null
+
     val postNotifications: String? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Manifest.permission.POST_NOTIFICATIONS else null
 

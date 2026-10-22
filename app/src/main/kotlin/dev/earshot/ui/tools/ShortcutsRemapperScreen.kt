@@ -1,5 +1,6 @@
 package dev.earshot.ui.tools
 
+import dev.earshot.ui.theme.EarshotTheme
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
@@ -193,7 +193,9 @@ fun ShortcutsRemapperContent(
         delay(HIGHLIGHT_MS)
         highlight = null
     }
-    val highlightColor = MaterialTheme.colorScheme.primary
+    // Orange in both modes: an ink outline next to the olive hairline would not read as "look here".
+    val highlightColor = EarshotTheme.colors.accent
+    val highlightShape = MaterialTheme.shapes.medium
 
     SubScreenScaffold(title = stringResource(R.string.tools_shortcuts), onBack = callbacks.onBack) { padding ->
         Column(
@@ -205,7 +207,7 @@ fun ShortcutsRemapperContent(
             SectionCard(
                 modifier = Modifier
                     .bringIntoViewRequester(shortcutRequester)
-                    .highlighted(highlight == ControlsHighlight.SHORTCUT, highlightColor),
+                    .highlighted(highlight == ControlsHighlight.SHORTCUT, highlightColor, highlightShape),
             ) {
                 ButtonTitle(state.buttons.firstOrNull(), index = 1, detected = detectedSummary(state.detected))
                 ChoiceDropdown(
@@ -258,6 +260,7 @@ fun ShortcutsRemapperContent(
                 }
 
                 OutlinedButton(
+                    shape = MaterialTheme.shapes.medium,
                     onClick = { detecting = true; callbacks.onStartDetect() },
                     modifier = Modifier.padding(top = 12.dp),
                 ) {
@@ -285,7 +288,7 @@ fun ShortcutsRemapperContent(
                 headphones, controls, callbacks.onOpenDevices,
                 touchModifier = Modifier
                     .bringIntoViewRequester(touchRequester)
-                    .highlighted(highlight == ControlsHighlight.TOUCH_CONTROLS, highlightColor),
+                    .highlighted(highlight == ControlsHighlight.TOUCH_CONTROLS, highlightColor, highlightShape),
             )
         }
     }
@@ -341,9 +344,9 @@ fun ShortcutsRemapperContent(
     }
 }
 
-/** A primary-coloured outline while [on]: where "Use for Shortcut Button 1" / "Show Touch controls" lead. */
-private fun Modifier.highlighted(on: Boolean, color: androidx.compose.ui.graphics.Color): Modifier =
-    if (on) border(2.dp, color, RoundedCornerShape(20.dp)) else this
+/** An accent outline while [on]: where "Use for Shortcut Button 1" / "Show Touch controls" lead. [shape] is the card's. */
+private fun Modifier.highlighted(on: Boolean, color: androidx.compose.ui.graphics.Color, shape: androidx.compose.ui.graphics.Shape): Modifier =
+    if (on) border(2.dp, color, shape) else this
 
 /** "Shortcut Button 1:" (or "… (right earbud):") with the detected control on the right. */
 @Composable

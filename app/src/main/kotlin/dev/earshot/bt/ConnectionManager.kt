@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import dev.earshot.core.ConnectionProblem
 import dev.earshot.core.ConnectionState
 import dev.earshot.core.ConnectionStatus
 import kotlinx.coroutines.CancellationException
@@ -182,7 +183,7 @@ class ConnectionManager<C : ManagedLink>(
             // then what answered on it before, then its name), so exactly one stack drives a device,
             // a renamed one is not left with nobody, and nothing else ever gets this stack's probe.
             if (prefs.familyFor(address, name) != factory.family) {
-                BtLog.d("${factory::class.simpleName} does not drive \"$name\"; standing down")
+                BtLog.d("the ${factory.family.name.lowercase()} stack does not drive \"$name\"; standing down")
                 return
             }
             currentAddress = address
@@ -297,6 +298,7 @@ class ConnectionManager<C : ManagedLink>(
                 deviceName = name ?: it.deviceName,
                 deviceAddress = address ?: it.deviceAddress,
                 message = message,
+                problem = if (message != null && message == factory.busyMessage) ConnectionProblem.ChannelHeld(factory.competingApp) else null,
             )
         }
     }

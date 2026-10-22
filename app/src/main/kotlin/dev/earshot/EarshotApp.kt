@@ -19,6 +19,8 @@ class EarshotApp : Application() {
         // The Shortcuts remapper puts a connecting Bose headset's Shortcut button back on the mode
         // the saved choice needs, so its watcher must run from process start too.
         container.shortcuts
+        // Each headset gets its own Pro EQ preset back when it connects.
+        container.headsetEq.start()
     }
 }
 

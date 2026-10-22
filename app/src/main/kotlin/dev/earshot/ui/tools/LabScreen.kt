@@ -25,7 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import dev.earshot.ui.common.FieldProgressBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,10 +36,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import dev.earshot.ui.theme.JetBrainsMono
 import dev.earshot.R
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.LabReading
@@ -247,7 +247,7 @@ fun LabContent(
                 SectionCard(title = stringResource(R.string.lab_report_title)) {
                     Text(stringResource(R.string.lab_report_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = onCopyReport, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onCopyReport, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.lab_report_copy))
                     }
                 }
@@ -268,7 +268,7 @@ fun LabContent(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             if (state.total > 0) {
-                                LinearProgressIndicator(progress = { state.scanned / state.total.toFloat() }, modifier = Modifier.fillMaxWidth())
+                                FieldProgressBar(progress = { state.scanned / state.total.toFloat() }, modifier = Modifier.fillMaxWidth())
                                 Text(stringResource(R.string.lab_progress, state.scanned, state.total), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
                             } else {
                                 Text(stringResource(R.string.lab_functions_hint, state.maxFunction), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -276,21 +276,21 @@ fun LabContent(
                         }
                         Spacer(Modifier.width(12.dp))
                         if (state.scanning) {
-                            Button(onClick = onStop, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Button(shape = MaterialTheme.shapes.medium, onClick = onStop, modifier = Modifier.heightIn(min = 48.dp)) {
                                 Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.action_stop))
                             }
                         } else {
-                            Button(onClick = onStart, enabled = state.selectedBlocks.isNotEmpty(), modifier = Modifier.heightIn(min = 48.dp)) {
+                            Button(shape = MaterialTheme.shapes.medium, onClick = onStart, enabled = state.selectedBlocks.isNotEmpty(), modifier = Modifier.heightIn(min = 48.dp)) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.lab_scan))
                             }
                         }
                     }
                     if (!state.scanning) {
                         Spacer(Modifier.height(8.dp))
-                        OutlinedButton(onClick = onDeepScan, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onDeepScan, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                             Text(stringResource(R.string.lab_deep_scan))
                         }
-                        Text(stringResource(R.string.lab_deep_scan_hint), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                        Text(stringResource(R.string.lab_deep_scan_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }
@@ -327,7 +327,7 @@ private fun ReadingRow(reading: LabReading) {
             Text(
                 "[${reading.block}.${reading.function}]",
                 style = MaterialTheme.typography.labelLarge,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = JetBrainsMono,
                 color = if (allErrors) muted else MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.width(8.dp))
@@ -347,7 +347,7 @@ private fun FrameLine(frame: RawFrame, muted: androidx.compose.ui.graphics.Color
     Text(
         if (frame.isError) "${frame.operatorName} ${frame.errorName ?: "?"} ${frame.payloadHex}".trimEnd() else "${frame.operatorName} ${frame.payloadHex.ifBlank { "(empty)" }}",
         style = MaterialTheme.typography.bodySmall,
-        fontFamily = FontFamily.Monospace,
+        fontFamily = JetBrainsMono,
         color = if (frame.isError) muted else MaterialTheme.colorScheme.secondary,
         modifier = Modifier.padding(top = 2.dp),
     )

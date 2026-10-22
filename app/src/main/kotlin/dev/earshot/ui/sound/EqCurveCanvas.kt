@@ -15,7 +15,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.res.ResourcesCompat
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -44,6 +46,9 @@ fun EqCurveCanvas(
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val zeroColor = MaterialTheme.colorScheme.onSurfaceVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
+    // The axis labels are values, so the bundled mono face (the native Paint can't read Compose fonts).
+    val context = LocalContext.current
+    val labelTypeface = remember(context) { runCatching { ResourcesCompat.getFont(context, R.font.jetbrains_mono) }.getOrNull() }
     val samples = remember(bands, preampDb) { EqCurve.sample(bands, preampDb) }
     val description = stringResource(R.string.sound_curve_description)
 
@@ -63,12 +68,12 @@ fun EqCurveCanvas(
         val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 6.dp.toPx()))
         for (hz in GRID_HZ) {
             val x = EqCurve.xFraction(hz) * w
-            drawLine(gridColor, Offset(x, 0f), Offset(x, plotH), strokeWidth = 1f, pathEffect = dash)
+            drawLine(gridColor, Offset(x, 0f), Offset(x, plotH), strokeWidth = 1.dp.toPx(), pathEffect = dash)
         }
         for (db in listOf(-12.0, -6.0, 6.0, 12.0)) {
-            drawLine(gridColor, Offset(0f, yFor(db)), Offset(w, yFor(db)), strokeWidth = 1f, pathEffect = dash)
+            drawLine(gridColor, Offset(0f, yFor(db)), Offset(w, yFor(db)), strokeWidth = 1.dp.toPx(), pathEffect = dash)
         }
-        drawLine(zeroColor, Offset(0f, yFor(0.0)), Offset(w, yFor(0.0)), strokeWidth = 1.5f)
+        drawLine(zeroColor, Offset(0f, yFor(0.0)), Offset(w, yFor(0.0)), strokeWidth = 1.5.dp.toPx())
 
         // Curve + translucent fill towards 0 dB.
         if (samples.size >= 2) {
@@ -98,6 +103,7 @@ fun EqCurveCanvas(
             textSize = 10.sp.toPx()
             isAntiAlias = true
             textAlign = android.graphics.Paint.Align.CENTER
+            labelTypeface?.let { typeface = it }
         }
         for (hz in listOf(50.0, 200.0, 1000.0, 5000.0, 10000.0)) {
             val x = EqCurve.xFraction(hz) * w

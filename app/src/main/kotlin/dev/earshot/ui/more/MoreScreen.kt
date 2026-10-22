@@ -35,6 +35,7 @@ import dev.earshot.ui.common.InfoBanner
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.NavRow
 import dev.earshot.ui.common.SectionCard
+import dev.earshot.ui.common.VendorControlsCard
 import dev.earshot.ui.common.SegmentedChoice
 import dev.earshot.ui.common.SwitchRow
 import dev.earshot.ui.common.earshotViewModel
@@ -57,6 +58,7 @@ fun MoreScreen(
             onAutoAnswer = vm::setAutoAnswer,
             onMultipoint = vm::setMultipoint,
             onAutoOff = vm::setAutoOff,
+            onVendorControl = vm::setVendorControl,
         ),
         onOpenAutomations = onOpenAutomations,
         onOpenPreferences = onOpenPreferences,
@@ -70,6 +72,7 @@ data class SettingsCallbacks(
     val onAutoAnswer: (Boolean) -> Unit = {},
     val onMultipoint: (Boolean) -> Unit = {},
     val onAutoOff: (Int) -> Unit = {},
+    val onVendorControl: (id: String, value: Int) -> Unit = { _, _ -> },
 )
 
 /**
@@ -100,12 +103,13 @@ fun MoreContent(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.tab_more), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+        Text(stringResource(R.string.tab_more).uppercase(), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
 
-        if (!state.isConnected) InfoBanner(stringResource(R.string.settings_not_connected))
+        if (!state.capabilities.ownSettings) InfoBanner(stringResource(R.string.settings_generic_headset))
+        else if (!state.isConnected) InfoBanner(stringResource(R.string.settings_not_connected))
 
         // A model with none of these settings gets no empty card.
-        if (hasSidetone || hasGeneral) SectionCard(title = stringResource(if (buds) R.string.settings_earbuds else R.string.settings_headphones)) {
+        if (state.capabilities.ownSettings && (hasSidetone || hasGeneral)) SectionCard(title = stringResource(if (buds) R.string.settings_earbuds else R.string.settings_headphones)) {
             if (hasSidetone) {
                 // Sidetone: wire order is 0=off 1=high 2=med 3=low; the enum handles it, we just show labels.
                 Text(stringResource(R.string.settings_sidetone), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
@@ -137,6 +141,14 @@ fun MoreContent(
                 enabled = enabled && state.autoOffMinutes != null,
             )
         }
+
+        // Every setting only this maker's headsets have (the Home card shows the quick ones).
+        VendorControlsCard(
+            title = stringResource(if (buds) R.string.settings_earbuds else R.string.settings_headphones),
+            controls = state.vendorControls,
+            enabled = enabled,
+            onChange = callbacks.onVendorControl,
+        )
 
         DeviceInfoCard(state)
 

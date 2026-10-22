@@ -26,7 +26,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import dev.earshot.ui.common.FieldProgressBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -120,7 +120,7 @@ fun MicCheckContent(
                     playing && state.recordedSeconds > 0 -> state.playbackPositionSeconds / state.recordedSeconds
                     else -> 0f
                 }
-                LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                FieldProgressBar(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(6.dp))
                 Text(
                     when (state.phase) {
@@ -136,18 +136,18 @@ fun MicCheckContent(
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (recording || playing) {
-                        Button(onClick = onStop, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) {
+                        Button(shape = MaterialTheme.shapes.medium, onClick = onStop, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) {
                             Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.action_stop))
                         }
                     } else {
-                        Button(onClick = onRecord, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) {
+                        Button(shape = MaterialTheme.shapes.medium, onClick = onRecord, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) {
                             Icon(Icons.Default.Mic, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.action_record))
                         }
                         if (hasRecording) {
-                            OutlinedButton(onClick = onPlay, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) {
+                            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onPlay, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.action_play))
                             }
-                            OutlinedButton(onClick = onDiscard, modifier = Modifier.size(52.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                            OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onDiscard, modifier = Modifier.size(52.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_discard))
                             }
                         }
@@ -188,7 +188,8 @@ private fun LevelMeter(level: Float, active: Boolean) {
                 i >= segments - 4 -> high
                 else -> low
             }
-            drawRoundRect(color, topLeft = Offset(i * (segW + gap), 0f), size = Size(segW, size.height), cornerRadius = CornerRadius(3.dp.toPx()))
+            // Near-square segments, like an LED level meter.
+            drawRoundRect(color, topLeft = Offset(i * (segW + gap), 0f), size = Size(segW, size.height), cornerRadius = CornerRadius(1.dp.toPx()))
         }
     }
 }

@@ -2,6 +2,8 @@
 
 package dev.earshot.ui.tools
 
+import androidx.compose.foundation.BorderStroke
+import dev.earshot.ui.theme.EarshotTheme
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,8 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
@@ -73,6 +73,10 @@ import dev.earshot.ui.common.ValueSlider
 import dev.earshot.ui.common.earshotViewModel
 import kotlin.math.roundToInt
 
+/** Latency to start from when the headset reports none: the QC Ultra 2's range and value (fw 10.12). */
+private val TRY_LATENCY_RANGE = 0..520
+private const val TRY_LATENCY_MS = 210
+
 /** Tools → Connection & latency: LE Audio, codec/call shortcuts, `[5.7]` latency and tips. */
 @Composable
 fun ConnectionScreen(onBack: () -> Unit, onOpenCodec: () -> Unit, onOpenCallAudio: () -> Unit) {
@@ -121,7 +125,8 @@ fun ConnectionContent(
             AnimatedVisibility(visible = restarting) { RestartingBanner() }
             if (!state.isConnected && !restarting) InfoBanner(stringResource(R.string.settings_not_connected))
             // The LE Audio switch is a Bose BMAP function; the Crusher (state.crusher) has none.
-            if (state.crusher == null) LeAudioCard(state, enabled, onSetLeAudio)
+            // Shown for every headset: Tools let anyone try a setting, a refusal becomes a message.
+            LeAudioCard(state, enabled, onSetLeAudio)
             SectionCard {
                 NavRow(
                     title = stringResource(R.string.conn_codec_row),
@@ -149,7 +154,7 @@ private fun RestartingBanner() {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -305,10 +310,12 @@ fun profileLabel(profiles: DeviceProfiles?): String = when {
 
 @Composable
 fun ProfileChip(profiles: DeviceProfiles?, highlight: Boolean, modifier: Modifier = Modifier) {
+    // primaryContainer is Field's orange in both modes, so an LE Audio link lights up like a lamp.
     Surface(
-        shape = CircleShape,
+        shape = MaterialTheme.shapes.extraSmall,
         color = if (highlight) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
         contentColor = if (highlight) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        border = if (highlight) null else BorderStroke(1.dp, EarshotTheme.colors.hairline),
         modifier = modifier,
     ) {
         Text(profileLabel(profiles), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
@@ -358,10 +365,11 @@ private fun LatencyCard(
                         Text(stringResource(R.string.conn_latency_acknowledge))
                     }
                 }
-                if (range != null && current != null) {
+                // A headset that reports no latency still gets the slider (Bose's range) to try.
+                run {
                     LatencySlider(
-                        current = current,
-                        range = range,
+                        current = current ?: TRY_LATENCY_MS,
+                        range = range ?: TRY_LATENCY_RANGE,
                         enabled = enabled && acknowledged,
                         onCommit = onSetLatency,
                     )

@@ -306,7 +306,7 @@ fun ModeEditorSheet(
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
                 Spacer(Modifier.width(8.dp))
-                Button(onClick = { onSave(name.trim(), settings) }, enabled = nameValid && !busy) {
+                Button(shape = MaterialTheme.shapes.medium, onClick = { onSave(name.trim(), settings) }, enabled = nameValid && !busy) {
                     Text(stringResource(R.string.action_save))
                 }
             }

@@ -2,6 +2,8 @@
 
 package dev.earshot.ui.common
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -10,13 +12,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -37,10 +39,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -53,7 +53,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -64,10 +66,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.style.TextAlign
 import dev.earshot.R
+import dev.earshot.ui.theme.EarshotTheme
 
 /*
  * Small, reused building blocks. Everything here keeps a 48 dp touch target and reads well in
- * both themes; screens compose these rather than styling raw Material widgets.
+ * both themes; screens compose these rather than styling raw Material widgets. Titles are
+ * uppercased here (Compose has no text-transform), so callers pass them in sentence case.
  */
 
 /**
@@ -76,7 +80,7 @@ import dev.earshot.R
  */
 val LocalSnackbarHostState = staticCompositionLocalOf<SnackbarHostState?> { null }
 
-/** A rounded card with an optional title, the unit of layout on every screen. */
+/** A hairline-bordered panel with an optional title, the unit of layout on every screen. */
 @Composable
 fun SectionCard(
     modifier: Modifier = Modifier,
@@ -87,8 +91,9 @@ fun SectionCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, EarshotTheme.colors.hairline),
     ) {
         Column(Modifier.padding(contentPadding)) {
             if (title != null || trailing != null) {
@@ -98,7 +103,7 @@ fun SectionCard(
                 ) {
                     if (title != null) {
                         Text(
-                            title,
+                            title.uppercase(),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f),
@@ -143,7 +148,22 @@ fun SwitchRow(
             }
         }
         Spacer(Modifier.width(12.dp))
-        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+        FieldSwitch(checked = checked, onCheckedChange = null, enabled = enabled)
+    }
+}
+
+/** A 1 dp dashed rule, for separating rows inside one card. */
+@Composable
+fun DashedDivider(modifier: Modifier = Modifier, color: Color = EarshotTheme.colors.hairline) {
+    Canvas(modifier.fillMaxWidth().height(1.dp)) {
+        val dash = 4.dp.toPx()
+        drawLine(
+            color,
+            Offset(0f, center.y),
+            Offset(size.width, center.y),
+            strokeWidth = size.height,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash)),
+        )
     }
 }
 
@@ -223,18 +243,19 @@ fun ValueSlider(
             Text(label, style = MaterialTheme.typography.bodyLarge, color = rowTitleColor(enabled), modifier = Modifier.weight(1f))
             Text(
                 valueText,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         val description = "$label: $valueText"
-        Slider(
+        FieldSlider(
             value = value,
             onValueChange = onValueChange,
             onValueChangeFinished = onValueChangeFinished,
             valueRange = valueRange,
             steps = steps,
             enabled = enabled,
+            trackHeight = 6.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
@@ -242,8 +263,8 @@ fun ValueSlider(
         )
         if (startLabel != null || endLabel != null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(startLabel.orEmpty(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(endLabel.orEmpty(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(startLabel.orEmpty().uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(endLabel.orEmpty().uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -259,14 +280,25 @@ fun <T> SegmentedChoice(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val colors = EarshotTheme.colors
     SingleChoiceSegmentedButtonRow(modifier.fillMaxWidth().heightIn(min = 48.dp)) {
         options.forEachIndexed { index, option ->
             SegmentedButton(
                 selected = option == selected,
                 onClick = { onSelect(option) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size, baseShape = MaterialTheme.shapes.small),
                 enabled = enabled,
-                label = { Text(label(option), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = colors.control,
+                    activeContentColor = colors.onControl,
+                    activeBorderColor = colors.hairline,
+                    inactiveContainerColor = Color.Transparent,
+                    inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    inactiveBorderColor = colors.hairline,
+                ),
+                // No check mark: the filled segment is the state.
+                icon = {},
+                label = { Text(label(option).uppercase(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             )
         }
     }
@@ -322,7 +354,7 @@ fun InfoBanner(
         BannerTone.WARNING -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
         BannerTone.ERROR -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
     }
-    Surface(color = container, contentColor = content, shape = RoundedCornerShape(16.dp), modifier = modifier.fillMaxWidth()) {
+    Surface(color = container, contentColor = content, shape = MaterialTheme.shapes.medium, modifier = modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Icon(icon, contentDescription = null, modifier = Modifier.padding(top = 2.dp).size(20.dp))
@@ -361,7 +393,10 @@ fun ConfirmDialog(
     )
 }
 
-/** Scaffold for screens below the four tabs: a top bar with a back arrow. */
+/**
+ * Scaffold for screens below the four tabs: a top bar with a back arrow. Transparent, so the
+ * root's dot grid shows through (it is drawn once, under the whole window).
+ */
 @Composable
 fun SubScreenScaffold(
     title: String,
@@ -374,17 +409,17 @@ fun SubScreenScaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(title.uppercase(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = { actions() },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
             )
         },
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         content = content,
     )
 }
@@ -401,13 +436,13 @@ fun EmptyHint(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Section heading inside a long list. */
+/** Section heading inside a long list: a small monospace label, like a panel legend. */
 @Composable
 fun SectionHeading(text: String, modifier: Modifier = Modifier) {
     Text(
-        text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
     )
 }

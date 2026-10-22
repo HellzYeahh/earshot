@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import dev.earshot.audio.HeadsetEqMemory
 import java.util.UUID
 
 @OptIn(FlowPreview::class)
@@ -30,6 +31,8 @@ class SoundViewModel(
     private val headphones: HeadphoneRepository,
     private val tuning: AudioTuningRepository,
     messenger: UiMessenger,
+    /** Remembers the picked preset for the headset in use; null in previews. */
+    private val headsetEq: HeadsetEqMemory? = null,
 ) : EarshotViewModel(messenger) {
 
     val headphoneState: StateFlow<HeadphoneState> = headphones.state
@@ -86,10 +89,15 @@ class SoundViewModel(
         tuning.savePreset(preset)
         bandsDraft.value = null
         tuning.applyPreset(preset.id)
+        headsetEq?.rememberPick(preset.id)
         if (preset.bands.size == 1) messenger.show(R.string.sound_autoeq_imported_one, preset.name)
         else messenger.show(R.string.sound_autoeq_imported, preset.name, preset.bands.size)
     }
-    fun applyPreset(id: String?) = launchCatching { bandsDraft.value = null; tuning.applyPreset(id) }
+    fun applyPreset(id: String?) = launchCatching {
+        bandsDraft.value = null
+        tuning.applyPreset(id)
+        headsetEq?.rememberPick(id)
+    }
     fun setPreamp(db: Double) = launchCatching { tuning.setPreamp(db) }
     fun setBoost(db: Double) = launchCatching { tuning.setBoost(db) }
     fun setLimiter(enabled: Boolean) = launchCatching { tuning.setLimiter(enabled) }
@@ -99,6 +107,7 @@ class SoundViewModel(
         val preset = EqPreset(id = "user-" + UUID.randomUUID().toString(), name = name.trim(), bands = bands.value, preampDb = s.preampDb)
         tuning.savePreset(preset)
         tuning.applyPreset(preset.id)
+        headsetEq?.rememberPick(preset.id)
         messenger.show(R.string.sound_preset_saved, preset.name)
     }
 

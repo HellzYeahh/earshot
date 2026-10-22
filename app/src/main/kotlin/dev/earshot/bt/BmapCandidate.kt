@@ -89,13 +89,22 @@ object BmapCandidates {
         hasClassic: Boolean = true,
         hasLe: Boolean = false,
         preferLe: Boolean = false,
+        /**
+         * False for a device that neither looks like a Bose nor ever answered BMAP (the user forced
+         * "Headphone type: Bose" on it): only the SDP lookups by service UUID are tried. Fixed
+         * channels are blind writes there; a no-name chip may keep its firmware-update service on
+         * one of them (BES `6666…`, seen on a Soundcore Sleep A30).
+         */
+        fixedChannels: Boolean = true,
     ): List<BmapCandidate> {
         // The learned winner leads its own group; which group goes first is the transport the phone
         // is on now, so a classic channel learned last week does not delay an LE Audio connect.
         val classic = buildList {
             learned?.takeIf { it.isClassic }?.let { add(it) }
-            guessedChannel?.let { add(BmapCandidate.Channel(it)) }
-            PROBED_CHANNELS.forEach { add(BmapCandidate.Channel(it)) }
+            if (fixedChannels) {
+                guessedChannel?.let { add(BmapCandidate.Channel(it)) }
+                PROBED_CHANNELS.forEach { add(BmapCandidate.Channel(it)) }
+            }
             add(BmapCandidate.SdpSpp)
             add(BmapCandidate.SdpBmap)
         }.takeIf { hasClassic }.orEmpty()

@@ -11,9 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.earshot.ui.theme.JetBrainsMono
 import dev.earshot.R
 import dev.earshot.core.PairingRequest
 
@@ -35,7 +35,7 @@ fun PairingDialog(request: PairingRequest, onAnswer: (Boolean) -> Unit) {
                     Text(
                         code.toString().padStart(request.digits, '0'),
                         style = MaterialTheme.typography.displaySmall,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = JetBrainsMono,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(vertical = 16.dp).fillMaxWidth(),
                     )

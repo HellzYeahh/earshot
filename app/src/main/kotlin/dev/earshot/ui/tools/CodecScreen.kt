@@ -129,10 +129,10 @@ fun CodecContent(
                 Text(stringResource(R.string.codec_profiles_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { onProfile(ConnectionProfile.BEST_QUALITY) }, enabled = privileged && state.a2dpConnected, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    FilledTonalButton(onClick = { onProfile(ConnectionProfile.BEST_QUALITY) }, enabled = privileged && state.a2dpConnected, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.codec_best_quality))
                     }
-                    FilledTonalButton(onClick = { onProfile(ConnectionProfile.MOST_STABLE) }, enabled = privileged && state.a2dpConnected, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    FilledTonalButton(onClick = { onProfile(ConnectionProfile.MOST_STABLE) }, enabled = privileged && state.a2dpConnected, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.codec_most_stable))
                     }
                 }
@@ -243,6 +243,7 @@ private fun CodecPicker(state: CodecState, enabled: Boolean, onSelect: (CodecSel
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Button(
+                shape = MaterialTheme.shapes.medium,
                 onClick = { c?.let { onSelect(CodecSelection(it.codecName, rate, bits, quality)) } },
                 enabled = enabled && c != null,
                 modifier = Modifier.heightIn(min = 48.dp),

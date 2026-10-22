@@ -69,7 +69,24 @@ own module. Never edit another area's files, the Gradle files, the version catal
   type", else the family whose stack answered on it (`rememberFamily`), else the name ("QC" needs a
   model after it: QCY is not Bose). `DeviceFinder.find` → `DevicePick`: the connected headset wins,
   an explicit pick is pinned for the run (`DeviceSelection`). `AudioClass` keeps cars, speakers and
-  watches out.
+  watches out. The router takes a `VendorDriver` list (GENERIC mandatory). `ConnectionState.audioLinked`
+  (`AudioLinkMonitor`) / `HeadphoneState.isAudioActive` drive the service, automations and call boost;
+  `HeadphoneCapabilities.ownSettings = false` hides headset-settings UI. AirPods/Beats battery comes
+  from BLE adverts (`protocol/apple/ContinuityAdvert`, `AppleAdvertScanner`), read-only.
+- **Soundcore (0.6, Sleep A30 = D1301, tested on the user's pair):**
+  - Frames: `08 EE 00 00 00 | cat code | len u16 LE (whole frame) | body | sum` (inbound
+    `09 FF 00 00 01`).
+  - Transport: RFCOMM by vendor UUID `0cf12d31-fac3-4553-bd80-d6832e7d1301` only. Never a fixed
+    channel: the BES `66666666-…` firmware-update channel shares the device.
+  - `01 01` state = 150-byte body (`D1301State`: ANC 140, listening mode 65, battery 2/3 as
+    (n+1)×10 %).
+  - Writes go through `SoundcoreWriteGuard`'s allow-list (refuses `0b 8x` unpair/pairing,
+    `01 85`/`01 89` power off, `10 89` find tone, unknown writes).
+  - Settings reach the UI as `HeadphoneState.vendorControls` (`VendorControlsCard`) via
+    `setVendorControl`.
+  - `capabilities.modesOnHome = false`: its two modes only drive the tile, widget and automations.
+- **Tools never hide settings** (user decision): every control stays visible and tryable; refusals
+  become messages.
 - **Strict `LivenessProbe`**: GET `[0.1]` (the QC45 init packet); alive only on a device-side
   STATUS/ERROR/RESULT for `[0.1]` or traffic that frames *entirely* as device-side BMAP on known
   blocks (`BmapConnection.traffic()`). Beacons, logs and echoes fail.

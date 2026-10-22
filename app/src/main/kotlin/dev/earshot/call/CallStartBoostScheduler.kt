@@ -59,6 +59,14 @@ class CallStartBoostScheduler(
     }
 
     companion object {
-        val DEFAULT_FIRE_AT_MS = listOf(1_000L, 3_000L)
+        /**
+         * Checks in the first 12 s of a call on the headphones. Each fire only raises, and only once
+         * the call audio really reaches the headset (see `CallAudioRepositoryImpl.autoBoost`): the
+         * Bluetooth call link can take several seconds to come up, and until it does Android
+         * applies a call-volume change to the earpiece. On the user's Galaxy the old +1 s / +3 s
+         * pair raised the earpiece to 15 and left the headset at 10. The later checks also catch
+         * One UI putting its saved call volume back. After 12 s the user's own changes stand.
+         */
+        val DEFAULT_FIRE_AT_MS = listOf(1_000L, 2_000L, 3_000L, 5_000L, 8_000L, 12_000L)
     }
 }

@@ -63,6 +63,7 @@ class BragiLinkFactory(
 
     /** The text for "somebody else holds the control connection". */
     override val busyMessage: String get() = MESSAGE_CHANNEL_BUSY
+    override val competingApp: String get() = "Skullcandy"
 
     override val family: DeviceFamily get() = DeviceFamily.BRAGI
 

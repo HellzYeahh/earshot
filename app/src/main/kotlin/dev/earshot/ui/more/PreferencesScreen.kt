@@ -2,6 +2,7 @@
 
 package dev.earshot.ui.more
 
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -29,6 +30,7 @@ import dev.earshot.R
 import dev.earshot.appContainer
 import kotlinx.coroutines.launch
 import dev.earshot.core.AppPreferences
+import dev.earshot.core.Appearance
 import dev.earshot.core.ListeningMode
 import dev.earshot.core.SecureSessionStatus
 import dev.earshot.core.fake.FakeHeadphoneRepository
@@ -116,6 +118,27 @@ fun PreferencesContent(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Below Android 12 there is no wallpaper palette, so the choice would be a no-op: hidden.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) SectionCard(title = stringResource(R.string.prefs_appearance)) {
+                Text(
+                    stringResource(R.string.prefs_appearance_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = prefs.appearance == Appearance.FIELD,
+                        onClick = { onChange(prefs.copy(appearance = Appearance.FIELD)) },
+                        label = { Text(stringResource(R.string.prefs_appearance_field)) },
+                    )
+                    FilterChip(
+                        selected = prefs.appearance == Appearance.SYSTEM,
+                        onClick = { onChange(prefs.copy(appearance = Appearance.SYSTEM)) },
+                        label = { Text(stringResource(R.string.prefs_appearance_system)) },
+                    )
+                }
+            }
             SectionCard(title = stringResource(R.string.prefs_alerts)) {
                 SwitchRow(
                     title = stringResource(R.string.prefs_low_battery),
@@ -179,6 +202,7 @@ fun PreferencesContent(
                     FilterChip(selected = familyOverride == null, onClick = { onFamilyChange(null) }, label = { Text(stringResource(R.string.prefs_type_auto)) })
                     FilterChip(selected = familyOverride == "bose", onClick = { onFamilyChange("bose") }, label = { Text(stringResource(R.string.prefs_type_bose)) })
                     FilterChip(selected = familyOverride == "bragi", onClick = { onFamilyChange("bragi") }, label = { Text(stringResource(R.string.prefs_type_crusher)) })
+                    FilterChip(selected = familyOverride == "soundcore", onClick = { onFamilyChange("soundcore") }, label = { Text(stringResource(R.string.prefs_type_soundcore)) })
                     FilterChip(selected = familyOverride == "generic", onClick = { onFamilyChange("generic") }, label = { Text(stringResource(R.string.prefs_type_generic)) })
                 }
                 if (canForgetPairing) {

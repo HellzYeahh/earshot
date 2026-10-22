@@ -128,7 +128,7 @@ fun OnboardingContent(
     ) {
         Spacer(Modifier.height(16.dp))
         Icon(Icons.Default.Headphones, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(56.dp))
-        Text(stringResource(R.string.onboarding_title), style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.onboarding_title).uppercase(), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(R.string.onboarding_body), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         if (!hasBluetoothPermission || connection.status == ConnectionStatus.NO_PERMISSION) {
@@ -139,14 +139,14 @@ fun OnboardingContent(
                     Text(stringResource(R.string.onboarding_permission_denied), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                 }
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = onRequestPermission, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                Button(shape = MaterialTheme.shapes.medium, onClick = onRequestPermission, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                     Icon(Icons.Default.Bluetooth, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.action_allow_bluetooth))
                 }
                 if (bluetoothPermanentlyDenied) {
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = onOpenAppSettings, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onOpenAppSettings, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                         Text(stringResource(R.string.action_open_app_settings))
                     }
                 }
@@ -208,13 +208,14 @@ private fun DevicePicker(
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(
+                shape = MaterialTheme.shapes.medium,
                 onClick = onOpenBluetoothSettings,
                 modifier = Modifier.weight(1f).height(48.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp),
             ) {
                 Text(stringResource(R.string.action_bluetooth_settings), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Button(onClick = onConnect, modifier = Modifier.weight(1f).height(48.dp), enabled = connection.status != ConnectionStatus.CONNECTING) {
+            Button(shape = MaterialTheme.shapes.medium, onClick = onConnect, modifier = Modifier.weight(1f).height(48.dp), enabled = connection.status != ConnectionStatus.CONNECTING) {
                 Text(stringResource(R.string.action_connect))
             }
         }

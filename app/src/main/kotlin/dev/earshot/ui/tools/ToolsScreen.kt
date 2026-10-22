@@ -1,5 +1,6 @@
 package dev.earshot.ui.tools
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -50,6 +50,7 @@ import dev.earshot.shortcut.ShortcutSettings
 import dev.earshot.ui.LocalUiDependencies
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
+import dev.earshot.ui.theme.EarshotTheme
 
 /** Where the Tools tab's rows lead. */
 data class ToolsNavigation(
@@ -94,7 +95,7 @@ fun ToolsContent(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.tab_tools), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+        Text(stringResource(R.string.tab_tools).uppercase(), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
         ToolCard(
             icon = Icons.Default.TouchApp,
             title = stringResource(R.string.tools_shortcuts),
@@ -126,6 +127,7 @@ fun ToolsContent(
             subtitle = stringResource(R.string.tools_mic_check_subtitle),
             onClick = navigation.onOpenMicCheck,
         )
+        // Always offered: Tools never hide anything, so anyone can try a headset (user decision, 0.6).
         ToolCard(
             icon = Icons.Default.Science,
             title = stringResource(R.string.tools_lab),
@@ -138,8 +140,9 @@ fun ToolsContent(
 @Composable
 private fun ToolCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = BorderStroke(1.dp, EarshotTheme.colors.hairline),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     ) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {

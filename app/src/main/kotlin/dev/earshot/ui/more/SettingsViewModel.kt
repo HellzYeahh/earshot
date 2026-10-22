@@ -20,6 +20,7 @@ class SettingsViewModel(private val headphones: HeadphoneRepository, messenger: 
     fun setTouchControls(enabled: Boolean) = launchCatching { headphones.setTouchControls(enabled) }
     fun setAutoOff(minutes: Int) = launchCatching { headphones.setAutoOff(minutes) }
     fun setVoicePrompts(prompts: VoicePrompts) = launchCatching { headphones.setVoicePrompts(prompts) }
+    fun setVendorControl(id: String, value: Int) = launchCatching { headphones.setVendorControl(id, value) }
     fun rename(name: String) = launchCatching { headphones.setDeviceName(name); messenger.show(R.string.settings_renamed, name) }
     fun switchToDevice(address: String) = launchCatching { headphones.switchToDevice(address) }
     fun enterPairingMode() = launchCatching { headphones.enterPairingMode() }

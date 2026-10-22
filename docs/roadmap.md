@@ -54,8 +54,54 @@ deep control for Bose and AirPods.*
   - `DevicePick`: the connected headset wins at launch; an explicit pick is pinned for the run.
   - `AudioClass`: car kits, speakers and watches aren't headsets.
   - Neutral device strings.
-- **Still open in A1:** the `VendorDriver` registry. The router still has one constructor parameter
-  and one `when` branch per family, which is fine for three families but not for six.
+- **Done (2026-10-21), rest of 0.6 that can be built without new hardware:**
+  - A1: `VendorDriver` registry. The router takes a driver list; GENERIC is the mandatory fallback.
+  - A3: `AudioLinkMonitor` fills `ConnectionState.audioLinked`. `HeadphoneState.isAudioActive` drives
+    the foreground service, automations and the call boost.
+  - A4: `ConnectionProblem.ChannelHeld(app)`, no more string matching.
+  - A5 (subset): `HeadphoneCapabilities.ownSettings`; Controls, More, Sound, Lab, LE Audio and
+    latency are hidden for generic headsets.
+  - B1: Android's battery broadcast, plus a starting value from Shizuku dumpsys (`mBatteryLevel`)
+    or `getBatteryLevel()` reflection.
+  - B2: codec from `CODEC_CONFIG_CHANGED`; `pickSink` prefers the shown headset.
+  - B3: `HeadsetEqMemory` (explicit picks only, applied on connect).
+  - B5: README and About.
+  - C1: `ContinuityAdvert` (`:protocol/apple`) + `AppleAdvertScanner`: BLUETOOTH_SCAN
+    neverForLocation, short bursts.
+  - C3 (demo only): `DemoDevice.AIRPODS_PRO`.
+  - Call boost fix: it waits for voice routing to reach the headset, then checks for 12 s.
+- **Deferred to the AirPods-modes driver (C2), on purpose:**
+  - A6 (shared session base): it would rewrite working Bose connection code, and pays off only for
+    the next protocol driver.
+  - A7 (modes by meaning + migration): no second vendor has modes yet, and the migration should be
+    tested against one.
+- **Spike answers (desk):**
+  - D4, Android 16 `hiddenapi-flags.csv`: `createInsecureRfcommSocket(int)` is "unsupported"
+    (allowed). `getBatteryLevel()`, `getCodecStatus()` and `setCodecConfigPreference()` are
+    "sdk,system-api", so reflection isn't blocked by policy and only runtime permission checks
+    apply (worth trying with a CDM association in F4). `createInsecureL2capSocket(int)` is
+    max-target-o (blocked).
+  - D3, **corrected**: `BluetoothSocketSettings.Builder.setSocketType` accepts only `TYPE_RFCOMM`
+    and `TYPE_LE` (AOSP throws "invalid socketType"). `setL2capPsm` is LE-only (128–255), so there
+    is **no public way** to open BR/EDR PSM 0x1001. LibrePods gets there through the private
+    `BluetoothSocket` constructor after a JNI hidden-API exemption (blocklisted). Android 17's
+    change is a stack ERTM fix (issue 371713238), seen on Pixel 16 QPR3 and ColorOS/OxygenOS 16;
+    One UI unknown. C2 is a go/no-go (below).
+- **Done (2026-10-21): first Soundcore driver (E2, pulled into 0.6).**
+  - Sleep A30 (model D1301): `:protocol/soundcore` (framing, `D1301State`, `SoundcoreWriteGuard`
+    allow-list), `SoundcoreLinkFactory` (vendor UUID `…d6832e7d1301` only, never a fixed channel),
+    `SoundcoreConnection`, `SoundcoreHeadphoneRepository`.
+  - Noise cancelling on/off as two modes, per-bud battery, firmware, tap controls.
+  - `VirtualSleepA30` + end-to-end tests; demo device.
+  - Facts from OpenSCQ30 (GPL, facts only) and soundcorebridge (MIT).
+  - **Tested on the user's Sleep A30 (firmware 01.91):** state read, Listening mode switched
+    (Local and back), the user confirmed noise cancelling.
+  - F1 (vendor controls), done for it: `VendorControl` / `VendorControlsCard` /
+    `setVendorControl`. Ten settings; the noise cancelling switch and listening mode are also on Home.
+- **Tools never hide settings (user decision, 2026-10-21):** every Tools control stays visible and
+  can be tried while a headset is connected. A refusal comes back as a message. A forced
+  "Headphone type: Bose" on a device that doesn't look like a Bose gets only the SDP lookups by
+  UUID, never blind fixed channels (`BmapCandidates.order(fixedChannels = false)`).
 - **Learned from the user's phone (feeds D1/D2):**
   - *soundcore Sleep A30*: class 0x240404; SDP shows the Soundcore UUID
     `0cf12d31-fac3-4553-bd80-d6832e7d1301` and BES's firmware-update UUID `66666666-…`. So it's a
@@ -162,6 +208,58 @@ Experimental: Sony, Crusher.*
 - **More drivers** by demand from device reports: Galaxy Buds, Pixel Buds Pro (MIT reference),
   Nothing, Huawei, Sennheiser (GAIA), Xiaomi.
 - **Security review of every write path** per vendor before the store release.
+
+## Research update (2026-10-21, "App status overview" session)
+
+Full report: `docs/research/reports/Universal headset control accelerators.md` (notes in
+`docs/research/research_notes/`). Headline: no standard or Google channel lets a third-party app
+switch ANC across brands. The Bluetooth SIG has no ANC spec; Fast Pair "set ANC" needs a GMS-only
+account-key MAC; and AOSP restricts VCS/VOCS/AICS/PACS/ASCS/BASS/HAS/CSIS to BLUETOOTH_PRIVILEGED
+(Android 13 through 17). "Universal" = phone-side features plus vendor drivers. Changes:
+
+1. **F4 (Companion Device Manager) moves up, to right after 0.6** as the "universal remote".
+   - One association per headset (MAC filter, no re-pair) gives any brand:
+     - `BluetoothDevice.connect()/disconnect()` (API 37, CDM or privileged);
+     - `setAlias` (31) and `CompanionDeviceManager.removeBond` (36);
+     - presence binding (36).
+   - Needs compileSdk 37.
+   - Also try codec switching by reflection plus the association.
+2. **C2 (AirPods modes) is a go/no-go**, decided by a One UI 9 test (see D3). Until then the
+   AirPods tier is C1 (advert battery) plus the any-headset features. Point users to
+   LibrePods/CAPod for modes.
+3. **New B6, "Find my earbuds":**
+   - A one-sided stereo tone (`AudioTrack`) routed to the headset, plus "last seen" from the
+     connection log.
+   - Starts only from the UI, tile, widget or a notification (Android 17 background-audio
+     hardening).
+4. **B1 extension:** our own GATT client reads BAS `0x180F` (not restricted) for a Shizuku-free
+   starting battery on LE-capable headsets (the QC Ultra 2 advertises BAS).
+   - New spike **D7**: MICS `0x184D` Mute `0x2BC3`.
+   - HFP vendor events use the decimal company ID (".85"); only `+XEVENT/+ANDROID/+CGM*/+XAPL/
+     +IPHONEACCEV` are broadcast.
+5. **E4 (Fast Pair) shrinks:** AOSP RFCOMM refuses a second client on a channel and GMS opens the
+   Message Stream on connect, so expect D5 = no.
+   - Keep the `df21fe2c` SDP UUID as an identification signal and the advert battery snapshot.
+   - **WriteGuard rule: never write a Fast Pair account key.** The first key becomes the Find Hub
+     owner key.
+6. **New F6, diagnostics timeline:**
+   - A2DP/HFP disconnect reasons (API 37), bond-loss and encryption intents.
+   - `BluetoothHeadset.getCodecType` (37.2) as the call-codec label.
+   - Feeds F3.
+7. **0.8 drivers:**
+   - A shared Qualcomm GAIA v3 codec in `:protocol`, with an allow-list that never sends Upgrade
+     (feature 6).
+   - Sennheiser (MIT momentum4-control) and Pixel Buds Pro (MIT pbpctrl) ahead of Galaxy Buds.
+   - E5 (QC35) loses value: Gadgetbridge already covers QC35 and NC 700.
+8. **Target-37 checklist:**
+   - The call boost's `setStreamVolume` is ignored from a background-started service without
+     while-in-use status.
+   - No static-final reflection.
+   - A separate `.foss` applicationId for GitHub/F-Droid builds.
+   - IzzyOnDroid from 0.7.
+
+AVRCP play/next never become input events (they go to the media session), so the Controls
+remapper's approach is right; skip AccessibilityService.
 
 ## What we still need from you
 

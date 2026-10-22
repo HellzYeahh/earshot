@@ -16,6 +16,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.earshot.core.AppPreferences
+import dev.earshot.core.Appearance
 import dev.earshot.core.AutomationRepository
 import dev.earshot.core.AutomationRule
 import kotlinx.coroutines.CoroutineScope
@@ -85,6 +86,7 @@ class AutomationRepositoryImpl(
             prefs[KEY_PERSISTENT_NOTIFICATION] = preferences.persistentNotification
             prefs[KEY_AUTO_CONNECT] = preferences.autoConnectOnBluetooth
             prefs[KEY_TILE_CYCLE] = preferences.tileCycleModes.joinToString(",")
+            prefs[KEY_APPEARANCE] = preferences.appearance.name
         }
     }
 
@@ -158,6 +160,8 @@ class AutomationRepositoryImpl(
                 ?.split(',')
                 ?.mapNotNull { it.trim().toIntOrNull() }
                 ?: defaults.tileCycleModes,
+            // A name from a newer build that this one doesn't know falls back to the default.
+            appearance = prefs[KEY_APPEARANCE]?.let { name -> Appearance.entries.firstOrNull { it.name == name } } ?: defaults.appearance,
         )
     }
 
@@ -176,5 +180,6 @@ class AutomationRepositoryImpl(
         private val KEY_PERSISTENT_NOTIFICATION = booleanPreferencesKey("persistent_notification")
         private val KEY_AUTO_CONNECT = booleanPreferencesKey("auto_connect_on_bluetooth")
         private val KEY_TILE_CYCLE = stringPreferencesKey("tile_cycle_modes")
+        private val KEY_APPEARANCE = stringPreferencesKey("appearance")
     }
 }
