@@ -142,6 +142,44 @@ object SoundcoreWriteGuard {
     fun check(packet: SoundcorePacket) {
         require(isAllowed(packet)) { "Soundcore command ${SoundcorePacket.commandName(packet.command)} is not on Earshot's allow-list" }
     }
+
+    /**
+     * Refused for every model, whatever its table says: the ids above that unpair, enter pairing
+     * mode, connect or disconnect a host, power off, play the find tone, reset the buttons, delete
+     * an alarm, or start the fit test (loud tones), plus the firmware / OTA and factory-reset
+     * opcodes, which have no known id here and so stay unknown writes. `0b 84` is not in this set:
+     * it is the multipoint switch on the earbuds that list it (and refused on every other model).
+     */
+    val NEVER: Set<Int> = setOf(
+        0x0B81, 0x0B82, 0x0B83, 0x0B85, 0x0185, 0x0189, 0x1089, 0x0482, 0x1482, 0x0901,
+    )
+
+    /** Reads every driven model may make. `05 01` joins them only for models with a session-init. */
+    private val READS: Set<Int> = setOf(SoundcoreCommands.REQUEST_STATE, SoundcoreCommands.REQUEST_INFO)
+
+    /**
+     * The per-model allow-list (research notes §4: ids are reused across models, so the list is
+     * the model table's own, keyed on command id and body shape). `model == null` is the original
+     * global list, which the tested Sleep A30 driver keeps using unchanged.
+     *  - Sleep A30: the original list, as before.
+     *  - Any other model: the state reads, and for a model whose layout is writable the mode block
+     *    (`06 81`, exact codec size), its documented settings (`[0|1]`, auto-off `[enabled, index]`)
+     *    and, where the model needs it, the session-init `05 01` / `05 81`. Anything else is refused.
+     */
+    fun isAllowed(model: SoundcoreModel?, packet: SoundcorePacket): Boolean {
+        if (model == null || model == SoundcoreModel.SLEEP_A30) return isAllowed(packet)
+        if (packet.command in NEVER) return false
+        val layout = model.layout
+        if (!packet.isWrite) {
+            if (packet.command in READS) return packet.body.isEmpty()
+            return packet.command == SoundcoreCommands.SESSION_INFO && layout?.sessionInit == true && layout.writable
+        }
+        return layout?.allows(packet.command, packet.body) == true
+    }
+
+    fun check(model: SoundcoreModel?, packet: SoundcorePacket) {
+        require(isAllowed(model, packet)) { "Soundcore command ${SoundcorePacket.commandName(packet.command)} is not on Earshot's allow-list" }
+    }
 }
 
 /** Command ids (`(category shl 8) or code`). */
@@ -173,4 +211,47 @@ object SoundcoreCommands {
      * (FF = leave the timer fields alone), `[enabled, minutes lo, minutes hi, x]` sets the timer.
      */
     const val SET_SLEEP_TIMER = 0x1585
+
+    // ---- Gen-2 earbuds and headphones (research notes §3; ids are reused across models, so each
+    // model's table says which of these it may send) ----
+
+    /** `[left charging, right charging]`, pushed. */
+    const val PUSH_CHARGING = 0x0104
+
+    /** The sound-mode block, pushed when the modes change on the earbuds. Body = the model's codec size. */
+    const val PUSH_SOUND_MODES = 0x0601
+
+    /** Set the sound-mode block (ambient mode, noise-cancelling type and level, wind). */
+    const val SET_SOUND_MODES = 0x0681
+
+    /** Wear detection (auto play/pause on some models), `[0|1]`. */
+    const val SET_WEAR_DETECTION = 0x0181
+
+    /** Touch tone, `[0|1]`. */
+    const val SET_TOUCH_TONE = 0x0183
+
+    /** Auto power-off `[enabled, duration index]`. */
+    const val SET_AUTO_OFF = 0x0186
+
+    /** Gaming mode on the Note 3 / A40 / P3 / R50i NC family, `[0|1]`. */
+    const val SET_GAMING_MODE = 0x0187
+
+    /** Wearing tone, `[0|1]`. */
+    const val SET_WEARING_TONE = 0x018C
+
+    /** 3D surround (A30i), `[0|1]`. */
+    const val SET_SURROUND = 0x0286
+
+    /** Gaming mode on the Liberty 4 NC / Liberty 5, `[0|1]`. */
+    const val SET_GAMING_MODE_10 = 0x1085
+
+    /** Sound-leak compensation (Liberty 4 NC), `[0|1]`. */
+    const val SET_LEAK_COMPENSATION = 0x1086
+
+    /** Multipoint (two phones at once), `[0|1]`. On other models this id has been seen as a host connection, so it is per model. */
+    const val SET_MULTIPOINT = 0x0B84
+
+    /** Capability table read, and the empty "session init" some models want before writes. */
+    const val SESSION_INFO = 0x0501
+    const val SESSION_INIT = 0x0581
 }

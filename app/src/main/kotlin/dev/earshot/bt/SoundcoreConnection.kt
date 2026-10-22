@@ -2,6 +2,7 @@ package dev.earshot.bt
 
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.protocol.soundcore.SoundcoreFrameBuffer
+import dev.earshot.protocol.soundcore.SoundcoreModel
 import dev.earshot.protocol.soundcore.SoundcorePacket
 import dev.earshot.protocol.soundcore.SoundcoreWriteGuard
 import kotlinx.coroutines.CancellationException
@@ -30,13 +31,27 @@ import kotlin.coroutines.ContinuationInterceptor
  * for (state and battery pushes) go to [unsolicited].
  *
  * Every outgoing frame passes [SoundcoreWriteGuard] first: unpair, pairing mode, power off and
- * any unknown write never leave the phone.
+ * any unknown write never leave the phone. [model] selects the allow-list: null (a bare connection)
+ * and the Sleep A30 use the original list exactly; any other model gets its own table's list and,
+ * on top, may write only after [unlockWrites] (the repository does that once the state it read
+ * matched the layout Earshot knows for that model).
  */
 class SoundcoreConnection(
     private val transport: ByteTransport,
     parentScope: CoroutineScope,
     private val minWriteGapMs: Long = MIN_WRITE_GAP_MS,
+    /** The model the vendor service (or the demo transport) says is at the other end; null = original behaviour. */
+    val model: SoundcoreModel? = null,
 ) : ManagedLink {
+    /** The original driver has always written; a newer model must be unlocked by a state that fits its layout. */
+    @Volatile
+    var writesUnlocked: Boolean = model == null || model == SoundcoreModel.SLEEP_A30
+        private set
+
+    fun unlockWrites(unlocked: Boolean) {
+        if (model != null && model != SoundcoreModel.SLEEP_A30) writesUnlocked = unlocked
+    }
+
     private val scope = CoroutineScope(
         parentScope.coroutineContext +
             SupervisorJob(parentScope.coroutineContext[Job]) +
@@ -90,8 +105,11 @@ class SoundcoreConnection(
         timeoutsMs: List<Long> = DEFAULT_TIMEOUTS_MS,
     ): SoundcorePacket {
         val packet = SoundcorePacket(command, body)
-        if (!SoundcoreWriteGuard.isAllowed(packet)) {
+        if (!SoundcoreWriteGuard.isAllowed(model, packet)) {
             throw HeadphoneCommandException("Earshot doesn't send that command to Soundcore headsets (${SoundcorePacket.commandName(command)})")
+        }
+        if (packet.isWrite && !writesUnlocked) {
+            throw HeadphoneCommandException("Earshot hasn't matched these earbuds to a layout it knows, so it only reads them")
         }
         return requests.withLock {
             for (timeout in timeoutsMs) {
