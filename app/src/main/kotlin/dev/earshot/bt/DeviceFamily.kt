@@ -2,6 +2,7 @@ package dev.earshot.bt
 
 import dev.earshot.protocol.bragi.BragiModel
 import dev.earshot.protocol.soundcore.SoundcoreModel
+import dev.earshot.protocol.sony.SonyModel
 
 /** Which stack drives a pair of headphones. */
 enum class DeviceFamily {
@@ -13,6 +14,9 @@ enum class DeviceFamily {
 
     /** Anker Soundcore over its RFCOMM vendor service; only the models in `SoundcoreModel` (Sleep A30 first). */
     SOUNDCORE,
+
+    /** Sony MDR v2 (Experimental) over its RFCOMM service by UUID; the v1 WH-1000XM4 stays [GENERIC]. */
+    SONY,
 
     /**
      * Any other headset: Earshot doesn't speak its control protocol (yet), so it is shown by its
@@ -45,6 +49,7 @@ enum class DeviceFamily {
         fun forName(name: String?): DeviceFamily = when {
             BragiModel.isBragiName(name) -> BRAGI
             SoundcoreModel.fromName(name) != null -> SOUNDCORE
+            SonyModel.isSonyName(name) -> SONY
             looksLikeBose(name) -> BOSE
             else -> GENERIC
         }

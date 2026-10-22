@@ -46,6 +46,9 @@ enum class DemoDevice(
 
     /** The Soundcore driver against a virtual Sleep A30 (noise cancelling on/off, battery, tap controls). */
     SOUNDCORE_SLEEP_A30("Soundcore Sleep A30", isSoundcore = true),
+
+    /** The Sony driver (Experimental) against a virtual WH-1000XM5; see `isSony` in VirtualSony.kt. */
+    SONY_WH1000XM5("Sony WH-1000XM5"),
     ;
 
     /** The demo headset for a generic entry, or null. */

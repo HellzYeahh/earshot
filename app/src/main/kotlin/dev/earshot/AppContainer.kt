@@ -91,6 +91,15 @@ class AppContainer(private val appContext: Context) {
         } else null
     }
 
+    /** One virtual Sony WH-1000XM5 per process, so its state survives demo reconnects. */
+    private val virtualSony: dev.earshot.virtual.VirtualSony by lazy { dev.earshot.virtual.VirtualSony() }
+
+    private val sonyDemoTransport: () -> (() -> ByteTransport)? = {
+        if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking() == DemoDevice.SONY_WH1000XM5) {
+            { dev.earshot.virtual.VirtualSonyTransport(virtualSony) }
+        } else null
+    }
+
     /** The QC Ultra 2 command layer (BMAP addresses, payloads and state mapping). */
     private val headphoneProtocol: HeadphoneProtocol by lazy { QcUltra2Protocol() }
 
@@ -113,6 +122,14 @@ class AppContainer(private val appContext: Context) {
     private val soundcoreHeadphones: dev.earshot.service.SoundcoreHeadphoneRepository by lazy {
         dev.earshot.service.SoundcoreHeadphoneRepository(
             appContext, applicationScope, soundcoreDemoTransport,
+            autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+        )
+    }
+
+    /** Sony headphones on MDR v2 (Experimental) over their RFCOMM service by UUID. */
+    private val sonyHeadphones: dev.earshot.service.SonyHeadphoneRepository by lazy {
+        dev.earshot.service.SonyHeadphoneRepository(
+            appContext, applicationScope, sonyDemoTransport,
             autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
         )
     }
@@ -150,6 +167,7 @@ class AppContainer(private val appContext: Context) {
                 VendorDriver(DeviceFamily.BOSE, boseHeadphones, boseHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.BRAGI, crusherHeadphones, crusherHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.SOUNDCORE, soundcoreHeadphones, soundcoreHeadphones::releaseConnection),
+                VendorDriver(DeviceFamily.SONY, sonyHeadphones, sonyHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.GENERIC, genericHeadphones, genericHeadphones::releaseConnection),
             ),
             prefs = boseHeadphones.devicePrefs,
@@ -163,6 +181,7 @@ class AppContainer(private val appContext: Context) {
                         device.isCrusher -> DeviceFamily.BRAGI
                         device.isGeneric -> DeviceFamily.GENERIC
                         device.isSoundcore -> DeviceFamily.SOUNDCORE
+                        device == DemoDevice.SONY_WH1000XM5 -> DeviceFamily.SONY
                         else -> DeviceFamily.BOSE
                     }
                 } else null

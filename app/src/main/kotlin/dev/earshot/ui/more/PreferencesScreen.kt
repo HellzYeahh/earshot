@@ -203,6 +203,7 @@ fun PreferencesContent(
                     FilterChip(selected = familyOverride == "bose", onClick = { onFamilyChange("bose") }, label = { Text(stringResource(R.string.prefs_type_bose)) })
                     FilterChip(selected = familyOverride == "bragi", onClick = { onFamilyChange("bragi") }, label = { Text(stringResource(R.string.prefs_type_crusher)) })
                     FilterChip(selected = familyOverride == "soundcore", onClick = { onFamilyChange("soundcore") }, label = { Text(stringResource(R.string.prefs_type_soundcore)) })
+                    FilterChip(selected = familyOverride == "sony", onClick = { onFamilyChange("sony") }, label = { Text(stringResource(R.string.prefs_type_sony)) })
                     FilterChip(selected = familyOverride == "generic", onClick = { onFamilyChange("generic") }, label = { Text(stringResource(R.string.prefs_type_generic)) })
                 }
                 if (canForgetPairing) {
