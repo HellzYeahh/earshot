@@ -99,7 +99,13 @@ class CompanionRemote(private val context: Context) {
         val manager = cdm ?: return
         val id = associationId(address)
         runCatching {
-            if (id != null) manager.disassociate(id) else @Suppress("DEPRECATION") manager.disassociate(address.uppercase())
+            // The id comes from AssociationInfo (Android 13+); older versions only know the MAC.
+            if (id != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                manager.disassociate(id)
+            } else {
+                @Suppress("DEPRECATION")
+                manager.disassociate(address.uppercase())
+            }
         }.onFailure { Log.w(TAG, "disassociate failed: ${it.javaClass.simpleName}") }
     }
 
@@ -125,15 +131,22 @@ class CompanionRemote(private val context: Context) {
     }
 
     /** Unpairs the headset (Android 16). Linking it again later needs a new pairing. */
-    @SuppressLint("NewApi")
+    @SuppressLint("NewApi") // the SDK check is in requireAbility
     fun forget(address: String) {
         requireAbility(abilities.canForget, address)
         val id = associationId(address) ?: throw notLinked()
-        if (cdm?.removeBond(id) != true) throw HeadphoneCommandException("Android didn't unpair the headset. Try again from Bluetooth settings.")
+        val removed = try {
+            cdm?.removeBond(id) == true
+        } catch (e: SecurityException) {
+            throw HeadphoneCommandException("Android didn't allow Earshot to unpair the headset (Nearby devices permission).")
+        }
+        if (!removed) throw HeadphoneCommandException("Android didn't unpair the headset. Try again from Bluetooth settings.")
     }
 
+    /** `getAlias` is public from Android 11; a SecurityException (no Nearby devices permission) is caught. */
     @SuppressLint("MissingPermission")
-    fun aliasOf(address: String): String? = runCatching { device(address).alias }.getOrNull()
+    fun aliasOf(address: String): String? =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) null else runCatching { device(address).alias }.getOrNull()
 
     private fun associationId(address: String): Int? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
