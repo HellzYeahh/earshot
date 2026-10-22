@@ -1,7 +1,115 @@
-# Earshot roadmap: 0.6 and 0.7, on the way to 1.0
+# Earshot roadmap: 0.75 shipped the 0.6 and 0.7 plan, 0.8 and 1.0 next
 
-Written 2026-10-20, after 0.5.0 (Controls). Research behind it:
-[headset landscape](research/headset-landscape-2026-10.md).
+Written 2026-10-20, after 0.5.0 (Controls). Updated 2026-10-21 for release 0.75. Research behind
+it: [headset landscape](research/headset-landscape-2026-10.md) and the reports in
+[research/reports](research/reports).
+
+**0.6 and 0.7 were merged into 0.75.** 0.6 was never released and 0.7 was never started as its own
+release: what shipped is the "0.75.0" section of [CHANGELOG.md](../CHANGELOG.md). The original 0.6
+and 0.7 plan stays below as the record, with every item marked **Done**, **Partly**, **Not done**
+or **Dropped**.
+
+## Status after 0.75
+
+0.75 headline: *Earshot works with any Bluetooth headset. Tested: Bose QC Ultra (2nd Gen) and the
+Soundcore Sleep A30. Experimental: the other Bose models, Sennheiser, Sony, 35 Soundcore models and
+Skullcandy Crusher 1080 + Method 360/540. Battery only: AirPods and Beats.* Also new: the universal
+remote (Companion Device Manager), the Field theme and the "Strike" icon.
+
+### Done
+
+- **A1** `VendorDriver` registry with `GENERIC` as the mandatory fallback. Unknown headsets are no
+  longer treated as Bose, and a headset forced to "Headphone type: Bose" no longer gets the
+  `deca-fade` lookup unless it looks like, or answered as, a Bose (D6 acted on).
+- **A3** `ConnectionState.audioLinked`: calls, automations and the background service follow the
+  audio link.
+- **A4** Typed `ConnectionProblem.ChannelHeld(app)`; "Close the … app" names the real app.
+- **A5** Capability flags, enough for generic headsets (`ownSettings`) and per vendor. Tools never
+  hide a setting (user decision): a refusal comes back as a message.
+- **B1** Battery for any headset (Android's broadcast, Shizuku dumpsys), **plus** the standard
+  Battery Service read over our own GATT client, so LE-capable headsets show a level without Shizuku
+  (research update item 4).
+- **B2** Codec readout without Shizuku (switching still needs Shizuku).
+- **B3** A Pro EQ preset per headset, applied on connect (explicit picks only). The AutoEq
+  suggestion matched by name was not built; AutoEq import is still manual.
+- **B5** Brand-neutral strings, README and About, with a not-affiliated line and trademarks for
+  every brand named.
+- **C1** AirPods / Beats left, right and case battery from Continuity adverts. **C3** is a demo
+  device only (no AAP).
+- **E3** Sony MDR v2 driver, Experimental (WH-1000XM5 / XM6, WF-1000XM4 / XM5 / XM6, LinkBuds, ULT
+  WEAR, WH-CH720N, WF-C510 / C700N / C710N). The WH-1000XM4 (v1) stays generic.
+- **Sennheiser** GAIA v3 driver, Experimental, pulled in from 0.8 together with a shared GAIA v3
+  codec in `:protocol` (research update item 7).
+- **Skullcandy Method 360 / 540 ANC** on the Bragi stack (ranked #2 in the brand research).
+- **F1** `VendorControl` / `VendorControlsCard` / `setVendorControl`: vendor extras without core changes.
+- **Not in the plan:** the Field theme, the "Strike" icon, the stuck-socket fix (GitHub #1) and the
+  call-boost fix.
+
+### Partly done
+
+- **A2** Identify before connecting: each driver identifies by its own name map and service ID, and
+  connects by that UUID only. The shared ranked `DeviceIdentifier` (SDP, DIS, Fast Pair, LE
+  Appearance) is not built.
+- **B4** The device switcher lists every paired headset and leaves out car kits, speakers and
+  watches. Tier badges in onboarding and the picker are not built.
+- **E2** Soundcore: the Sleep A30 driver is tested on one pair, 35 models are recognised on the
+  vendor UUID, and a per-model write allow-list covers the documented families. Writes ship from
+  references (OpenSCQ30 facts, soundcorebridge), not from owner captures, so every model except
+  the Sleep A30 is Experimental. Still open: Space 2 writes with its init script, EQ writes, the
+  TLV generation (Liberty 5 Pro and Pro Max).
+- **F3** Copy connection report has existed since 0.3 and Lab now scans each supported stack
+  read-only. The anonymised export with SDP / GATT lists and a diagnostics timeline is not built.
+- **F4 / research update item 1** The **universal remote** is in: link once, then connect and
+  disconnect (Android 17), rename (13) and forget (16) for any brand; `compileSdk` is 37. Not done:
+  presence binding, and codec switching without Shizuku by reflection plus the association (D4).
+
+### Not done, or decided against for now
+
+- **A6** Shared session base and **A7** modes stored by meaning. The brand research said to attach
+  both to the first of Sennheiser and Sony; they were not done. Sennheiser, Sony and Soundcore each
+  have their own session and state mapping, so both are now overdue (0.8, before another driver).
+- **C2** AirPods modes: a go/no-go that stays "no-go" until a One UI 9 test (D3). Point users to
+  LibrePods / CAPod for modes.
+- **E1** JieLi RCSP: waits for D1 (our generic buds).
+- **E4** Fast Pair baseline: expected to shrink to identification plus advert battery (D5).
+- **E5** QC35 out of UNSUPPORTED: stays a stretch goal; Gadgetbridge covers it.
+- **F2** Shared driver conformance suite: each driver has its own end-to-end test on its virtual
+  device (`VirtualEndToEndTest`, `SennheiserEndToEndTest`, `SonyEndToEndTest`,
+  `SoundcoreEndToEndTest`, `MethodEndToEndTest` and others), not one shared class.
+- **F5** Play hygiene: `QUERY_ALL_PACKAGES` and `RECEIVE_BOOT_COMPLETED` are still in the manifest;
+  no release upload key, no CI, no licences screen.
+- **B6** Find my earbuds, **F6** diagnostics timeline, **D7** MICS spike: not started.
+- **Spikes:** D1 (generic buds), D3 on One UI 9, D4 codec through an association, D5 (Fast Pair
+  stream) and D7 are open. D2 is answered by the Sleep A30; the desk answers for D3 and D4 are in
+  the progress notes below.
+
+### What moved
+
+- Sennheiser: 0.8 → 0.75, with the shared GAIA codec.
+- Sony and the Skullcandy Method buds: planned for 0.7 → shipped in 0.75.
+- Universal remote (F4): "after 0.6" → in 0.75.
+- JieLi, AirPods modes, Fast Pair, Find my earbuds, diagnostics, Play hygiene: 0.7 → 0.8 or later.
+
+### Next: 0.8
+
+1. **GATT transport** (scan, MTU, write-with-response, notify reassembly, rotating LE addresses).
+   It unlocks JBL (H-AA, then H-P4: 104 of the 123 products in JBL's app connect over BLE),
+   Sennheiser CX Plus / CX 500 and Sony over LE Audio.
+2. **Airoha RACE allow-list: the decision.** An allow-listed codec is the only way to JBL's Airoha
+   models and Skullcandy's 2022–25 line. Keep "never" for Sony, Bose and Bragi BOS-RPC. Build only
+   after an explicit yes.
+3. **CDM presence** (replaces the boot / ACL receiver) and the codec-through-association experiment.
+4. **Find my earbuds** (B6): a one-sided tone started from the UI, tile, widget or notification.
+5. **Diagnostics timeline** (F6): disconnect reasons, bond loss, encryption changes, call-codec label.
+6. **Spikes:** D1, D3 (One UI 9), D4, D5, D6 (read the QC Ultra 2's SDP record), D7.
+7. **Play hygiene** (F5) and the target-37 checklist: drop `QUERY_ALL_PACKAGES` and
+   `RECEIVE_BOOT_COMPLETED`, an upload key, CI, a licences screen, a separate `.foss` application ID.
+   `setStreamVolume` from a background-started service needs while-in-use status at target 37, so
+   the call boost has to be checked.
+8. **Module split** (`:vendor-*`), with A6 and A7 first, and the shared conformance suite (F2).
+9. **Promoting drivers:** owner reports and captures move Soundcore, Sennheiser and Sony from
+   Experimental to Tested; then Soundcore Space 2 and EQ writes, Sony v1 (WH-1000XM4), Sennheiser BLE.
+10. **More drivers by demand:** Pixel Buds Pro (MIT pbpctrl) ahead of Galaxy Buds.
 
 ## The goal
 
@@ -9,8 +117,9 @@ Written 2026-10-20, after 0.5.0 (Controls). Research behind it:
 app. Open source on GitHub, on Google Play, and on F-Droid/IzzyOnDroid. Earshot stays what it is now:
 fast, account-free, no internet permission. Bose stays its deepest integration.
 
-Versions: **0.6** and **0.7** add features and do the research (this document). **0.8** collects
-the big changes listed at the end, and the release after it is **1.0**.
+Versions: **0.75** (done: the 0.6 and 0.7 plan below) added features and drivers and did the
+research. **0.8** collects the big changes listed under "Next: 0.8" and at the end, and the
+release after it is **1.0**.
 
 ## Rules for getting there
 
@@ -19,8 +128,8 @@ the big changes listed at the end, and the release after it is **1.0**.
    driver seam as they are. A refactor that touches their behaviour needs the Bose end-to-end tests
    green before and after, plus a check on the QC Ultra 2.
 2. **Every headset gets the Android-level features**, whether or not Earshot knows its protocol.
-3. **Only real hardware makes a vendor "Supported".** Built from references plus a virtual device
-   only = "Experimental" (the Crusher today).
+3. **Only real hardware makes a vendor "Tested".** Built from references plus a virtual device
+   only = "Experimental" (the Crusher, Sennheiser, Sony and most Soundcore models today).
 4. **No internet permission, ever.** Device reports leave the phone only through the share sheet.
 5. **Clean-room for GPL references.** Facts from GPL/AGPL projects, code only from MIT/Apache/BSD
    sources, credited in `docs/reference/` and About (see the licence rule in the research file).
@@ -32,17 +141,20 @@ the big changes listed at the end, and the release after it is **1.0**.
 
 ## Support tiers (used in the app, README and store listing)
 
+The README now calls the middle tiers **Tested** and **Experimental**, and adds **Battery only**.
+
 | Tier | What you get | Who |
 |---|---|---|
-| **Any headset** | Pro EQ (with a per-headset preset), battery as Android reports it, codec readout (switching with Shizuku), call audio, mic check, Controls remapper, automations, tile/widget for EQ | every Bluetooth headset |
-| **Supported** | Plus the headset's own controls: modes, noise, its EQ, buttons, settings | vendor driver, tested by us on real hardware |
-| **Experimental** | Same as Supported, marked "untested on real hardware, report back" | vendor driver from references + virtual device |
+| **Any headset** | Pro EQ (with a per-headset preset), battery as Android reports it, codec readout (switching with Shizuku), call audio, mic check, Controls remapper, automations, tile/widget for EQ, universal remote | every Bluetooth headset |
+| **Battery only** | Any headset, plus left / right / case battery from the headset's adverts | AirPods, Beats |
+| **Tested** (was "Supported") | Plus the headset's own controls: modes, noise, its EQ, buttons, settings | vendor driver, tested by us on real hardware: Bose QC Ultra 2, Soundcore Sleep A30 |
+| **Experimental** | Same as Tested, marked "untested on real hardware, report back" | vendor driver from references + virtual device: other Bose models, Sennheiser, Sony, Soundcore models, Skullcandy |
 
-## 0.6: "Any headset"
+## 0.6 (merged into 0.75): "Any headset"
 
 Theme: make Earshot useful and safe on every headset, put the vendor seam in place, and add the
 first new vendor we can test (AirPods). User-visible headline: *works with any Bluetooth headset;
-deep control for Bose and AirPods.*
+deep control for Bose and AirPods.* (In 0.75 the AirPods part became battery only.)
 
 ### Progress (2026-10-20)
 
@@ -60,7 +172,7 @@ deep control for Bose and AirPods.*
     the foreground service, automations and the call boost.
   - A4: `ConnectionProblem.ChannelHeld(app)`, no more string matching.
   - A5 (subset): `HeadphoneCapabilities.ownSettings`; Controls, More, Sound, Lab, LE Audio and
-    latency are hidden for generic headsets.
+    latency are hidden for generic headsets. (Superseded in 0.75: Tools never hide a setting.)
   - B1: Android's battery broadcast, plus a starting value from Shizuku dumpsys (`mBatteryLevel`)
     or `getBatteryLevel()` reflection.
   - B2: codec from `CODEC_CONFIG_CHANGED`; `pickSink` prefers the shown headset.
@@ -72,9 +184,9 @@ deep control for Bose and AirPods.*
   - Call boost fix: it waits for voice routing to reach the headset, then checks for 12 s.
 - **Deferred to the AirPods-modes driver (C2), on purpose:**
   - A6 (shared session base): it would rewrite working Bose connection code, and pays off only for
-    the next protocol driver.
+    the next protocol driver. (0.75 added three more drivers without it: now overdue.)
   - A7 (modes by meaning + migration): no second vendor has modes yet, and the migration should be
-    tested against one.
+    tested against one. (Sennheiser, Sony and Soundcore now have modes: now overdue.)
 - **Spike answers (desk):**
   - D4, Android 16 `hiddenapi-flags.csv`: `createInsecureRfcommSocket(int)` is "unsupported"
     (allowed). `getBatteryLevel()`, `getCodecStatus()` and `setCodecConfigPreference()` are
@@ -102,6 +214,7 @@ deep control for Bose and AirPods.*
   can be tried while a headset is connected. A refusal comes back as a message. A forced
   "Headphone type: Bose" on a device that doesn't look like a Bose gets only the SDP lookups by
   UUID, never blind fixed channels (`BmapCandidates.order(fixedChannels = false)`).
+  (Update: the `deca-fade` lookup is also gone for such a device; see the CHANGELOG, "Fixed".)
 - **Learned from the user's phone (feeds D1/D2):**
   - *soundcore Sleep A30*: class 0x240404; SDP shows the Soundcore UUID
     `0cf12d31-fac3-4553-bd80-d6832e7d1301` and BES's firmware-update UUID `66666666-…`. So it's a
@@ -116,86 +229,96 @@ deep control for Bose and AirPods.*
 
 | # | Item | Why / where | Size |
 |---|---|---|---|
-| A1 | **Unknown headsets are no longer treated as Bose.** Introduce a `VendorDriver` registry (id, how it recognises a device, competing-app name, `createRepository()`, demo devices) and a `GENERIC` driver, replacing the `DeviceFamily {BOSE, BRAGI}` enum. Only the Bose driver may run the BMAP channel search. | `bt/DeviceFamily.kt:16` sends every non-Bragi name to BOSE, so the BMAP probe runs against AirPods or Sony today. `ConnectionManager.kt:183,347`, `RoutingHeadphoneRepository.kt:44-87`. | M |
-| A2 | **Identify the headset before connecting.** A `DeviceIdentifier` combining the name, SDP service UUIDs (`fetchUuidsWithSdp`), BLE advert company ID/service UUIDs and the Fast Pair model ID gives a ranked vendor/chipset guess (Bose, Apple, Sony, JieLi, Bluetrum, Airoha, Qualcomm, BES…). The router picks the driver from it. | Research file, "Chipsets". Pure function + tests; the Android lookups behind an interface. | M |
-| A3 | **Audio link separate from control link.** `ConnectionState.audioLinked` (A2DP/HFP/LE profiles) next to the control status. Automations, the tile, EQ presets and call audio key on the audio link, so they work for headsets without a driver. | `AutomationEngine.kt:57-117` gates every rule on the control link today. | M |
-| A4 | **Typed connection problems.** `ConnectionProblem.ChannelHeldBy(appName)` and friends instead of matching "Close the Bose app" strings; the UI stops using `state.crusher == null` to detect the vendor. | `ConnectionManager.kt:351`, `DisconnectedCard.kt:59-63`, `ConnectionScreen.kt:123`. | S |
-| A5 | **Capability flags for every optional feature** (EQ bands, sidetone, auto play/pause, multipoint, prompts, buttons, rename, power off, auto-off, LE Audio, latency, volume, noise steps), or "null = absent" made explicit. | `HeadphoneCapabilities` (`HeadphoneModels.kt:233-275`) covers noise and modes only. | M |
-| A6 | **Shared session base.** Pull the ~200 lines duplicated between `ServiceHeadphoneRepository` and `CrusherHeadphoneRepository` into one `SessionRepository<Link, Protocol>`. One `DevicePrefs`/`DeviceFinder`, with per-vendor link hints under namespaced keys. Bose behaviour unchanged (end-to-end tests are the gate). | Audit §1. Needed before vendor #3, or AirPods becomes a third copy. | M |
-| A7 | **Modes stored by meaning, not slot number.** Rules, the tile and shortcuts store QUIET / AWARE / OFF / ADAPTIVE / custom + device address, with a one-time migration of saved rules and shortcut prefs. Remove the Quiet/Aware/Immersion fallbacks. | `RuleRunner.kt:78`, `TileCycle.kt:7`, `ShortcutAction.kt:48`, `AutomationAction.SetNoise.spatialAudioWire`. AirPods have Off/ANC/Transparency/Adaptive. | M |
+| A1 | **Done.** **Unknown headsets are no longer treated as Bose.** Introduce a `VendorDriver` registry (id, how it recognises a device, competing-app name, `createRepository()`, demo devices) and a `GENERIC` driver, replacing the `DeviceFamily {BOSE, BRAGI}` enum. Only the Bose driver may run the BMAP channel search. | `bt/DeviceFamily.kt:16` sends every non-Bragi name to BOSE, so the BMAP probe runs against AirPods or Sony today. `ConnectionManager.kt:183,347`, `RoutingHeadphoneRepository.kt:44-87`. | M |
+| A2 | **Partly.** **Identify the headset before connecting.** A `DeviceIdentifier` combining the name, SDP service UUIDs (`fetchUuidsWithSdp`), BLE advert company ID/service UUIDs and the Fast Pair model ID gives a ranked vendor/chipset guess (Bose, Apple, Sony, JieLi, Bluetrum, Airoha, Qualcomm, BES…). The router picks the driver from it. | Research file, "Chipsets". Pure function + tests; the Android lookups behind an interface. | M |
+| A3 | **Done.** **Audio link separate from control link.** `ConnectionState.audioLinked` (A2DP/HFP/LE profiles) next to the control status. Automations, the tile, EQ presets and call audio key on the audio link, so they work for headsets without a driver. | `AutomationEngine.kt:57-117` gates every rule on the control link today. | M |
+| A4 | **Done.** **Typed connection problems.** `ConnectionProblem.ChannelHeldBy(appName)` and friends instead of matching "Close the Bose app" strings; the UI stops using `state.crusher == null` to detect the vendor. | `ConnectionManager.kt:351`, `DisconnectedCard.kt:59-63`, `ConnectionScreen.kt:123`. | S |
+| A5 | **Done** (as capability flags per feature, with "Tools never hide a setting"). **Capability flags for every optional feature** (EQ bands, sidetone, auto play/pause, multipoint, prompts, buttons, rename, power off, auto-off, LE Audio, latency, volume, noise steps), or "null = absent" made explicit. | `HeadphoneCapabilities` (`HeadphoneModels.kt:233-275`) covers noise and modes only. | M |
+| A6 | **Not done, overdue → 0.8.** **Shared session base.** Pull the ~200 lines duplicated between `ServiceHeadphoneRepository` and `CrusherHeadphoneRepository` into one `SessionRepository<Link, Protocol>`. One `DevicePrefs`/`DeviceFinder`, with per-vendor link hints under namespaced keys. Bose behaviour unchanged (end-to-end tests are the gate). | Audit §1. Needed before vendor #3, or AirPods becomes a third copy. | M |
+| A7 | **Not done, overdue → 0.8.** **Modes stored by meaning, not slot number.** Rules, the tile and shortcuts store QUIET / AWARE / OFF / ADAPTIVE / custom + device address, with a one-time migration of saved rules and shortcut prefs. Remove the Quiet/Aware/Immersion fallbacks. | `RuleRunner.kt:78`, `TileCycle.kt:7`, `ShortcutAction.kt:48`, `AutomationAction.SetNoise.spatialAudioWire`. AirPods have Off/ANC/Transparency/Adaptive. | M |
 
 ### B. "Any headset" features
 
 | # | Item | Why / where | Size |
 |---|---|---|---|
-| B1 | **Battery for any headset** from `BATTERY_LEVEL_CHANGED`, Apple `+IPHONEACCEV`, Plantronics `+XEVENT` and BLE BAS. The initial value comes from the Shizuku dumpsys when available. Home shows a battery card for driver-less headsets. | All of these reach a normal app with `BLUETOOTH_CONNECT` (research file, "What Android gives"). | M |
-| B2 | **Codec readout without Shizuku** from `ACTION_CODEC_CONFIG_CHANGED`. Shizuku stays for switching. Fix `A2dpProxyHolder.pickSink` preferring Bose names. | `codec/A2dpProxyHolder.kt:61-67`. Better story for Play. | S |
-| B3 | **Per-headset EQ preset**, applied when that headset connects, with an AutoEq suggestion matched by name (AutoEq is MIT; ship a compact index of popular models, no network). | Uses A3. Makes Pro EQ the reason to install Earshot for any headset. | M |
-| B4 | **Neutral onboarding and picker.** List every paired audio device with its tier badge (Supported / Experimental / Any headset) instead of sorting "Bose-looking" first. | `OnboardingScreen.kt:165-200`, `DeviceFinder.NAME_HINTS` (`DeviceFinder.kt:230`) moves into the drivers. | S |
-| B5 | **Neutral strings and README.** Product strings name the connected headset; the Bose-only ones stay on Bose screens. A not-affiliated line for every brand named. | 22 Bose strings, `EarshotWidget.kt:216` "No Bose headphones paired", About. | S |
+| B1 | **Done** (plus own-GATT Battery Service, research update item 4). **Battery for any headset** from `BATTERY_LEVEL_CHANGED`, Apple `+IPHONEACCEV`, Plantronics `+XEVENT` and BLE BAS. The initial value comes from the Shizuku dumpsys when available. Home shows a battery card for driver-less headsets. | All of these reach a normal app with `BLUETOOTH_CONNECT` (research file, "What Android gives"). | M |
+| B2 | **Done.** **Codec readout without Shizuku** from `ACTION_CODEC_CONFIG_CHANGED`. Shizuku stays for switching. Fix `A2dpProxyHolder.pickSink` preferring Bose names. | `codec/A2dpProxyHolder.kt:61-67`. Better story for Play. | S |
+| B3 | **Done**, except the AutoEq suggestion by name. **Per-headset EQ preset**, applied when that headset connects, with an AutoEq suggestion matched by name (AutoEq is MIT; ship a compact index of popular models, no network). | Uses A3. Makes Pro EQ the reason to install Earshot for any headset. | M |
+| B4 | **Partly** (the switcher lists every paired headset; no tier badges yet). **Neutral onboarding and picker.** List every paired audio device with its tier badge (Supported / Experimental / Any headset) instead of sorting "Bose-looking" first. | `OnboardingScreen.kt:165-200`, `DeviceFinder.NAME_HINTS` (`DeviceFinder.kt:230`) moves into the drivers. | S |
+| B5 | **Done.** **Neutral strings and README.** Product strings name the connected headset; the Bose-only ones stay on Bose screens. A not-affiliated line for every brand named. | 22 Bose strings, `EarshotWidget.kt:216` "No Bose headphones paired", About. | S |
 
 ### C. AirPods / Beats (first new vendor; we own a pair)
 
 | # | Item | Notes | Size |
 |---|---|---|---|
-| C1 | **Battery and case from BLE Continuity adverts** (company `0x004C`): L/R/case, charging, lid, in-ear. No connection needed, works on every Android version. Needs `BLUETOOTH_SCAN` with `neverForLocation`. | Read-only and low-risk. | S–M |
-| C2 | **Listening modes over AAP** (L2CAP PSM `0x1001`): Off / ANC / Transparency / Adaptive, conversational awareness, ear detection, press-and-hold, rename. **Gated to Android 17+**, where the L2CAP path reportedly works without root. Experimental until verified on our One UI phone. | References are GPL (LibrePods, CAPod): **clean-room from our own HCI captures** of the AirPods talking to an iPhone/Mac plus documented facts. New L2CAP `ByteTransport`. | M |
-| C3 | **Virtual AirPods** (adverts + AAP) and end-to-end tests, same pattern as `VirtualCrusher`. | Also the demo device. | S–M |
+| C1 | **Done.** **Battery and case from BLE Continuity adverts** (company `0x004C`): L/R/case, charging, lid, in-ear. No connection needed, works on every Android version. Needs `BLUETOOTH_SCAN` with `neverForLocation`. | Read-only and low-risk. | S–M |
+| C2 | **Not done (no-go until the One UI 9 test).** **Listening modes over AAP** (L2CAP PSM `0x1001`): Off / ANC / Transparency / Adaptive, conversational awareness, ear detection, press-and-hold, rename. **Gated to Android 17+**, where the L2CAP path reportedly works without root. Experimental until verified on our One UI phone. | References are GPL (LibrePods, CAPod): **clean-room from our own HCI captures** of the AirPods talking to an iPhone/Mac plus documented facts. New L2CAP `ByteTransport`. | M |
+| C3 | **Partly** (the demo device only; no AAP to emulate). **Virtual AirPods** (adverts + AAP) and end-to-end tests, same pattern as `VirtualCrusher`. | Also the demo device. | S–M |
 
 ### D. Research spikes in 0.6 (answers feed 0.7)
 
-1. **Our generic Chinese buds:** run A2's identifier on them. JieLi (`0xAE00`, company `0x05D6`), Bluetrum (`0xFDB3`) or something else? Is RCSP switched on? This decides 0.7's chipset driver.
-2. **Our Soundcore:** exact model, protocol variant, and its state-update layout from a capture.
-3. **Android 17 L2CAP on One UI:** can a normal app open PSM `0x1001` to AirPods? (Blocks C2.)
-4. **Hidden-API status:** look up `getBatteryLevel`, `BluetoothA2dp.getCodecStatus`/`setCodecConfigPreference` in Android 16/17 `hiddenapi-flags.csv`. Then check whether a Companion Device Manager association lets a normal app switch codecs without Shizuku.
-5. **Fast Pair Message Stream:** can a third-party app open RFCOMM `df21fe2c-…` while Google Play services holds it? (Cross-brand battery/ring/ANC-read in 0.7.)
-6. **The `deca-fade` UUID:** read the QC Ultra 2's SDP record. If it is iAP2, drop `SDP BMAP` from the BMAP candidates, or move it behind a Bose-only check.
+1. **Our generic Chinese buds:** run A2's identifier on them. JieLi (`0xAE00`, company `0x05D6`), Bluetrum (`0xFDB3`) or something else? Is RCSP switched on? This decides 0.7's chipset driver. **Open.**
+2. **Our Soundcore:** exact model, protocol variant, and its state-update layout from a capture. **Answered:** Sleep A30 (D1301), read and written on the real pair.
+3. **Android 17 L2CAP on One UI:** can a normal app open PSM `0x1001` to AirPods? (Blocks C2.) **Open** (the desk answer says no public way).
+4. **Hidden-API status:** look up `getBatteryLevel`, `BluetoothA2dp.getCodecStatus`/`setCodecConfigPreference` in Android 16/17 `hiddenapi-flags.csv`. Then check whether a Companion Device Manager association lets a normal app switch codecs without Shizuku. **Desk part answered; the association test is open.**
+5. **Fast Pair Message Stream:** can a third-party app open RFCOMM `df21fe2c-…` while Google Play services holds it? (Cross-brand battery/ring/ANC-read in 0.7.) **Open**, expect no.
+6. **The `deca-fade` UUID:** read the QC Ultra 2's SDP record. If it is iAP2, drop `SDP BMAP` from the BMAP candidates, or move it behind a Bose-only check. **Acted on:** only a headset that looks like or answered as a Bose gets the lookup. Reading the record is still open.
 
-### 0.6 is done when
+### 0.6 is done when (outcome in 0.75)
 
 - A non-Bose headset never sees a BMAP frame (test: AirPods/generic buds through the router with a
-  spy transport).
+  spy transport). **Met:** unknown headsets are generic, and a forced Bose type only looks up the
+  serial service.
 - Bose behaviour is byte-for-byte unchanged (`VirtualEndToEndTest`, `ModelProfilesEndToEndTest`,
-  `OlderFirmwareEndToEndTest` green; manual pass on the QC Ultra 2).
-- Generic buds and Soundcore show battery, EQ, codec and automations with no driver.
+  `OlderFirmwareEndToEndTest` green; manual pass on the QC Ultra 2). **Tests in place;** the manual
+  pass belongs to the release check.
+- Generic buds and Soundcore show battery, EQ, codec and automations with no driver. **Met.**
 - AirPods battery works on every supported Android version. Modes work on our phone, or are hidden
-  with an "Android 17 needed" note.
-- Spikes D1–D6 have written answers in `docs/research/`.
+  with an "Android 17 needed" note. **Battery met; modes not built (C2).**
+- Spikes D1–D6 have written answers in `docs/research/`. **Partly:** see D above.
 
-## 0.7: "More brands"
+## 0.7 (merged into 0.75): "More brands"
 
 Theme: two or three new drivers chosen by what we can test, a cross-brand baseline, and the
 groundwork for Play. Headline: *Supported: Bose, AirPods, Soundcore, JieLi-based earbuds.
-Experimental: Sony, Crusher.*
+Experimental: Sony, Crusher.* (In 0.75: Tested Bose QC Ultra 2 and Soundcore Sleep A30;
+Experimental Sennheiser, Sony, Soundcore models and Skullcandy; AirPods battery only; no JieLi.)
 
 ### E. Drivers
 
 | # | Item | Notes | Size |
 |---|---|---|---|
-| E1 | **JieLi RCSP** (if D1 says our buds speak it): battery, EQ, keys, ANC/transparency, find, name. One driver covers QCY, Oraimo, many no-name buds, and is the base for a Redmi dialect later. | **JieLi's own SDKs are Apache-2.0**, so code can be ported with credit, including the connect-time auth. Block OTA, reboot, reset. If our buds turn out to be Bluetrum, do Bluetrum (ABMate commands) instead and block 0x24/0x2F. | M |
-| E2 | **Soundcore**, starting with our model and then its family: modes, EQ (incl. HearID if present), touch actions, auto-off. | GPL references (OpenSCQ30): clean-room from captures. Each model has its own state layout, so add models one at a time behind a model table, like `BoseModel`. | M→L |
-| E3 | **Sony (Experimental)**: modes, ANC level, EQ, battery, speak-to-chat, touch modes, multipoint. v2 command set (XM5/XM6, WF-1000XM5, LinkBuds) first. | The best-documented non-Bose protocol, **MIT reference** (mos9527/SonyHeadphonesClient). Ship as Experimental with a virtual device and ask owners for reports. | M |
-| E4 | **Fast Pair baseline** (if D5 allows): battery L/R/case and "ring my buds" for any Fast Pair headset. | Public spec, CC-BY/Apache. Small, and it lifts Pixel Buds A, JBL and many others above "Any headset". | S |
-| E5 | *(stretch)* **Bose QC35 / QC35 II out of UNSUPPORTED**: noise `[1.6]`, auto-off, prompts, name, pairing mode, as Experimental. | Plain BMAP (based-connect facts). Lives in the existing Bose stack and catalogue. | S |
+| E1 | **Not done.** **JieLi RCSP** (if D1 says our buds speak it): battery, EQ, keys, ANC/transparency, find, name. One driver covers QCY, Oraimo, many no-name buds, and is the base for a Redmi dialect later. | **JieLi's own SDKs are Apache-2.0**, so code can be ported with credit, including the connect-time auth. Block OTA, reboot, reset. If our buds turn out to be Bluetrum, do Bluetrum (ABMate commands) instead and block 0x24/0x2F. | M |
+| E2 | **Partly** (Sleep A30 tested; 35 models recognised; writes for the documented families; read-only for the rest). **Soundcore**, starting with our model and then its family: modes, EQ (incl. HearID if present), touch actions, auto-off. | GPL references (OpenSCQ30): clean-room from captures. Each model has its own state layout, so add models one at a time behind a model table, like `BoseModel`. | M→L |
+| E3 | **Done** (Experimental, v2 only). **Sony (Experimental)**: modes, ANC level, EQ, battery, speak-to-chat, touch modes, multipoint. v2 command set (XM5/XM6, WF-1000XM5, LinkBuds) first. | The best-documented non-Bose protocol, **MIT reference** (mos9527/SonyHeadphonesClient). Ship as Experimental with a virtual device and ask owners for reports. | M |
+| E4 | **Not done.** **Fast Pair baseline** (if D5 allows): battery L/R/case and "ring my buds" for any Fast Pair headset. | Public spec, CC-BY/Apache. Small, and it lifts Pixel Buds A, JBL and many others above "Any headset". | S |
+| E5 | **Not done** (stretch; Gadgetbridge covers it). *(stretch)* **Bose QC35 / QC35 II out of UNSUPPORTED**: noise `[1.6]`, auto-off, prompts, name, pairing mode, as Experimental. | Plain BMAP (based-connect facts). Lives in the existing Bose stack and catalogue. | S |
+
+Added by the brand research and shipped in 0.75 (not in the original table):
+**Sennheiser GAIA v3** (with the shared GAIA codec) and **Skullcandy Method 360 / 540 ANC**.
 
 ### F. Platform and quality
 
 | # | Item | Notes | Size |
 |---|---|---|---|
-| F1 | **Vendor extras without core changes:** a generic `VendorControl` list (toggle / slider / choice) rendered by one card, replacing `setCrusherBass` / `HeadphoneState.crusher`. A per-vendor `LabAdapter` for `readRaw`/scan/console. | Audit §6.5. Each new driver otherwise adds fields to core. | M |
-| F2 | **Driver conformance suite:** one shared test class every driver's virtual device must pass (connect, refresh, modes, battery push, write refused by its WriteGuard, reconnect). Router tests. | No shared suite today. | M |
-| F3 | **Device report:** Lab exports an anonymised report (identifier result, SDP UUIDs, GATT services, a short protocol trace) through the share sheet. Owners of untested headsets can then help without us owning them. | Addresses masked like `captures-galaxy/`. No network. | S |
-| F4 | **Companion Device Manager:** associate the headset during onboarding. Use presence events and the background-start exemption instead of the boot/ACL receiver. Codec switching without Shizuku if D4 says yes. | Play-sanctioned path for what `BluetoothConnectionReceiver` does. | M |
-| F5 | **Play hygiene (no release yet):** drop `QUERY_ALL_PACKAGES` (use a `<queries>` launcher intent), drop `RECEIVE_BOOT_COMPLETED`, a release upload key with Play App Signing, a privacy policy, an open-source licences screen, lint on, GitHub Actions running the unit tests. | Audit "Play risk list". The licence notice for the bosectl captures in `protocol/src/test/resources/captures/`. | M |
+| F1 | **Done.** **Vendor extras without core changes:** a generic `VendorControl` list (toggle / slider / choice) rendered by one card, replacing `setCrusherBass` / `HeadphoneState.crusher`. A per-vendor `LabAdapter` for `readRaw`/scan/console. | Audit §6.5. Each new driver otherwise adds fields to core. | M |
+| F2 | **Not done** (each driver has its own end-to-end test). **Driver conformance suite:** one shared test class every driver's virtual device must pass (connect, refresh, modes, battery push, write refused by its WriteGuard, reconnect). Router tests. | No shared suite today. | M |
+| F3 | **Partly.** **Device report:** Lab exports an anonymised report (identifier result, SDP UUIDs, GATT services, a short protocol trace) through the share sheet. Owners of untested headsets can then help without us owning them. | Addresses masked like `captures-galaxy/`. No network. | S |
+| F4 | **Partly** (the universal remote is in; presence and codec switching are not). **Companion Device Manager:** associate the headset during onboarding. Use presence events and the background-start exemption instead of the boot/ACL receiver. Codec switching without Shizuku if D4 says yes. | Play-sanctioned path for what `BluetoothConnectionReceiver` does. | M |
+| F5 | **Not done → 0.8.** **Play hygiene (no release yet):** drop `QUERY_ALL_PACKAGES` (use a `<queries>` launcher intent), drop `RECEIVE_BOOT_COMPLETED`, a release upload key with Play App Signing, a privacy policy, an open-source licences screen, lint on, GitHub Actions running the unit tests. | Audit "Play risk list". The licence notice for the bosectl captures in `protocol/src/test/resources/captures/`. | M |
 
-### 0.7 is done when
+### 0.7 is done when (outcome in 0.75)
 
 - Each new Supported driver passed F2 and a manual pass on our hardware. Sony passed F2 on its
-  virtual device.
-- A device report from each of our headsets is in `docs/reference/`.
+  virtual device. **Partly:** the Soundcore Sleep A30 had a manual pass on real hardware; every
+  other new driver passed its own end-to-end test on a virtual device. No shared F2 suite.
+- A device report from each of our headsets is in `docs/reference/`. **Not done.**
 - `assembleRelease` is signed with the upload key, lint runs in CI, and no `QUERY_ALL_PACKAGES`.
+  **Not done (F5 → 0.8).**
 
-## 0.8 → 1.0 (outline, plan after 0.7)
+## 0.8 → 1.0 (outline, plan after 0.75)
+
+See "Next: 0.8" above for the order. The longer outline:
 
 - **Module split:** `:vendor-bose`, `:vendor-apple`, `:vendor-jieli` … with a lint/Gradle rule that
   `ui`, `extras`, `shortcut` and `call` never import a vendor's protocol package. Move Bose wire
@@ -204,9 +327,10 @@ Experimental: Sony, Crusher.*
   disclosure), or a separate "full" flavour for GitHub/F-Droid. Decide after D4 and F4.
   Reproducible builds for F-Droid. Developer-verification registration (global in 2027).
   Play foreground-service declaration video.
-- **Localisation** (strings out of Kotlin first), store assets, screenshots without brand marks.
-- **More drivers** by demand from device reports: Galaxy Buds, Pixel Buds Pro (MIT reference),
-  Nothing, Huawei, Sennheiser (GAIA), Xiaomi.
+- **Localisation** (strings out of Kotlin first), store assets, screenshots without brand marks
+  (the README screenshots still show the pre-0.75 look).
+- **More drivers** by demand from device reports: JBL (needs the GATT transport), Galaxy Buds,
+  Pixel Buds Pro (MIT reference), Nothing, Huawei, Xiaomi. Sennheiser (GAIA) shipped in 0.75.
 - **Security review of every write path** per vendor before the store release.
 
 ## Research update (2026-10-21, "App status overview" session)
@@ -215,7 +339,8 @@ Full report: `docs/research/reports/Universal headset control accelerators.md` (
 `docs/research/research_notes/`). Headline: no standard or Google channel lets a third-party app
 switch ANC across brands. The Bluetooth SIG has no ANC spec; Fast Pair "set ANC" needs a GMS-only
 account-key MAC; and AOSP restricts VCS/VOCS/AICS/PACS/ASCS/BASS/HAS/CSIS to BLUETOOTH_PRIVILEGED
-(Android 13 through 17). "Universal" = phone-side features plus vendor drivers. Changes:
+(Android 13 through 17). "Universal" = phone-side features plus vendor drivers. Changes, with their
+status after 0.75:
 
 1. **F4 (Companion Device Manager) moves up, to right after 0.6** as the "universal remote".
    - One association per headset (MAC filter, no re-pair) gives any brand:
@@ -224,50 +349,84 @@ account-key MAC; and AOSP restricts VCS/VOCS/AICS/PACS/ASCS/BASS/HAS/CSIS to BLU
      - presence binding (36).
    - Needs compileSdk 37.
    - Also try codec switching by reflection plus the association.
+   - **Status: partly done in 0.75.** Connect / disconnect, rename and forget are in, and
+     `compileSdk` is 37. Presence binding and the codec experiment are 0.8.
 2. **C2 (AirPods modes) is a go/no-go**, decided by a One UI 9 test (see D3). Until then the
    AirPods tier is C1 (advert battery) plus the any-headset features. Point users to
    LibrePods/CAPod for modes.
+   - **Status: the interim tier shipped** (battery only). The test is open.
 3. **New B6, "Find my earbuds":**
    - A one-sided stereo tone (`AudioTrack`) routed to the headset, plus "last seen" from the
      connection log.
    - Starts only from the UI, tile, widget or a notification (Android 17 background-audio
      hardening).
+   - **Status: not started → 0.8.**
 4. **B1 extension:** our own GATT client reads BAS `0x180F` (not restricted) for a Shizuku-free
    starting battery on LE-capable headsets (the QC Ultra 2 advertises BAS).
    - New spike **D7**: MICS `0x184D` Mute `0x2BC3`.
    - HFP vendor events use the decimal company ID (".85"); only `+XEVENT/+ANDROID/+CGM*/+XAPL/
      +IPHONEACCEV` are broadcast.
+   - **Status: BAS done in 0.75.** D7 is open.
 5. **E4 (Fast Pair) shrinks:** AOSP RFCOMM refuses a second client on a channel and GMS opens the
    Message Stream on connect, so expect D5 = no.
    - Keep the `df21fe2c` SDP UUID as an identification signal and the advert battery snapshot.
    - **WriteGuard rule: never write a Fast Pair account key.** The first key becomes the Find Hub
      owner key.
+   - **Status: not started.** The rule stands; no driver writes account keys.
 6. **New F6, diagnostics timeline:**
    - A2DP/HFP disconnect reasons (API 37), bond-loss and encryption intents.
    - `BluetoothHeadset.getCodecType` (37.2) as the call-codec label.
    - Feeds F3.
+   - **Status: not started → 0.8.**
 7. **0.8 drivers:**
    - A shared Qualcomm GAIA v3 codec in `:protocol`, with an allow-list that never sends Upgrade
      (feature 6).
    - Sennheiser (MIT momentum4-control) and Pixel Buds Pro (MIT pbpctrl) ahead of Galaxy Buds.
    - E5 (QC35) loses value: Gadgetbridge already covers QC35 and NC 700.
+   - **Status: the GAIA codec and Sennheiser are in 0.75.** Pixel Buds Pro is open.
 8. **Target-37 checklist:**
    - The call boost's `setStreamVolume` is ignored from a background-started service without
      while-in-use status.
    - No static-final reflection.
    - A separate `.foss` applicationId for GitHub/F-Droid builds.
    - IzzyOnDroid from 0.7.
+   - **Status: open → 0.8** (`targetSdk` is still 36; `compileSdk` is 37).
 
 AVRCP play/next never become input events (they go to the media session), so the Controls
 remapper's approach is right; skip AccessibilityService.
+
+### Brand research (same day): drivers ranked
+
+Full report: `docs/research/reports/Top brand headset protocols.md`. Its ranking, with the status:
+
+| Rank | Driver | Status after 0.75 |
+|---|---|---|
+| 1 | Soundcore generic read-only view | **Done** (35 models recognised) |
+| 2 | Skullcandy Method 360 / 540 ANC | **Done** |
+| 3 | Sennheiser GAIA v3 over RFCOMM | **Done** (Experimental) |
+| 4 | Sony v2 over RFCOMM | **Done** (Experimental) |
+| 5 | Soundcore gen-2 earbud writes | **Done from references, Experimental** (no owner captures yet) |
+| 6 | BLE GATT byte transport | 0.8 |
+| 7, 8 | JBL H-AA, then H-P4 | 0.8, after rank 6 |
+| 9 | Soundcore headphones (Space One, One Pro, Q45; Space 2 with its init script) | Space One / One Pro / Q45 done; Space 2 read-only → 0.8 |
+| 10 | Airoha RACE allow-list codec → JBL A-RACE | 0.8, after a decision |
+| 11 | Sony v1 (WH-1000XM4); Sennheiser BLE (CX Plus, CX 500) | 0.8 |
+
+Not worth building: the Skullcandy Dime 540 ANC (BES TOTA), the Hesh ANC (no control channel) and
+Sennheiser's legacy GAIA v1 models. They stay generic.
 
 ## What we still need from you
 
 - **Exact models:** which AirPods/Beats, which Soundcore, and the generic buds' name as Android
   shows it (Settings → Connected devices).
+- **Owners' reports for the Experimental drivers:** Sennheiser, Sony, the other Soundcore models
+  and the Skullcandy headsets. Tools → Lab → **Copy connection report** is what moves a driver from
+  Experimental to Tested.
 - **Captures for C2 and E2:** a Bluetooth HCI snoop log of the AirPods with an iPhone/Mac (or with
-  LibrePods/CAPod), and of the Soundcore with the Soundcore app, changing each setting once. A
+  LibrePods/CAPod), and of each Soundcore with the Soundcore app, changing each setting once. A
   how-to will go in `docs/research/` when D2/D3 start.
 - **Decisions now:**
-  - Do Sony as Experimental in 0.7 without an owner?
+  - Airoha RACE: build an allow-listed codec for JBL's Airoha models and Skullcandy's Airoha line,
+    or keep "never"? (Gates the rest of 0.8's driver work.)
   - Should Play get the Shizuku features at all? This one can wait until 0.8.
+  - Answered in 0.75: Sony ships as Experimental without an owner.
