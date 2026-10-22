@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.75.0 — unreleased
+## 0.75.0 — 2026-10-21
 
 **Any headset, and the first drivers beyond Bose.** Earshot is becoming the companion app for every
 Bluetooth headset, not just Bose (plan: [docs/roadmap.md](docs/roadmap.md)). Every headset now gets
