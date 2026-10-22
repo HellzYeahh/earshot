@@ -66,6 +66,9 @@ class CrusherProtocol {
     /** Which product this connection is: the Bluetooth name at first, `dev_info` once it answers. The Crusher until told otherwise. */
     @Volatile private var model: BragiModel = BragiModel.SKULLCANDY_CRUSHER_1080
 
+    /** The product this connection is, for the Lab (which reads only the services the product has). */
+    val currentModel: BragiModel get() = model
+
     /** The `authenticated_access` flag from `dev_info`: the secure session is required for protected calls. */
     @Volatile var authenticatedAccess: Boolean = false
         private set
@@ -306,30 +309,7 @@ class CrusherProtocol {
     private fun SpatialAudio.toWire() = when (this) { SpatialAudio.OFF -> SpatialMode.OFF; SpatialAudio.ROOM -> SpatialMode.STILL; SpatialAudio.HEAD -> SpatialMode.MOTION }
     private fun SpatialMode.toCore() = when (this) { SpatialMode.STILL -> SpatialAudio.ROOM; SpatialMode.MOTION -> SpatialAudio.HEAD; else -> SpatialAudio.OFF }
 
-    /** One read the Lab may issue: a call with no side effects. [streaming] reads answer with the current state. */
-    class LabRead(val address: BragiServices.Address, val name: String, val streaming: Boolean = false, val body: ByteArray = ByteArray(0))
-
     companion object {
-        /**
-         * Every read-only call the Lab offers, with its name. Nothing here changes a setting: the
-         * streaming reads are issued without the subscribe flag, so they return the current state once.
-         */
-        val LAB_READS: List<LabRead> = listOf(
-            LabRead(BragiServices.DEV_INFO, "device.dev_info", body = WireDeviceInfo.devInfo()),
-            LabRead(BragiServices.SYS_INFO, "device.sys_info"),
-            LabRead(BragiServices.BATT_INFO, "device.batt_info"),
-            LabRead(BragiServices.TIME_GET, "device.time_get"),
-            LabRead(BragiServices.MODE_READ, "hearing.mode_read", streaming = true),
-            LabRead(BragiServices.HEARING_MODE_INFO, "hearing.mode_info"),
-            LabRead(BragiServices.SIDETONE_READ, "hearing.sidetone_read", streaming = true),
-            LabRead(BragiServices.SIDETONE_INFO, "hearing.sidetone_info"),
-            LabRead(BragiServices.PEQ_READ_STATE, "hearing.peq_read_state", streaming = true),
-            LabRead(BragiServices.PEQ_INFO, "hearing.peq_info"),
-            LabRead(BragiServices.SPATIAL_INFO_GET, "spatial_audio.info_get", streaming = true),
-            LabRead(BragiServices.CRUSHER_CONFIG_GET, "crusher.config_get"),
-            LabRead(BragiServices.CRUSHER_STATE_GET, "crusher.state_get", streaming = true),
-        )
-
         /** No ANC switch (Off is a mode), no Wind Block, no editable modes; the level slider is the active mode's gain. */
         val CAPABILITIES = HeadphoneCapabilities(
             spatialAudio = true, ancToggle = false, liveNoiseControl = true, windExcludesCancelling = false,

@@ -11,7 +11,9 @@ import dev.earshot.core.HeadphoneRepository
  * Adding a vendor is: a [DeviceFamily] value with its name rule, a repository (usually a
  * `ConnectionManager` with a `LinkFactory`), and one entry in `AppContainer`'s driver list. The
  * router has no per-vendor code; the [DeviceFamily.GENERIC] driver must always be present, since
- * every device nobody else claims ends up there.
+ * every device nobody else claims ends up there. For the Lab scanner, the repository also overrides
+ * `labProfile()` / `scanLab()` with a `service.lab.<Stack>Lab` built from the reads its write guard
+ * allows (recipe in `service/lab/LabFrames.kt`); without them the Lab says nothing can be scanned.
  */
 class VendorDriver(
     val family: DeviceFamily,

@@ -127,7 +127,7 @@ class SoundcoreFrameBuffer(private val onJunk: (Int) -> Unit = {}) {
 object SoundcoreWriteGuard {
     val ALLOWED: Set<Int> = setOf(
         // Reads.
-        SoundcoreCommands.REQUEST_STATE, SoundcoreCommands.REQUEST_INFO, 0x1503, 0x1401,
+        SoundcoreCommands.REQUEST_STATE, SoundcoreCommands.REQUEST_INFO, SoundcoreCommands.SLEEP_SETTINGS_GET, SoundcoreCommands.ALARMS_GET,
         // Writes the driver uses (Sleep A30 ids, each a single setting).
         SoundcoreCommands.SET_ANC_D1301, SoundcoreCommands.SET_TAP_DISABLED, SoundcoreCommands.SET_LISTENING_MODE,
         SoundcoreCommands.SET_DEFAULT_LISTENING_MODE, SoundcoreCommands.SET_LOW_BATTERY_PROMPT,
@@ -211,6 +211,14 @@ object SoundcoreCommands {
      * (FF = leave the timer fields alone), `[enabled, minutes lo, minutes hi, x]` sets the timer.
      */
     const val SET_SLEEP_TIMER = 0x1585
+
+    /**
+     * Sleep A30 reads on its original allow-list. Their names come from the category they share
+     * with the writes: `15 85` / `15 8F` are the sleep options, `14 81` / `14 82` set and delete an
+     * alarm. Earshot doesn't parse either reply; the Lab shows them raw.
+     */
+    const val SLEEP_SETTINGS_GET = 0x1503
+    const val ALARMS_GET = 0x1401
 
     // ---- Gen-2 earbuds and headphones (research notes §3; ids are reused across models, so each
     // model's table says which of these it may send) ----

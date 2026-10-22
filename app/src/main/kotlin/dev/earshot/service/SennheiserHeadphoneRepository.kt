@@ -17,11 +17,12 @@ import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
+import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.NoiseSettings
-import dev.earshot.core.RawFrame
 import dev.earshot.core.Sidetone
 import dev.earshot.core.VoicePrompts
+import dev.earshot.service.lab.SennheiserLab
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,7 +36,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -195,8 +197,15 @@ class SennheiserHeadphoneRepository(
     override suspend fun switchToDevice(address: String) = unsupported()
     override suspend fun enterPairingMode() = unsupported()
     override suspend fun powerOff() = unsupported()
-    override suspend fun readRaw(block: Int, function: Int): List<RawFrame> = unsupported()
-    override fun scanFunctions(blocks: List<Int>, maxFunction: Int): Flow<LabReading> = emptyFlow()
+
+    // ---- Lab (discovery and the documented GETs, see SennheiserLab) ------------------------
+
+    override fun labProfile(): LabProfile? = session?.conn?.takeIf { it.isOpen }?.let { SennheiserLab.profile(it.features) }
+
+    override fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> = flow {
+        val conn = session?.conn?.takeIf { it.isOpen } ?: throw HeadphoneCommandException("Headphones not connected")
+        emitAll(SennheiserLab.scan(conn, groupIds, deep))
+    }
 
     private fun unsupported(): Nothing = throw HeadphoneCommandException(UNSUPPORTED)
 

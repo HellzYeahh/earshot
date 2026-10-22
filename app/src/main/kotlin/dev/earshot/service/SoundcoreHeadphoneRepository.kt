@@ -17,9 +17,9 @@ import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
+import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.NoiseSettings
-import dev.earshot.core.RawFrame
 import dev.earshot.core.Sidetone
 import dev.earshot.core.VoicePrompts
 import dev.earshot.protocol.soundcore.AmbientMode
@@ -32,6 +32,7 @@ import dev.earshot.protocol.soundcore.SoundcoreState
 import dev.earshot.protocol.soundcore.SoundcoreStateReader
 import dev.earshot.protocol.soundcore.SoundcoreWriteRefused
 import dev.earshot.protocol.soundcore.SoundcoreWrites
+import dev.earshot.service.lab.SoundcoreLab
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,7 +46,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -350,8 +352,16 @@ class SoundcoreHeadphoneRepository(
     override suspend fun switchToDevice(address: String) = unsupported()
     override suspend fun enterPairingMode() = unsupported()
     override suspend fun powerOff() = unsupported()
-    override suspend fun readRaw(block: Int, function: Int): List<RawFrame> = unsupported()
-    override fun scanFunctions(blocks: List<Int>, maxFunction: Int): Flow<LabReading> = emptyFlow()
+
+    // ---- Lab (the documented reads only, see SoundcoreLab) ---------------------------------
+
+    override fun labProfile(): LabProfile? =
+        connectionManager.connection.value?.takeIf { it.isOpen }?.let { SoundcoreLab.profile(it.model) }
+
+    override fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> = flow {
+        val conn = connectionManager.connection.value?.takeIf { it.isOpen } ?: throw HeadphoneCommandException("Earbuds not connected")
+        emitAll(SoundcoreLab.scan(conn, groupIds, deep))
+    }
 
     private fun unsupported(): Nothing = throw HeadphoneCommandException(UNSUPPORTED)
 

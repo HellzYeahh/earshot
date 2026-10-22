@@ -72,4 +72,20 @@ object BragiServices {
     )
 
     fun isAllowed(address: Address): Boolean = address in ALLOWED
+
+    /**
+     * The calls on [ALLOWED] that only read: the `*_info`, `*_read*` and `*_get` methods. The Lab
+     * may send these and nothing else. Left out on purpose: every configure / set / enable /
+     * disable method, `time_set`, and the whole `authenticated_access` handshake (its calls start,
+     * commit or abort a pairing, so they are not reads even though they change no setting).
+     */
+    val READS: Set<Address> = setOf(
+        DEV_INFO, SYS_INFO, BATT_INFO, MODE_INFO, TIME_GET,
+        MODE_READ, HEARING_MODE_INFO, PEQ_READ_STATE, PEQ_READ_CONF, PEQ_INFO, SIDETONE_READ, SIDETONE_INFO,
+        SPATIAL_INFO_GET,
+        CRUSHER_CONFIG_GET, CRUSHER_STATE_GET,
+    )
+
+    /** A call the Lab may make: on the allow-list and read-only. */
+    fun isRead(address: Address): Boolean = address in ALLOWED && address in READS
 }

@@ -6,8 +6,8 @@
     <string name="widget_description">Battery, listening mode and quick switches for your headphones.</string>
 
     <!-- Lab deep scan -->
-    <string name="lab_deep_scan">Deep scan (all 64 blocks)</string>
-    <string name="lab_deep_scan_hint">Reads every block 0–63 and function 0–63 once. Takes a few minutes; results are also saved under Android/data/dev.earshot/files/lab.</string>
+    <string name="lab_deep_scan">Deep scan (%1$d reads)</string>
+    <string name="lab_deep_scan_hint">%1$s Results are also saved under Android/data/dev.earshot/files/lab.</string>
 
     <!-- Appearance -->
     <string name="prefs_appearance">Appearance</string>
@@ -402,11 +402,17 @@
     <string name="mic_level_description">Input level %1$d percent</string>
 
     <!-- Lab -->
-    <string name="lab_read_only">The scanner only reads: it sends GET requests to the headphones and shows the raw replies. The Print console below is the one part of Lab that writes.</string>
-    <string name="lab_blocks">Function blocks to scan</string>
-    <string name="lab_functions_hint">Functions 0–%1$d in each block</string>
+    <string name="lab_read_only">The scanner only reads: it sends the connected headset\'s documented read requests and shows the raw replies, and every request passes that headset\'s own write guard as a read. The Print console below is the one part of Lab that writes.</string>
+    <string name="lab_blocks">Scan targets</string>
+    <string name="lab_functions_hint">%1$s: %2$d reads</string>
     <string name="lab_progress">%1$d / %2$d read</string>
     <string name="lab_scan">Scan</string>
+    <string name="lab_scanner_title">Scanner</string>
+    <string name="lab_stack_line">%1$s on %2$s</string>
+    <string name="lab_not_connected">Connect a headset to scan it. The scanner reads whichever headset Earshot is connected to, with that headset\'s own protocol.</string>
+    <string name="lab_no_driver">No driver: nothing can be scanned on this headset. The connection report above still helps.</string>
+    <string name="lab_results_from">Results from %1$s</string>
+    <string name="lab_console_bose_only">Bose headphones only: this headset has no debug console Earshot can talk to, so a line sent here comes back as an error.</string>
     <string name="lab_console_title">Print console</string>
     <string name="lab_console_experimental">Experimental, and the one part of Lab that writes: each line is sent to the firmware\'s debug console. Only the verbs below are accepted; anything else is refused before it is sent.</string>
     <string name="lab_console_hint">bind|unbind|verbosity &lt;arg&gt; · output [n]</string>

@@ -12,6 +12,7 @@ import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
+import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.RawFrame
@@ -209,6 +210,11 @@ class RoutingHeadphoneRepository(
     override suspend fun forgetPairing() = current.forgetPairing()
     override suspend fun printConsole(command: String): String = current.printConsole(command)
     override suspend fun readRaw(block: Int, function: Int): List<RawFrame> = current.readRaw(block, function)
-    override fun scanFunctions(blocks: List<Int>, maxFunction: Int): Flow<LabReading> =
-        flow { emitAll(current.scanFunctions(blocks, maxFunction)) }
+
+    /** The Lab follows the stack in charge; null for the generic driver (nothing to scan). */
+    override fun labProfile(): LabProfile? = current.labProfile()
+
+    /** Resolved when collected, so a scan always runs on the stack in charge at that moment. */
+    override fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> =
+        flow { emitAll(current.scanLab(groupIds, deep)) }
 }
