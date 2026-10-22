@@ -106,6 +106,15 @@ class AppContainer(private val appContext: Context) {
         } else null
     }
 
+    /** One virtual Momentum 4 per process, so its state survives demo reconnects. */
+    private val virtualSennheiser: dev.earshot.virtual.VirtualSennheiser by lazy { dev.earshot.virtual.VirtualSennheiser() }
+
+    private val sennheiserDemoTransport: () -> (() -> ByteTransport)? = {
+        if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking().isSennheiser) {
+            { dev.earshot.virtual.VirtualSennheiserTransport(virtualSennheiser) }
+        } else null
+    }
+
     /** The QC Ultra 2 command layer (BMAP addresses, payloads and state mapping). */
     private val headphoneProtocol: HeadphoneProtocol by lazy { QcUltra2Protocol() }
 
@@ -142,6 +151,14 @@ class AppContainer(private val appContext: Context) {
         )
     }
 
+    /** Sennheiser headsets (Momentum 4, Accentum, Momentum True Wireless …) over GAIA v3. Experimental. */
+    private val sennheiserHeadphones: dev.earshot.service.SennheiserHeadphoneRepository by lazy {
+        dev.earshot.service.SennheiserHeadphoneRepository(
+            appContext, applicationScope, sennheiserDemoTransport,
+            autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+        )
+    }
+
     /**
      * Any other headset (AirPods, Sony, no-name earbuds): shown by its own name from what Android
      * reports, never sent anything. Shares the Bose repository's prefs and finder, so every stack
@@ -175,6 +192,7 @@ class AppContainer(private val appContext: Context) {
                 VendorDriver(DeviceFamily.BOSE, boseHeadphones, boseHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.BRAGI, crusherHeadphones, crusherHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.SOUNDCORE, soundcoreHeadphones, soundcoreHeadphones::releaseConnection),
+                VendorDriver(DeviceFamily.SENNHEISER, sennheiserHeadphones, sennheiserHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.GENERIC, genericHeadphones, genericHeadphones::releaseConnection),
             ),
             prefs = boseHeadphones.devicePrefs,
@@ -188,6 +206,7 @@ class AppContainer(private val appContext: Context) {
                         device.isCrusher -> DeviceFamily.BRAGI
                         device.isGeneric -> DeviceFamily.GENERIC
                         device.isSoundcore -> DeviceFamily.SOUNDCORE
+                        device.isSennheiser -> DeviceFamily.SENNHEISER
                         else -> DeviceFamily.BOSE
                     }
                 } else null

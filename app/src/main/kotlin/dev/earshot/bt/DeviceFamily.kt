@@ -1,6 +1,7 @@
 package dev.earshot.bt
 
 import dev.earshot.protocol.bragi.BragiModel
+import dev.earshot.protocol.sennheiser.SennheiserModel
 import dev.earshot.protocol.soundcore.SoundcoreModel
 
 /** Which stack drives a pair of headphones. */
@@ -13,6 +14,13 @@ enum class DeviceFamily {
 
     /** Anker Soundcore over its RFCOMM vendor service; only the models in `SoundcoreModel` (Sleep A30 first). */
     SOUNDCORE,
+
+    /**
+     * Sennheiser's Qualcomm GAIA v3 stack (vendor 0x0495) over its RFCOMM service by UUID:
+     * Momentum 4 / 5, Accentum (Plus, TW), Momentum True Wireless 3 / 4, Momentum Sport (`SennheiserModel`).
+     * Experimental. BLE-only models (CX Plus TW, CX 500BT) are not in the name rule and stay [GENERIC].
+     */
+    SENNHEISER,
 
     /**
      * Any other headset: Earshot doesn't speak its control protocol (yet), so it is shown by its
@@ -45,6 +53,8 @@ enum class DeviceFamily {
         fun forName(name: String?): DeviceFamily = when {
             BragiModel.isBragiName(name) -> BRAGI
             SoundcoreModel.fromName(name) != null -> SOUNDCORE
+            // Before the Bose rule: a Sennheiser must never get the BMAP channel walk (its iAP2 record is a power-off risk).
+            SennheiserModel.fromName(name) != null -> SENNHEISER
             looksLikeBose(name) -> BOSE
             else -> GENERIC
         }
