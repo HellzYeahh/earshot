@@ -96,6 +96,17 @@ class BmapChannelSearchTest {
     }
 
     @Test
+    fun `the failure summary names no Earshot class, which a release build would print obfuscated`() = runTest {
+        // Issue #1 (0.3.1): "ch8: ea2: Could not open the control channel (...)", ea2 being R8's name for RfcommConnectException.
+        val e = assertFailsWith<RfcommConnectException> {
+            run(mapOf(Channel(8) to { throw RfcommConnectException("reflection ch8: IOException: read failed", looksBusy = true) }))
+        }
+        val text = e.message.orEmpty()
+        assertTrue("ch8: reflection ch8: IOException: read failed" in text, text)
+        assertFalse("RfcommConnectException" in text, text)
+    }
+
+    @Test
     fun `nothing opens at all is an ordinary failure`() = runTest {
         val e = assertFailsWith<RfcommConnectException> { run(emptyMap()) }
         assertFalse(e.looksBusy)

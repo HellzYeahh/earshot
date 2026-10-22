@@ -123,7 +123,7 @@ internal class BmapChannelSearch(
     private fun timeoutFor(candidate: BmapCandidate): Long =
         if (candidate == BmapCandidate.LeCoc) connectTimeoutMs + LE_EXTRA_MS else connectTimeoutMs
 
-    private fun Throwable.describe(): String = "${this::class.simpleName}: ${message ?: "no message"}"
+    private fun Throwable.describe(): String = describeForReport()
 
     companion object {
         /** Opening a socket to an RFCOMM channel with no server is refused quickly; this caps a stack that hangs instead. */
