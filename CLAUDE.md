@@ -112,6 +112,13 @@ own module. Never edit another area's files, the Gradle files, the version catal
   - `capabilities.modesOnHome = false`: its two modes only drive the tile, widget and automations.
 - **Tools never hide settings** (user decision): every control stays visible and tryable; refusals
   become messages.
+- **Lab (0.75):** `HeadphoneRepository.labProfile()` (stack, groups of documented reads, Deep-scan
+  description; null = nothing to scan) + `scanLab(groupIds, deep)`; `readRaw` is Bose only. One
+  Android-free `service/lab/<Stack>Lab` per stack; read lists sit in `:protocol` next to each guard
+  (`BragiServices.READS`/`BragiReads`, `SoundcoreReads.forModel`, `SennheiserReads.forFeatures`,
+  `SonyReads.forSupport`). Only Bose walks ids (a BMAP GET cannot write); every other stack sends
+  only its documented reads, each checked as a read against its guard. Never add a guessed id to a
+  read list. `LabScanEndToEndTest` (spy transport per virtual device) is the test to extend.
 - **Strict `LivenessProbe`**: GET `[0.1]` (the QC45 init packet); alive only on a device-side
   STATUS/ERROR/RESULT for `[0.1]` or traffic that frames *entirely* as device-side BMAP on known
   blocks (`BmapConnection.traffic()`). Beacons, logs and echoes fail.

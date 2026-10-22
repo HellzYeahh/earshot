@@ -90,6 +90,13 @@ protocol research ([docs/research/reports](docs/research/reports)). Bose keeps i
 - **Skullcandy Method 360 ANC and Method 540 ANC (experimental)** run on the same connection as the
   Crusher 1080: Quiet / Aware / Off, the noise level, sidetone and battery, without the Crusher-only
   cards. Demo mode has both.
+- **Lab scans every headset Earshot drives**, not only Bose: Soundcore, Sennheiser, Skullcandy
+  Crusher and Method, and Sony too. The scanner shows the connected headset's protocol and its groups
+  of documented reads; Scan reads the selected groups, Deep scan everything readable. It stays
+  read-only: on other brands only the driver's documented reads are sent, each checked against that
+  driver's write guard (their command numbers mix reads with resets and firmware updates, so nothing
+  is guessed); the Bose block sweep is unchanged. A headset without a driver says nothing can be
+  scanned (the connection report still helps).
 - **A new app icon, "Strike"** (see above), and **brand-neutral wording**: onboarding, About, the
   connection screens and the Detect / Call audio hints no longer assume Bose. "Close the … app"
   names the app that actually holds the connection (Bose, Skullcandy, Soundcore…), the
