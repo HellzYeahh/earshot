@@ -318,8 +318,8 @@ class GenericHeadphoneRepository(
         const val ACTION_BATTERY_LEVEL_CHANGED = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
         const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"
 
-        const val UNSUPPORTED = "Earshot has no driver for this headset yet, so nothing was sent. To try Bose commands on it anyway: " +
-            "More → App preferences → Headphone type → Bose."
+        const val UNSUPPORTED = "Earshot has no driver for this headset yet, so nothing was sent. If it is a supported brand under a custom name, " +
+            "choose that brand in More → App preferences → Headphone type."
         const val DEMO_ADDRESS = "00:00:00:DE:A1:01"
 
         fun looksApple(name: String?): Boolean = name != null && Regex("""airpods|beats""", RegexOption.IGNORE_CASE).containsMatchIn(name)

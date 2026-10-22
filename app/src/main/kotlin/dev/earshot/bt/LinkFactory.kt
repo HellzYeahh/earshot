@@ -23,10 +23,14 @@ interface ManagedLink {
  */
 interface LinkFactory<C : ManagedLink> {
     /** What to tell the user when the control connection is silent: usually another app holds it. */
-    val busyMessage: String get() = ConnectionManager.MESSAGE_CHANNEL_BUSY
+    val busyMessage: String get() = "Close the $competingApp app, then try again"
 
-    /** The maker's app that holds the control channel when it is silent ("Bose"), for [ConnectionProblem.ChannelHeld]. */
-    val competingApp: String get() = "Bose"
+    /**
+     * The maker's app that holds the control channel when it is silent ("Bose", "Skullcandy"), for
+     * [ConnectionProblem.ChannelHeld]. A stack that knows the app overrides it; the default is a
+     * neutral phrase so no vendor's name leaks onto another vendor's headset.
+     */
+    val competingApp: String get() = ConnectionManager.GENERIC_COMPETING_APP
 
     /** The family this stack drives; the manager stands down for a device [DeviceFamily.resolve] puts in another one. */
     val family: DeviceFamily
@@ -68,6 +72,7 @@ class BoseLinkFactory internal constructor(
     constructor(context: Context, finder: DeviceFinder) : this(BmapChannelSearch(), context.applicationContext, finder)
 
     override val family: DeviceFamily get() = DeviceFamily.BOSE
+    override val competingApp: String get() = "Bose"
 
     /** Which device to open each kind of candidate on. */
     private class Route(val classic: BluetoothDevice?, val le: BluetoothDevice?, val preferLe: Boolean)

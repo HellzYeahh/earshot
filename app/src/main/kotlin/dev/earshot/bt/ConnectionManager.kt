@@ -353,7 +353,14 @@ class ConnectionManager<C : ManagedLink>(
     }
 
     companion object {
-        const val MESSAGE_CHANNEL_BUSY = "Close the Bose app, then try again"
+        /**
+         * Stands in for "the app that holds the control channel" until the factory names it
+         * ([LinkFactory.competingApp]: "Bose", "Skullcandy"...); reads as "Close the headphone maker's app".
+         */
+        const val GENERIC_COMPETING_APP = "headphone maker's"
+
+        /** The vendor-neutral busy signal [SessionEnd] reports; [localized] swaps in the factory's own wording. */
+        const val MESSAGE_CHANNEL_BUSY = "Close the $GENERIC_COMPETING_APP app, then try again"
         const val DEMO_NAME = "Virtual QC Ultra (demo)"
         const val DEMO_ADDRESS = "00:00:00:DE:40:01"
         private const val DEMO_RECONNECT_MS = 3_000L

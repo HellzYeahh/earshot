@@ -73,7 +73,7 @@
     <string name="status_no_paired_device">No paired headphones found</string>
     <string name="status_no_permission">Bluetooth permission needed</string>
     <string name="disconnected_title">Headphones not connected</string>
-    <string name="disconnected_body">Close the Bose app, then tap Connect. Only one app at a time can use the headphones\' control channel.</string>
+    <string name="disconnected_body">Close the headphone maker\'s app, then tap Connect. Only one app at a time can use the headphones\' control channel.</string>
     <string name="disconnected_body_demo">The demo headphones reconnect on their own in a moment, or tap Connect.</string>
     <string name="battery_percent">Battery %1$d percent</string>
     <string name="battery_charging_percent">Battery %1$d percent, charging</string>
@@ -81,7 +81,7 @@
 
     <!-- Onboarding -->
     <string name="onboarding_title">Welcome to Earshot</string>
-    <string name="onboarding_body">A fast, account-free controller for your Bose QuietComfort and Ultra headphones and earbuds. It adapts to the model you connect, and everything stays on this phone.</string>
+    <string name="onboarding_body">One companion app for any Bluetooth headset: deep control for Bose headphones and earbuds, experimental drivers for Skullcandy, Soundcore, Sennheiser and Sony, and EQ, codec, call and button tools for every other headset. No account, and everything stays on this phone.</string>
     <string name="onboarding_permission_title">Bluetooth access</string>
     <string name="onboarding_permission_body">Earshot talks to the headphones directly over Bluetooth. Android needs your permission for nearby-device access first.</string>
     <string name="onboarding_permission_denied">Android won\'t ask again. Allow “Nearby devices” for Earshot in app settings.</string>
@@ -92,7 +92,7 @@
     <string name="onboarding_pick_body_unpaired">No paired headphones were found. Pair them in Bluetooth settings first, then come back and tap Connect.</string>
     <string name="onboarding_no_devices">No paired Bluetooth devices.</string>
     <string name="onboarding_scanning">Looking at paired devices…</string>
-    <string name="onboarding_candidate_bose">Looks like Bose headphones</string>
+    <string name="onboarding_candidate_bose">Recognised headphones</string>
     <string name="onboarding_candidate_audio">Audio device</string>
     <string name="action_import">Import</string>
     <string name="action_allow_location">Allow location</string>
@@ -272,7 +272,7 @@
     <string name="conn_le_phone_not_supported">This phone doesn\'t support LE Audio</string>
     <string name="conn_le_phone_unknown">This phone\'s LE Audio support is unknown (Android 13 and newer report it)</string>
     <string name="conn_le_risky_title">LE Audio may not work here</string>
-    <string name="conn_le_risky_body">You can try anyway:\n%1$s\n\nThe headphones restart either way. If their firmware has no LE Audio, nothing changes, and Earshot checks the result after they reconnect. An app can\'t add LE Audio to headphones: it comes with Bose firmware updates, which the Bose app installs.</string>
+    <string name="conn_le_risky_body">You can try anyway:\n%1$s\n\nThe headphones restart either way. If their firmware has no LE Audio, nothing changes, and Earshot checks the result after they reconnect. An app can\'t add LE Audio to headphones: it comes with firmware updates, which the headphone maker\'s own app installs.</string>
     <string name="conn_le_risky_action">Switch anyway</string>
     <string name="conn_le_reason_headphones">The headphones report that their firmware doesn\'t support LE Audio.</string>
     <string name="conn_le_reason_no_switch">The headphones didn\'t report an LE Audio switch.</string>
@@ -293,7 +293,7 @@
     <string name="conn_profile_le_paired">LE Audio paired, not in use</string>
     <string name="conn_profile_unknown">Profiles not read</string>
     <string name="conn_le_confirm_title">Switch LE Audio %1$s?</string>
-    <string name="conn_le_confirm_body">Your headphones will restart to switch LE Audio on/off. Audio stops for a few seconds and Earshot reconnects by itself. With LE Audio on, the voice-assistant and Spotify Tap shortcuts and multipoint may not work, and this phone may keep using Classic Bluetooth (AAC/SBC) if it does not support LE Audio for these headphones.</string>
+    <string name="conn_le_confirm_body">Your headphones will restart to switch LE Audio on/off. Audio stops for a few seconds and Earshot reconnects by itself. With LE Audio on, some shortcut buttons (such as the voice assistant or a music-service shortcut) and multipoint may not work, and this phone may keep using Classic Bluetooth (AAC/SBC) if it does not support LE Audio for these headphones.</string>
     <string name="conn_le_confirm_action">Restart and switch</string>
     <string name="conn_le_restarting">Headphones restarting… reconnecting</string>
     <string name="conn_on">on</string>
@@ -304,7 +304,7 @@
     <string name="conn_latency_unknown">Latency not reported</string>
     <string name="conn_latency_range">Firmware range %1$d–%2$d ms. Probably a measurement rather than a setting.</string>
     <string name="conn_experimental">Experimental</string>
-    <string name="conn_latency_experimental_body">Experimental: asks the headphones for a different audio latency. The Bose app never uses this, so the headphones may ignore it or change the sound timing unexpectedly. Reset by moving it back to the original value (shown in grey).</string>
+    <string name="conn_latency_experimental_body">Experimental: asks the headphones for a different audio latency. The headphones\' own app never uses this, so they may ignore it or change the sound timing unexpectedly. Reset by moving it back to the original value (shown in grey).</string>
     <string name="conn_latency_acknowledge">I understand, unlock the slider</string>
     <string name="conn_latency_slider">Requested latency</string>
     <string name="conn_latency_ms">%1$d ms</string>
@@ -385,7 +385,7 @@
     <string name="call_abs_volume_reconnect">Reconnect the headphones to apply</string>
     <string name="call_abs_volume_caveat">An experiment. On some Samsung phones it leaves more headroom so calls can get louder, but it mostly changes how media volume behaves (you may need to turn up both sides for music) and any in-call effect is up to the phone: absolute volume is a media setting, while call volume travels on the call link (HFP) as its own 0–15 setting. To revert, switch it back here, or in Developer options → “Disable absolute volume”, then reconnect.</string>
     <string name="call_honest_title">Your voice on calls</string>
-    <string name="call_honest_body">No app can process the call microphone: on Android it goes from the headset to the modem or the calling app without passing through other apps, and this firmware has no mic EQ. What does help is a wideband call codec (mSBC or LC3) and LE Audio; if you still sound bad on mSBC or LC3, the limit is the network or the calling app. Self Voice (More → Sidetone) changes only what you hear.</string>
+    <string name="call_honest_body">No app can process the call microphone: on Android it goes from the headset to the modem or the calling app without passing through other apps, and Earshot can\'t reach a mic EQ on the headset. What does help is a wideband call codec (mSBC or LC3) and LE Audio; if you still sound bad on mSBC or LC3, the limit is the network or the calling app. Sidetone, where the headset offers it (in More), changes only what you hear.</string>
 
     <!-- Mic check -->
     <string name="mic_intro">Records up to 8 seconds through the active microphone, then plays it back so you can hear what callers hear.</string>
@@ -510,11 +510,11 @@
 
     <!-- About -->
     <string name="about_version">Version %1$s</string>
-    <string name="about_tagline">A native companion for your Bluetooth headphones, with full control of Bose QC Ultra Headphones (1st and 2nd Gen), QC Headphones (1st and 2nd Gen), QC SC, QC45, QC SE and Ultra Open Earbuds: no account, no cloud, no internet permission.</string>
-    <string name="about_not_affiliated">Not affiliated with, endorsed by or supported by Bose, Apple, Skullcandy or any other headphone maker. Bose and QuietComfort are trademarks of Bose Corporation; AirPods and Beats of Apple Inc.; Crusher of Skullcandy, Inc. Other product names belong to their owners.</string>
-    <string name="about_control_channel">Only one app can use the headphones\' control channel at a time. Close the Bose app while Earshot is connected (and vice versa).</string>
+    <string name="about_tagline">A native companion for any Bluetooth headset, with no account, no cloud and no internet permission. Deepest control for Bose headphones and earbuds, experimental drivers for Skullcandy, Soundcore, Sennheiser and Sony, and name, battery, Pro EQ, codec, call audio, Controls and a universal remote for every other headset.</string>
+    <string name="about_not_affiliated">Not affiliated with, endorsed by or supported by Bose, Apple, Skullcandy, Anker (Soundcore), Sony, Sennheiser or any other headphone maker. Bose and QuietComfort are trademarks of Bose Corporation; AirPods and Beats of Apple Inc.; Skullcandy and Crusher of Skullcandy, Inc.; Anker and Soundcore of Anker Innovations Limited; Sony of Sony Group Corporation; Sennheiser of Sennheiser electronic SE &amp; Co. KG. Other product names belong to their owners.</string>
+    <string name="about_control_channel">Only one app can use the headphones\' control channel at a time. Close the headphone maker\'s own app while Earshot is connected (and the other way round).</string>
     <string name="about_credits">Credits</string>
-    <string name="about_credits_body">Protocol knowledge comes from two open-source projects, both MIT licensed:</string>
+    <string name="about_credits_body">Protocol knowledge comes from open-source projects, listed with their licences:</string>
     <string name="about_licence">Licence</string>
     <string name="about_licence_body">Earshot is released under the MIT licence.</string>
     <string name="about_privacy">Privacy</string>
@@ -551,7 +551,7 @@
     <string name="disconnected_tips_title">If they don\'t connect</string>
     <string name="tip_power_on">Turn the headphones on and keep them close to the phone.</string>
     <string name="tip_power_on_buds">Take the earbuds out of the case and keep them close to the phone.</string>
-    <string name="tip_close_bose_app">Close the Bose app: only one app at a time can use the control channel.</string>
+    <string name="tip_close_maker_app">Close the %1$s app: only one app at a time can use the control channel.</string>
     <string name="tip_le_audio">LE Audio earbuds: keep them connected in Android\'s Bluetooth settings.</string>
     <string name="report_copied">Connection report copied</string>
 
@@ -711,7 +711,7 @@
     <string name="detect_verdict_assistant">This is your shortcut: you can remap it</string>
     <string name="detect_verdict_music">Goes straight to your music app, Android doesn\'t let apps remap it</string>
     <string name="detect_verdict_call">A call is using your headphones\' controls right now</string>
-    <string name="detect_verdict_button">Bose calls it: %1$s</string>
+    <string name="detect_verdict_button">The headphones call it: %1$s</string>
     <string name="detect_use_for">Use for Shortcut Button 1</string>
     <string name="detect_playing">Now playing</string>
     <string name="detect_paused">Now paused</string>
@@ -741,7 +741,7 @@
     <string name="detect_hint_no_assistant_button">None of the buttons is on the phone\'s assistant, so none of them reaches Earshot. Pick an Earshot action for Shortcut Button 1 first.</string>
     <string name="detect_hint_try_each">Try each control once: a short press and a long press of every button, the power button too, and a long, still touch on the volume strip.</string>
     <string name="detect_hint_try_each_other">Try each control once: a short press and a long press of every button, the power button too, and a long, still touch on any touch area.</string>
-    <string name="detect_hint_bose_none">Your headphones didn\'t send the shortcut. Bose calls it “%1$s” on the Shortcut: try each control again (a short and a long press of every button, the power button too, and a long, still touch on the strip), and check that Touch controls is on.</string>
+    <string name="detect_hint_bose_none">Your headphones didn\'t send the shortcut, which they call “%1$s”. Try each control again (a short and a long press of every button, the power button too, and a long, still touch on the strip), and check that Touch controls is on.</string>
     <string name="detect_hint_bose_none_unnamed">Your headphones didn\'t send the shortcut. Try each control again (a short and a long press of every button, the power button too, and a long, still touch on the strip), and check that Touch controls is on.</string>
     <string name="detect_show_touch">Show Touch controls</string>
     <string name="detect_hint_other_none">Most headsets send the assistant gesture on press-and-hold; check your headset\'s app.</string>
