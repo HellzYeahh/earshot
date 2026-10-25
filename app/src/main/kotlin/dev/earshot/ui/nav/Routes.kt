@@ -13,6 +13,12 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.earshot.R
 
+/**
+ * A deep link from the notification, tile or widget: the [tab] to show and, optionally, a
+ * sub-screen [route] in it (the notification's "Find" opens Tools → Find).
+ */
+data class NavRequest(val tab: Tab, val route: String? = null)
+
 /** Navigation graph. Sub-routes are prefixed with their tab so the bottom bar can stay highlighted. */
 object Routes {
     const val HOME = "home"
@@ -26,6 +32,8 @@ object Routes {
     const val CODEC = "tools/codec"
     const val CALL_AUDIO = "tools/call"
     const val MIC_CHECK = "tools/mic"
+    const val FIND = "tools/find"
+    const val TIMELINE = "tools/timeline"
     const val LAB = "tools/lab"
     const val SHORTCUTS_REMAPPER = "tools/shortcuts-remapper"
 

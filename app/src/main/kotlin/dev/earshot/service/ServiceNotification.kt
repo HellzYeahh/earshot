@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import dev.earshot.MainActivity
+import dev.earshot.find.FindSide
 import dev.earshot.R
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneState
@@ -114,15 +115,21 @@ class ServiceNotification(private val context: Context) {
 
         when (snapshot.status) {
             ConnectionStatus.CONNECTED -> {
+                var actions = 0
                 for (index in modeButtons(snapshot)) {
                     val label = snapshot.modeNames[index] ?: continue
                     builder.addAction(0, label, serviceIntent(HeadphoneService.ACTION_SET_MODE, requestCode = 100 + index) {
                         putExtra(HeadphoneService.EXTRA_MODE_INDEX, index)
                     })
+                    actions++
                 }
                 snapshot.ancEnabled?.takeIf { snapshot.ancToggle }?.let { anc ->
                     builder.addAction(0, if (anc) "ANC off" else "ANC on", serviceIntent(HeadphoneService.ACTION_TOGGLE_ANC, requestCode = 2))
+                    actions++
                 }
+                // Android shows three actions; modes and ANC keep theirs, Find takes a free one
+                // (always there for headsets without a driver, where it matters most).
+                if (actions < MAX_ACTIONS) builder.addAction(0, "Find", findIntent())
             }
             ConnectionStatus.DISCONNECTED ->
                 builder.addAction(0, "Connect", serviceIntent(HeadphoneService.ACTION_CONNECT, requestCode = 3))
@@ -162,6 +169,18 @@ class ServiceNotification(private val context: Context) {
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
+    /**
+     * Opens Tools → Find and rings both sides. An activity, not the service: the tone then starts
+     * while Earshot is visible, which Android 17 requires for playback (background audio hardening).
+     */
+    private fun findIntent(): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_FIND, FindSide.BOTH.name)
+        }
+        return PendingIntent.getActivity(context, 4, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
     private fun serviceIntent(action: String, requestCode: Int, extras: Intent.() -> Unit = {}): PendingIntent {
         val intent = Intent(context, HeadphoneService::class.java).setAction(action).apply(extras)
         // getForegroundService: the tap may arrive with the app in the background, where a
@@ -177,5 +196,8 @@ class ServiceNotification(private val context: Context) {
         const val CHANNEL_ID = "connection"
         const val NOTIFICATION_ID = 1001
         private const val DEFAULT_NAME = "Headphones"
+
+        // What Android shows on a notification.
+        private const val MAX_ACTIONS = 3
     }
 }

@@ -2,11 +2,25 @@
 
 ## 0.8 (in progress)
 
-Roadmap 0.8, items 1–3 so far: the platform pieces for the next drivers. The companion-device
+Roadmap 0.8, items 1–6 so far (item 7, Google Play preparation, moved to 0.9; the Pixel Buds
+Pro driver dropped): the platform pieces for the next drivers, Find my earbuds and a Bluetooth
+history. The companion-device
 pieces were tested on a Galaxy Z Fold7 (One UI 9, Android 17) with the QC Ultra 2; the GATT link
 and RACE have no driver on top yet and have not met real hardware.
 
 ### New
+- **Find my earbuds** (Tools → Find my earbuds, or Find my headphones). Earshot plays a two-note
+  chirp in the earbud you pick (left, right or both; one button for headphones), starting quiet
+  and getting louder over 6 seconds, for up to 30 seconds. It goes only to that headset's own
+  audio output, never to the phone speaker or another device, and stops if Android moves it.
+  Refused during a call or a recording. The screen says when the headset was last connected and
+  keeps the display on while it rings. The notification gets a Find button when it has room
+  (always for headsets without an Earshot driver). Tested on the QC Ultra 2.
+- **Bluetooth history** (Lab → Bluetooth history): connects and disconnects with Android 17's
+  reasons, pairing changes, a lost pairing key, link encryption, the music codec and, on Android
+  17.2, the call codec, for every headset (cars and watches left out), newest first. Up to 500
+  events, kept on this phone only, addresses only. The connection report now ends with the saved
+  headphones' last 40 events.
 - **Codec switching without Shizuku for a linked headset (Android 13+, experimental).** Android
   accepts the companion link in place of the privileged permission for reading and setting the
   music codec. On the Fold7 with Shizuku stopped: the codec read, AAC → SBC in about 60 ms, and

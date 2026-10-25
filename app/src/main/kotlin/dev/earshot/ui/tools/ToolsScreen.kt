@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SettingsInputAntenna
 import androidx.compose.material.icons.filled.TouchApp
@@ -59,6 +60,7 @@ data class ToolsNavigation(
     val onOpenCodec: () -> Unit = {},
     val onOpenCallAudio: () -> Unit = {},
     val onOpenMicCheck: () -> Unit = {},
+    val onOpenFind: () -> Unit = {},
     val onOpenLab: () -> Unit = {},
 )
 
@@ -126,6 +128,12 @@ fun ToolsContent(
             title = stringResource(R.string.tools_mic_check),
             subtitle = stringResource(R.string.tools_mic_check_subtitle),
             onClick = navigation.onOpenMicCheck,
+        )
+        ToolCard(
+            icon = Icons.Default.NotificationsActive,
+            title = stringResource(if (HeadphoneLabels.isEarbuds(HeadphoneLabels.formFactor(headphones))) R.string.tools_find_earbuds else R.string.tools_find_headphones),
+            subtitle = stringResource(R.string.tools_find_subtitle),
+            onClick = navigation.onOpenFind,
         )
         // Always offered: Tools never hide anything, so anyone can try a headset (user decision, 0.6).
         ToolCard(

@@ -6,15 +6,19 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.os.Build
 import dev.earshot.appContainer
+import dev.earshot.bt.BtTimeline
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.LogRing
 import dev.earshot.core.HeadphoneState
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * A plain-text snapshot of what Earshot knows about the connection, for pasting into a bug report
  * when the headphones will not connect or a control misbehaves. It holds the headphones' Bluetooth
- * name and address, the services the phone has seen them advertise, the model Earshot detected and
- * the recent connection log. No account, location or contact data is involved.
+ * name and address, the services the phone has seen them advertise, the model Earshot detected,
+ * their Bluetooth history on this phone ([dev.earshot.bt.TimelineRecorder]) and the recent connection log. No account, location or contact data is involved.
  */
 object DiagnosticsReport {
 
@@ -43,6 +47,8 @@ object DiagnosticsReport {
             val uuids = services(context, saved?.address)
             if (uuids.isEmpty()) appendLine("  (none cached, or permission missing)") else uuids.forEach { appendLine("  $it") }
             appendLine()
+            appendTimeline(context, saved?.address)
+            appendLine()
             appendLine("Recent log:")
             LogRing.tail(150).forEach { appendLine(it) }
         }
@@ -65,6 +71,32 @@ object DiagnosticsReport {
         }
         appendLine("Linked for audio: ${finder.isAudioConnected(address) ?: "unknown"}, over LE Audio: ${finder.isLeAudioConnected(address)}")
     }
+
+    /**
+     * The saved headphones' Bluetooth history (and their LE Audio twin's), newest last: disconnect
+     * reasons, lost pairings and codecs the log above may have scrolled past. Other headsets stay out.
+     */
+    private fun StringBuilder.appendTimeline(context: Context, address: String?) {
+        appendLine("Bluetooth history (this phone, newest last):")
+        if (address == null) {
+            appendLine("  (no saved headphones)")
+            return
+        }
+        val container = context.applicationContext.appContainer
+        val twins = runCatching { DeviceFinder(context.applicationContext, container.devicePrefs).twinsOf(address).map { it.address } }.getOrDefault(emptyList())
+        val ours = (listOf(address) + twins).map { it.uppercase() }.toSet()
+        val events = runCatching { container.timeline.store.events.value }.getOrDefault(emptyList())
+            .filter { it.address.uppercase() in ours }
+            .takeLast(TIMELINE_LINES)
+        if (events.isEmpty()) appendLine("  (nothing recorded yet)")
+        val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        events.forEach { e ->
+            val twin = if (e.address.equals(address, ignoreCase = true)) "" else " (LE twin)"
+            appendLine("  ${format.format(Date(e.timeMs))} ${BtTimeline.describe(e)}$twin")
+        }
+    }
+
+    private const val TIMELINE_LINES = 40
 
     private fun typeName(type: Int): String = when (type) {
         BluetoothDevice.DEVICE_TYPE_CLASSIC -> "classic"

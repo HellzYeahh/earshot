@@ -42,6 +42,7 @@ import dev.earshot.ui.common.FieldNavigationBarItem
 import dev.earshot.ui.common.LocalSnackbarHostState
 import dev.earshot.ui.home.PairingDialog
 import dev.earshot.ui.nav.EarshotNavHost
+import dev.earshot.ui.nav.NavRequest
 import dev.earshot.ui.nav.Tab
 import dev.earshot.ui.nav.navigateToTab
 import dev.earshot.ui.onboarding.OnboardingScreen
@@ -61,7 +62,7 @@ import kotlinx.coroutines.withContext
  * `dev.earshot.EXTRA_OPEN_TAB` deep link from the notification, tile and widget.
  */
 @Composable
-fun EarshotApp(tabRequests: StateFlow<Tab?>, onTabRequestHandled: () -> Unit) {
+fun EarshotApp(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> Unit) {
     val context = LocalContext.current
     val dependencies = remember { UiDependencies.from(context) }
     val preferences by dependencies.automation.preferences.collectAsStateWithLifecycle()
@@ -73,7 +74,7 @@ fun EarshotApp(tabRequests: StateFlow<Tab?>, onTabRequestHandled: () -> Unit) {
 }
 
 @Composable
-fun EarshotRoot(tabRequests: StateFlow<Tab?>, onTabRequestHandled: () -> Unit) {
+fun EarshotRoot(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> Unit) {
     val deps = LocalUiDependencies.current
     val context = LocalContext.current
     val headphoneState by deps.headphones.state.collectAsStateWithLifecycle()

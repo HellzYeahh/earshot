@@ -21,6 +21,8 @@ class EarshotApp : Application() {
         container.shortcuts
         // Each headset gets its own Pro EQ preset back when it connects.
         container.headsetEq.start()
+        // The diagnostics timeline records from process start (HFP, pairing, encryption, codec).
+        container.timeline.start()
         // Headsets linked through the universal remote: Android binds HeadsetPresenceService when
         // one connects. Observing is idempotent; renewing it here covers links made before 0.8.
         // Off the main thread: a few binder calls that receivers and the presence bind shouldn't wait on.

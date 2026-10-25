@@ -245,6 +245,19 @@ class AppContainer(private val appContext: Context) {
     /** Bonded-device lookup shared with the connection code (the Shortcuts remapper lists headsets with it). */
     val deviceFinder: DeviceFinder get() = boseHeadphones.deviceFinder
 
+    /** Diagnostics timeline (0.8, item 5): started by [EarshotApp], fed by the manifest receiver too. */
+    val timeline: dev.earshot.bt.TimelineRecorder by lazy {
+        dev.earshot.bt.TimelineRecorder(
+            appContext,
+            dev.earshot.bt.TimelineStore(java.io.File(appContext.filesDir, "bt_timeline.tsv")),
+            applicationScope,
+            devicePrefs,
+        )
+    }
+
+    /** Find my earbuds (0.8, item 4): a tone into the shown headset, any brand. */
+    val find: dev.earshot.find.FindPlayer by lazy { dev.earshot.find.FindPlayer(appContext, headphones, deviceFinder, applicationScope) }
+
     /** Shortcuts remapper: what a headset's press-and-hold does, and the code that does it. */
     val shortcuts: ShortcutEngine by lazy {
         ShortcutEngine(appContext, ShortcutPrefs(appContext), tuning, headphones, devicePrefs, applicationScope)

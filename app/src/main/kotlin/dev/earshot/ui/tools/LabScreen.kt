@@ -63,7 +63,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun LabScreen(onBack: () -> Unit) {
+fun LabScreen(onBack: () -> Unit, onOpenTimeline: () -> Unit = {}) {
     val vm = earshotViewModel { LabViewModel(it.headphones, it.messenger) }
     val state by vm.state.collectAsStateWithLifecycle()
     val clipboard = LocalClipboard.current
@@ -93,6 +93,7 @@ fun LabScreen(onBack: () -> Unit) {
         onCopyReport = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Earshot connection report", DiagnosticsReport.build(context)))) } },
         onConsoleSend = vm::sendConsole,
         onConsoleClear = vm::clearConsole,
+        onOpenTimeline = onOpenTimeline,
     )
 }
 
@@ -108,6 +109,7 @@ fun LabContent(
     onCopyReport: () -> Unit = {},
     onConsoleSend: (String) -> Unit = {},
     onConsoleClear: () -> Unit = {},
+    onOpenTimeline: () -> Unit = {},
 ) {
     val grouped = LabExport.grouped(state.readings)
     SubScreenScaffold(
@@ -130,6 +132,10 @@ fun LabContent(
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onCopyReport, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.lab_report_copy))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(shape = MaterialTheme.shapes.medium, onClick = onOpenTimeline, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.timeline_title))
                     }
                 }
             }

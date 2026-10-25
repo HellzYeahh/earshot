@@ -30,6 +30,8 @@ import dev.earshot.ui.tools.CallAudioScreen
 import dev.earshot.ui.tools.CodecScreen
 import dev.earshot.ui.tools.ConnectionScreen
 import dev.earshot.ui.tools.LabScreen
+import dev.earshot.ui.tools.TimelineScreen
+import dev.earshot.ui.tools.FindScreen
 import dev.earshot.ui.tools.MicCheckScreen
 import dev.earshot.ui.tools.ShortcutsRemapperScreen
 import dev.earshot.ui.tools.ToolsNavigation
@@ -48,7 +50,7 @@ import kotlinx.coroutines.flow.filterNotNull
 fun EarshotNavHost(
     navController: NavHostController,
     contentPadding: PaddingValues,
-    tabRequests: StateFlow<Tab?>,
+    tabRequests: StateFlow<NavRequest?>,
     onTabRequestHandled: () -> Unit,
 ) {
     val bottom = contentPadding.calculateBottomPadding()
@@ -84,6 +86,7 @@ fun EarshotNavHost(
                         onOpenCodec = { navController.navigate(Routes.CODEC) },
                         onOpenCallAudio = { navController.navigate(Routes.CALL_AUDIO) },
                         onOpenMicCheck = { navController.navigate(Routes.MIC_CHECK) },
+                        onOpenFind = { navController.navigate(Routes.FIND) },
                         onOpenLab = { navController.navigate(Routes.LAB) },
                     ),
                 )
@@ -100,7 +103,9 @@ fun EarshotNavHost(
             }
             composable(Routes.CALL_AUDIO) { CallAudioScreen(onBack = navController::popBackStack) }
             composable(Routes.MIC_CHECK) { MicCheckScreen(onBack = navController::popBackStack) }
-            composable(Routes.LAB) { LabScreen(onBack = navController::popBackStack) }
+            composable(Routes.LAB) { LabScreen(onBack = navController::popBackStack, onOpenTimeline = { navController.navigate(Routes.TIMELINE) }) }
+            composable(Routes.FIND) { FindScreen(onBack = navController::popBackStack) }
+            composable(Routes.TIMELINE) { TimelineScreen(onBack = navController::popBackStack) }
             composable(Routes.SHORTCUTS_REMAPPER) {
                 ShortcutsRemapperScreen(onBack = navController::popBackStack, onOpenDevices = { navController.navigate(Routes.DEVICES) })
             }
@@ -133,8 +138,9 @@ fun EarshotNavHost(
 
     // Runs after NavHost has set its graph, so a cold-start deep link can never navigate too early.
     LaunchedEffect(navController, tabRequests) {
-        tabRequests.filterNotNull().collect { tab ->
-            navController.navigateToTab(tab)
+        tabRequests.filterNotNull().collect { request ->
+            navController.navigateToTab(request.tab)
+            request.route?.let { route -> navController.navigate(route) { launchSingleTop = true } }
             onTabRequestHandled()
         }
     }
