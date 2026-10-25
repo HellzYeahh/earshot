@@ -11,7 +11,9 @@ import dev.earshot.codec.CodecNames
 import dev.earshot.codec.CodecRequest
 
 /**
- * Builds the `BluetoothCodecConfig` for a [CodecRequest], inside the user service.
+ * Builds the `BluetoothCodecConfig` for a [CodecRequest]: inside the Shizuku user service, and in
+ * the app process for the experimental companion-link path (`codec/AssociationCodecPath`, Android
+ * 13+ only, so it never takes the hidden-constructor branch).
  *  - Android 15+: codecs are objects; vendor codecs (Samsung Scalable, aptX Adaptive) only work
  *    through the `BluetoothCodecType` the stack advertises, so that is looked up by name first;
  *  - Android 13–14 (or no advertised type): the public Builder with `setCodecType(int)`;
@@ -19,17 +21,20 @@ import dev.earshot.codec.CodecRequest
  */
 internal object CodecConfigFactory {
 
-    /** @param supportedTypes lazily fetches `getSupportedCodecTypes()` (Android 15+ only). */
-    fun build(request: CodecRequest, supportedTypes: () -> List<Any>): Any {
+    /**
+     * @param supportedTypes lazily fetches `getSupportedCodecTypes()` (Android 15+ only).
+     * @param tag the caller's log tag, so a log line says which process built the config.
+     */
+    fun build(request: CodecRequest, tag: String = SVC_TAG, supportedTypes: () -> List<Any>): Any {
         val channel = 0 // CHANNEL_MODE_NONE: never force mono
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return buildModern(request, channel, supportedTypes)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return buildModern(request, channel, tag, supportedTypes)
         val type = requireType(request)
-        Log.i(SVC_TAG, "config via hidden constructor, type $type")
+        Log.i(tag, "config via hidden constructor, type $type")
         return legacyConstructor(type, request, channel)
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private fun buildModern(request: CodecRequest, channel: Int, supportedTypes: () -> List<Any>): BluetoothCodecConfig {
+    private fun buildModern(request: CodecRequest, channel: Int, tag: String, supportedTypes: () -> List<Any>): BluetoothCodecConfig {
         val b = BluetoothCodecConfig.Builder()
             .setCodecPriority(BluetoothCodecConfig.CODEC_PRIORITY_HIGHEST)
             .setSampleRate(request.sampleRateMask)
@@ -40,15 +45,15 @@ internal object CodecConfigFactory {
             val type = advertisedType(supportedTypes(), request.codecName)
             if (type != null) {
                 b.setExtendedCodecType(type)
-                Log.i(SVC_TAG, "config via setExtendedCodecType(${type.codecName}, id ${type.codecId})")
+                Log.i(tag, "config via setExtendedCodecType(${type.codecName}, id ${type.codecId})")
                 return b.build()
             }
-            Log.i(SVC_TAG, "no advertised BluetoothCodecType named ${request.codecName}; using setCodecType")
+            Log.i(tag, "no advertised BluetoothCodecType named ${request.codecName}; using setCodecType")
         }
         val type = requireType(request)
         @Suppress("DEPRECATION")
         b.setCodecType(type)
-        Log.i(SVC_TAG, "config via setCodecType($type)")
+        Log.i(tag, "config via setCodecType($type)")
         return b.build()
     }
 

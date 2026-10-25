@@ -92,6 +92,8 @@ fun CodecContent(
     onOpenCallAudio: () -> Unit = {},
 ) {
     val privileged = state.privilege == PrivilegeState.GRANTED
+    // Shizuku, or (experimental) the headset's companion link on Android 13+.
+    val switchable = state.a2dpConnected && (privileged || state.viaCompanionLink)
     SubScreenScaffold(
         title = stringResource(R.string.tools_codec),
         onBack = onBack,
@@ -104,7 +106,13 @@ fun CodecContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             CurrentCodecCard(state)
-            if (state.canSwitch) {
+            if (state.canSwitch && state.viaCompanionLink && !privileged) {
+                // The experimental path can still fail; Developer options stays one tap away.
+                InfoBanner(
+                    stringResource(R.string.codec_via_companion_link),
+                    action = { TextButton(onClick = onOpenDeveloperSettings) { Text(stringResource(R.string.codec_open_developer_options)) } },
+                )
+            } else if (state.canSwitch) {
                 PrivilegeBanner(state.privilege, onRequestPrivilege, onOpenDeveloperSettings)
             } else {
                 // Switching runs in a Shizuku user service, so without Shizuku (running + granted) the
@@ -129,16 +137,16 @@ fun CodecContent(
                 Text(stringResource(R.string.codec_profiles_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { onProfile(ConnectionProfile.BEST_QUALITY) }, enabled = privileged && state.a2dpConnected, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    FilledTonalButton(onClick = { onProfile(ConnectionProfile.BEST_QUALITY) }, enabled = switchable, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.codec_best_quality))
                     }
-                    FilledTonalButton(onClick = { onProfile(ConnectionProfile.MOST_STABLE) }, enabled = privileged && state.a2dpConnected, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    FilledTonalButton(onClick = { onProfile(ConnectionProfile.MOST_STABLE) }, enabled = switchable, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                         Text(stringResource(R.string.codec_most_stable))
                     }
                 }
             }
 
-            if (state.canSwitch) CodecPicker(state = state, enabled = privileged && state.a2dpConnected, onSelect = onSelect)
+            if (state.canSwitch) CodecPicker(state = state, enabled = switchable, onSelect = onSelect)
 
             SectionCard(title = stringResource(R.string.codec_supported)) {
                 Text(stringResource(R.string.codec_supported_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))

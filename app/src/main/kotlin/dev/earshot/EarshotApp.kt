@@ -21,6 +21,10 @@ class EarshotApp : Application() {
         container.shortcuts
         // Each headset gets its own Pro EQ preset back when it connects.
         container.headsetEq.start()
+        // Headsets linked through the universal remote: Android binds HeadsetPresenceService when
+        // one connects. Observing is idempotent; renewing it here covers links made before 0.8.
+        // Off the main thread: a few binder calls that receivers and the presence bind shouldn't wait on.
+        kotlin.concurrent.thread(name = "Earshot-presence", isDaemon = true) { dev.earshot.bt.CompanionPresence(this).observeAll() }
     }
 }
 

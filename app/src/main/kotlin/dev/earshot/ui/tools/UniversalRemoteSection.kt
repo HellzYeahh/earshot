@@ -81,9 +81,11 @@ class UniversalRemoteViewModel(
         viewModelScope.launch {
             val target = current ?: runCatching { prefs.savedDevice() }.getOrNull()?.let { RemoteTarget(it.address, it.name) }
             _state.value = withContext(Dispatchers.IO) {
+                val linked = target?.let { remote.isLinked(it.address) } ?: false
+                if (linked) remote.observePresence(target!!.address)
                 RemoteUiState(
                     target = target,
-                    linked = target?.let { remote.isLinked(it.address) } ?: false,
+                    linked = linked,
                     alias = target?.let { remote.aliasOf(it.address) },
                 )
             }

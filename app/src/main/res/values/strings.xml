@@ -338,6 +338,7 @@
     <string name="codec_supported_both">Supported by both</string>
     <string name="codec_supported_phone_only">Phone only</string>
     <string name="codec_priv_granted">Shizuku access granted. Codec switching works from here.</string>
+    <string name="codec_via_companion_link">Switching through this headset\'s link (Tools → Controls → Universal remote), no Shizuku needed. Experimental.</string>
     <string name="codec_priv_grant">Shizuku is running. Grant Earshot permission to switch codecs.</string>
     <string name="codec_priv_not_running">Shizuku isn\'t running. Start it from the Shizuku app (wireless debugging), then retry.</string>
     <string name="codec_priv_unavailable">Switching codecs needs Shizuku (free, no root). Install it, or change the codec by hand in Developer options.</string>

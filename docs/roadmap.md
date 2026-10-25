@@ -95,10 +95,27 @@ remote (Companion Device Manager), the Field theme and the "Strike" icon.
 1. **GATT transport** (scan, MTU, write-with-response, notify reassembly, rotating LE addresses).
    It unlocks JBL (H-AA, then H-P4: 104 of the 123 products in JBL's app connect over BLE),
    Sennheiser CX Plus / CX 500 and Sony over LE Audio.
+   **Built (2026-10-25), untested on hardware:** `bt/GattTransport` (Android-free core behind
+   `GattPort`), `bt/GattLink` (the Android side, plus `GattTargets` for a `<name>-LE` address by
+   a near-only scan), `GattLinkSpec.HARMAN` / `.AIROHA`, firmware services refused. Frames are
+   reassembled by each vendor's frame buffer, as on RFCOMM. No driver uses it yet: JBL H-AA is next.
 2. **Airoha RACE allow-list: the decision.** An allow-listed codec is the only way to JBL's Airoha
    models and Skullcandy's 2022–25 line. Keep "never" for Sony, Bose and Bragi BOS-RPC. Build only
    after an explicit yes.
+   **Decided yes and built (2026-10-25):** `:protocol/airoha` (`RacePacket`, `RaceFrameBuffer`,
+   `RaceRequestQueue`, `RaceWriteGuard` with the Airoha-wide never list and per-vendor lists),
+   `bt/RaceConnection` and `bt/AirohaRaceLink` (SPP by UUID or Airoha GATT; refused on Sony, Bose
+   and Bragi). The relay (`0x0D01`) and the Harman tunnel (`0x0093`) are refused outright until a
+   capture shows their wrappers. JBL A-RACE and the Skullcandy line still need their drivers.
 3. **CDM presence** (replaces the boot / ACL receiver) and the codec-through-association experiment.
+   **Built and tested on the Fold7 (One UI 9, Android 17), 2026-10-25:** `bt/CompanionPresence` +
+   `service/HeadsetPresenceService` for linked headsets: Android 16 events by association id
+   (verified: `EVENT_BT_CONNECTED` → connect), 12–15 wait for the audio link (best effort, the ACL
+   receiver stays the fallback). Android rebinds the service ~10 s after the process dies; a fresh
+   start reconnects unless the last exit was the user's force-stop (verified after a reinstall). The
+   ACL receiver stays for unlinked headsets, and BOOT_COMPLETED stays too: process start re-arms
+   the schedule alarms. **D4 answered yes:** codec read and switch through the association
+   (`codec/AssociationCodecPath`) work on the Fold7 without Shizuku; Shizuku stays the fallback.
 4. **Find my earbuds** (B6): a one-sided tone started from the UI, tile, widget or notification.
 5. **Diagnostics timeline** (F6): disconnect reasons, bond loss, encryption changes, call-codec label.
 6. **Spikes:** D1, D3 (One UI 9), D4, D5, D6 (read the QC Ultra 2's SDP record), D7.

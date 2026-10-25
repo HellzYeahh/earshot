@@ -52,6 +52,13 @@ class CompanionRemote(private val context: Context) {
 
     fun isLinked(address: String): Boolean = associationId(address) != null || legacyLinked(address)
 
+    /**
+     * Make sure Android tells Earshot when this linked headset connects. Idempotent. Called whenever
+     * the remote sees the link, because on Android 12 a link completes through the dialog's result,
+     * not through `onAssociationCreated`.
+     */
+    fun observePresence(address: String) = CompanionPresence(context).observe(address)
+
     /** The system-dialog request for [address]: one device, matched by its MAC, already paired or not. */
     fun linkRequest(address: String, name: String?): AssociationRequest {
         val filter = BluetoothDeviceFilter.Builder().setAddress(address.uppercase()).build()
@@ -77,7 +84,11 @@ class CompanionRemote(private val context: Context) {
             @Deprecated("Android 12 and older")
             override fun onDeviceFound(intentSender: IntentSender) = onDialog(intentSender)
 
-            override fun onAssociationCreated(associationInfo: AssociationInfo) = onDone(null)
+            override fun onAssociationCreated(associationInfo: AssociationInfo) {
+                // From now on Android tells Earshot when this headset connects (HeadsetPresenceService).
+                CompanionPresence(context).observe(address)
+                onDone(null)
+            }
 
             override fun onFailure(error: CharSequence?) = onDone(error?.toString() ?: "")
         }
@@ -98,6 +109,7 @@ class CompanionRemote(private val context: Context) {
     fun unlink(address: String) {
         val manager = cdm ?: return
         val id = associationId(address)
+        CompanionPresence(context).stop(address)
         runCatching {
             // The id comes from AssociationInfo (Android 13+); older versions only know the MAC.
             if (id != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

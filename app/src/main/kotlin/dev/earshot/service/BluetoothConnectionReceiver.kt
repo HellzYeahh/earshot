@@ -29,8 +29,14 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * ACL_DISCONNECTED needs nothing: if the process is alive, [dev.earshot.bt.ConnectionManager]
  * has its own receiver and the socket notices anyway; if it is dead there is nothing to tell.
- * BOOT_COMPLETED also does nothing: the headphones are not linked yet at boot, and Android
- * restricts foreground-service starts from boot broadcasts; ACL_CONNECTED follows soon after.
+ * BOOT_COMPLETED does nothing here: the headphones are not linked yet at boot, Android restricts
+ * foreground-service starts from boot broadcasts, and ACL_CONNECTED follows soon after. It stays
+ * subscribed because receiving it starts the process, and `ExtrasInitializer` re-arms the schedule
+ * alarms a reboot cleared (dropping it in 0.8 was caught in review and reverted).
+ *
+ * Headsets linked through the universal remote also reach [HeadsetPresenceService], Android's
+ * companion-device path, which survives OEM limits on manifest receivers. Both may fire for one
+ * link-up; this receiver stays for the headsets that were never linked.
  */
 class BluetoothConnectionReceiver : BroadcastReceiver() {
 

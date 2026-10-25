@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.8 (in progress)
+
+Roadmap 0.8, items 1–3 so far: the platform pieces for the next drivers. The companion-device
+pieces were tested on a Galaxy Z Fold7 (One UI 9, Android 17) with the QC Ultra 2; the GATT link
+and RACE have no driver on top yet and have not met real hardware.
+
+### New
+- **Codec switching without Shizuku for a linked headset (Android 13+, experimental).** Android
+  accepts the companion link in place of the privileged permission for reading and setting the
+  music codec. On the Fold7 with Shizuku stopped: the codec read, AAC → SBC in about 60 ms, and
+  back with Best quality. When a phone refuses, Shizuku stays the way, as before.
+- **Linked headsets bring Earshot back by themselves.** A headset linked in Tools → Controls →
+  Universal remote now starts Earshot when it connects, even when the app was closed, without
+  relying on the Bluetooth broadcast. Android also restarts Earshot about 10 s after its process
+  dies while the headset is connected, and Earshot then reconnects (seen on the Fold7) unless you
+  force-stopped it yourself, so a force-stop still frees the connection for the maker's app.
+  Reliable on Android 16 and later (Android reports each connection); on Android 12–15 it is best
+  effort and the Bluetooth broadcast stays the fallback. Only a real connection counts, so a
+  headset merely in range is never paged.
+- **Bluetooth LE (GATT) link for vendor protocols.** `GattTransport` carries a vendor's frames
+  over GATT the way an RFCOMM socket does: it connects over LE, discovers services, asks for high
+  priority and the vendor's MTU (512 for JBL), switches on notifications, cuts writes to the
+  granted MTU and waits for each write's confirmation. It finds a headset's separate `<name>-LE`
+  control address by a short, near-only scan when the bonded device has no LE side. Specs for
+  JBL's Harman service and Airoha's RACE service; a firmware-update service can't be a spec.
+- **Airoha RACE, behind an allow-list (decision: yes).** The codec JBL's Airoha models and
+  Skullcandy's 2022–25 line need: `05 type len id payload` frames, one command in flight, and a
+  guard that refuses firmware update, flash, storage, NV-key writes, dumps, power and role
+  switches, the relay and tunnel wrappers and JBL's destructive ids for every vendor, then allows
+  only that vendor's list (Airoha standard ids for both; JBL's Harman settings for JBL). The
+  find-me tone needs the user's own tap. RACE is opened on the Airoha SPP record or the Airoha
+  GATT service, never by channel number, and **never on Sony, Bose or Bragi headsets**.
+
 ## 0.75.0 — 2026-10-21
 
 **Any headset, and the first drivers beyond Bose.** Earshot is becoming the companion app for every

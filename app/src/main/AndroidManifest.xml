@@ -19,6 +19,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Companion Device Manager presence for linked headsets (bt/CompanionPresence): Android binds
+         service.HeadsetPresenceService when one connects, and the service may then start the
+         foreground service from the background. Both are normal permissions. -->
+    <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND" />
 
     <!-- Sound engine and mic check -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -91,9 +96,21 @@
                 <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
                 <action android:name="android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED" />
                 <action android:name="android.bluetooth.action.LE_AUDIO_CONNECTION_STATE_CHANGED" />
+                <!-- Ignored in onReceive, but starting the process re-arms schedule alarms. -->
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Linked headsets (universal remote): bound by Android while one is connected (service/) -->
+        <service
+            android:name=".service.HeadsetPresenceService"
+            android:exported="true"
+            android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE"
+            tools:targetApi="s">
+            <intent-filter>
+                <action android:name="android.companion.CompanionDeviceService" />
+            </intent-filter>
+        </service>
 
         <!-- Attach the EQ to apps that announce their audio session (audio/) -->
         <receiver

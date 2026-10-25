@@ -41,10 +41,15 @@ import rikka.shizuku.Shizuku
  *  1. the Shizuku user service ([CodecServiceClient] → `CodecUserService`, shell uid):
  *     `IBluetoothA2dp.getCodecStatus`, returned as `BluetoothCodecStatus.toString()`;
  *  2. `dumpsys bluetooth_manager` through Shizuku, parsed by [DumpsysCodecParser];
- *  3. before Android 12 only, `BluetoothA2dp.getCodecStatus` on our own proxy;
- *  4. public APIs: A2DP connection state, phone-side codec list (Android 15+), `AudioDeviceInfo`.
- * The write path is the user service only; without Shizuku [selectCodec] throws and the UI points
- * at [openDeveloperCodecSettings]. No hidden-API access happens in this (the app's) process.
+ *  3. Android 13+, experimental: `BluetoothA2dp.getCodecStatus` on our own proxy for a headset
+ *     linked through the universal remote ([AssociationCodecPath]; the stack accepts a Companion
+ *     Device Manager association instead of BLUETOOTH_PRIVILEGED);
+ *  4. before Android 12 only, `BluetoothA2dp.getCodecStatus` on our own proxy;
+ *  5. public APIs: A2DP connection state, phone-side codec list (Android 15+), `AudioDeviceInfo`.
+ * The write path is the user service, or the companion link when path 3 answered and Shizuku isn't
+ * ready; otherwise [selectCodec] throws and the UI points at [openDeveloperCodecSettings]. No
+ * hidden-API bypass runs in this (the app's) process: the reflective calls are on SDK/system-API
+ * methods that Android's hidden-API policy allows.
  */
 class CodecRepositoryImpl(
     private val context: Context,
@@ -60,7 +65,11 @@ class CodecRepositoryImpl(
     private val proxies = A2dpProxyHolder(context)
     private val codecService = CodecServiceClient(context)
     private val shell = ShizukuShell()
+    private val companionLink = AssociationCodecPath(context)
     private val refreshMutex = Mutex()
+
+    /** The last refresh read the shown headset through its companion link (path 3), so switching can use it too. */
+    @Volatile private var linkActive = false
     private var debounceJob: Job? = null
 
     /** Numeric codec ids the stack reported last time, keyed by normalised name; needed to build configs. */
@@ -165,8 +174,12 @@ class CodecRepositoryImpl(
 
     override suspend fun selectCodec(selection: CodecSelection) {
         val privilege = ShizukuPrivilege.current(context)
+        if (privilege != PrivilegeState.GRANTED && linkActive) {
+            selectViaCompanionLink(selection)
+            return
+        }
         if (privilege != PrivilegeState.GRANTED) {
-            _state.update { it.copy(privilege = privilege, canSwitch = false) }
+            _state.update { it.copy(privilege = privilege, canSwitch = false, viaCompanionLink = false) }
             throw HeadphoneCommandException(
                 when (privilege) {
                     PrivilegeState.UNAVAILABLE -> "Switching codecs needs Shizuku. Install it, or use Developer options → Bluetooth audio codec."
@@ -207,12 +220,49 @@ class CodecRepositoryImpl(
 
         // The service already polled the stack for ~2.5 s; its last status is the answer.
         CodecStatusText.parse(status, address)?.let { applyParsed(it, extraPhoneCodecs = null, error = null) }
+        awaitCodec(name, polls = LATE_VERIFY_POLLS)
+    }
+
+    /**
+     * The experimental path: `setCodecConfigPreference` on our own proxy, allowed by the headset's
+     * companion link ([AssociationCodecPath]). A refusal turns the path off for the process and says
+     * what still works.
+     */
+    private suspend fun selectViaCompanionLink(selection: CodecSelection) {
+        val name = CodecNames.normalize(selection.codecName)
+        val option = _state.value.options.firstOrNull { it.codecName == name }
+        if (option != null && !option.isSelectable) {
+            throw HeadphoneCommandException("$name isn't supported by both the phone and the headphones right now.")
+        }
+        val request = CodecRequest.from(selection.copy(codecName = name), codecTypeIds)
+        val accepted = withContext(Dispatchers.IO) {
+            val a2dp = proxies.get() ?: throw HeadphoneCommandException("Bluetooth is off.")
+            val device = proxies.pickSink(proxies.connectedDevices(a2dp), preferredAddress())
+                ?: throw HeadphoneCommandException("The headphones aren't connected for audio (A2DP).")
+            Log.i(TAG, "requesting $request through the companion link")
+            try {
+                companionLink.available(device.address) && companionLink.select(a2dp, device, request)
+            } catch (e: IllegalArgumentException) {
+                throw HeadphoneCommandException("Earshot doesn't know this phone's id for $name.", e)
+            }
+        }
+        if (!accepted) {
+            linkActive = false
+            _state.update { it.copy(canSwitch = it.privilege == PrivilegeState.GRANTED, viaCompanionLink = false) }
+            throw HeadphoneCommandException(
+                "Android refused the codec switch through the headset's link. Start Shizuku, or use Developer options → Bluetooth audio codec.",
+            )
+        }
+        awaitCodec(name, polls = LATE_VERIFY_POLLS + 1)
+    }
+
+    /** Some sinks take a moment to renegotiate; look a few times before giving up. */
+    private suspend fun awaitCodec(name: String, polls: Int) {
         if (_state.value.current?.codecName == name) {
             Log.i(TAG, "now streaming $name")
             return
         }
-        // Some sinks take longer to renegotiate; look a couple more times before giving up.
-        repeat(LATE_VERIFY_POLLS) {
+        repeat(polls) {
             delay(VERIFY_INTERVAL_MS)
             refresh()
             if (_state.value.current?.codecName == name) return
@@ -275,6 +325,7 @@ class CodecRepositoryImpl(
         val phoneCodecs = a2dp?.let { proxies.phoneCodecNames(it) } ?: emptyList()
 
         if (a2dp == null || device == null) {
+            linkActive = false
             _state.update {
                 it.copy(
                     a2dpConnected = false,
@@ -282,6 +333,7 @@ class CodecRepositoryImpl(
                     options = CodecProfiles.toOptions(emptyList(), emptyList(), phoneCodecs),
                     privilege = privilege,
                     canSwitch = ready,
+                    viaCompanionLink = false,
                 )
             }
             return
@@ -291,6 +343,8 @@ class CodecRepositoryImpl(
         // Phone-side codec names from places other than the per-device status: the service's
         // getSupportedCodecTypes (15+) and One UI's dumpsys codecConfigPriorities table.
         var extraPhoneCodecs: List<String> = phoneCodecs
+        // Set once below, so a codec tap during a refresh never sees the link as gone in between.
+        var readViaLink = false
         val parsed: ParsedA2dpDevice? = run {
             if (ready) {
                 readViaService(device.address)?.let { (status, names) ->
@@ -311,9 +365,17 @@ class CodecRepositoryImpl(
                 }
                 dump.exceptionOrNull()?.let { error = "Shizuku shell failed: ${it.message}" }
             }
+            if (companionLink.available(device.address)) {
+                companionLink.readStatus(a2dp, device)?.let { CodecStatusText.parse(it, device.address) }?.let {
+                    Log.i(TAG, "codec read through the companion link: ${it.current?.codecName ?: "no current codec"}")
+                    readViaLink = true
+                    return@run it
+                }
+            }
             proxies.codecStatusLegacy(a2dp, device)?.let { CodecStatusText.parse(it.toString(), device.address) }
                 ?: broadcastStatus[device.address.uppercase()]
         }
+        linkActive = readViaLink
 
         if (parsed != null) {
             applyParsed(parsed, extraPhoneCodecs, error, privilege)
@@ -326,6 +388,7 @@ class CodecRepositoryImpl(
                     options = CodecProfiles.toOptions(emptyList(), emptyList(), extraPhoneCodecs),
                     privilege = privilege,
                     canSwitch = ready,
+                    viaCompanionLink = false,
                     lastError = error,
                 )
             }
@@ -377,7 +440,8 @@ class CodecRepositoryImpl(
                 // A post-switch status without capability lists must not wipe the options we had.
                 options = if (extraPhoneCodecs == null && parsed.selectable.isEmpty()) it.options else options,
                 privilege = p,
-                canSwitch = p == PrivilegeState.GRANTED,
+                canSwitch = p == PrivilegeState.GRANTED || linkActive,
+                viaCompanionLink = p != PrivilegeState.GRANTED && linkActive,
                 lastError = error,
             )
         }

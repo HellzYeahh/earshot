@@ -46,11 +46,17 @@ data class CodecState(
     val lastError: String? = null,
     /**
      * True when Shizuku is ready (its binder is alive and Earshot holds its permission), on any
-     * Android version: switching runs in a Shizuku user service as the shell user. While false the
-     * UI hides the picker and profiles, shows [CODEC_SWITCH_UNSUPPORTED_MESSAGE] and keeps the
-     * Developer options button.
+     * Android version: switching runs in a Shizuku user service as the shell user. Also true when
+     * [viaCompanionLink]. While false the UI hides the picker and profiles, shows
+     * [CODEC_SWITCH_UNSUPPORTED_MESSAGE] and keeps the Developer options button.
      */
     val canSwitch: Boolean = true,
+    /**
+     * Experimental (0.8): the codec is read and switched through the headset's Companion Device
+     * Manager link (Android 13+, universal remote), with no Shizuku. True once the phone's stack
+     * accepted such a call; false again for the rest of the process when it refused one.
+     */
+    val viaCompanionLink: Boolean = false,
 )
 
 /** Shown (and thrown by [CodecRepository.selectCodec]) when [CodecState.canSwitch] is false. */
