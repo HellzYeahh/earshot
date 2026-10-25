@@ -119,6 +119,12 @@ remote (Companion Device Manager), the Field theme and the "Strike" icon.
 4. **Find my earbuds** (B6): a one-sided tone started from the UI, tile, widget or notification.
 5. **Diagnostics timeline** (F6): disconnect reasons, bond loss, encryption changes, call-codec label.
 6. **Spikes:** D1, D3 (One UI 9), D4, D5, D6 (read the QC Ultra 2's SDP record), D7.
+   **Status 2026-10-25:** D4 answered yes on the Fold7 (item 3). D6 read from the Fold7's cache:
+   the QC Ultra 2 lists `deca-fade`, SPP and four 128-bit UUIDs (`346d5c4b…`, `77265d41…`,
+   `88b0ee3c…`, `9b26d8c0…`) that the QC Ultra Earbuds 2 in GitHub issue #3 list too: a Bose
+   fingerprint worth checking for that issue. D7 so far: the QC Ultra 2's LE record shows BAS,
+   VCS, LE Audio and BASS, no MICS. Open: D1 (needs the generic buds), D3 (needs the AirPods),
+   D5 (Fast Pair stream; ask before opening it, GMS holds it).
 7. **Play hygiene** (F5) and the target-37 checklist: drop `QUERY_ALL_PACKAGES` and
    `RECEIVE_BOOT_COMPLETED`, an upload key, CI, a licences screen, a separate `.foss` application ID.
    `setStreamVolume` from a background-started service needs while-in-use status at target 37, so
@@ -127,6 +133,24 @@ remote (Companion Device Manager), the Field theme and the "Strike" icon.
 9. **Promoting drivers:** owner reports and captures move Soundcore, Sennheiser and Sony from
    Experimental to Tested; then Soundcore Space 2 and EQ writes, Sony v1 (WH-1000XM4), Sennheiser BLE.
 10. **More drivers by demand:** Pixel Buds Pro (MIT pbpctrl) ahead of Galaxy Buds.
+
+### Order for the rest of 0.8 (set 2026-10-25)
+
+Release 0.8.0 once these are done; no partial release.
+
+1. **Item 4, Find my earbuds** and **item 5, diagnostics timeline**: no new hardware needed, both
+   testable on the Fold7 with the QC Ultra 2.
+2. **Item 6, the spikes** that need no other device (write up D4, D6, D7); D1 and D3 when the
+   generic buds and the AirPods are at hand; D5 only after an explicit yes.
+3. **Item 7, Play hygiene and target 37** (`<queries>` instead of `QUERY_ALL_PACKAGES`, licences
+   screen, GitHub Actions, a `.foss` flavour, targetSdk 37 with the call-boost check on the Fold7).
+   Needs from the user: an upload key and Play App Signing (Play Console), a privacy-policy page.
+4. **Item 8, A6 + A7 + F2, then the module split**, before any new driver, as this roadmap
+   already says. Gate: the Bose end-to-end tests stay green and a manual pass on the QC Ultra 2.
+5. **Drivers on the new platform:** JBL H-AA over GATT (jbl-control, MIT), then item 10, Pixel Buds
+   Pro (pbpctrl, MIT). Both Experimental: no hardware here.
+6. **Item 9** moves drivers to Tested only with owner reports; the reference-only writes (Soundcore
+   Space 2 and EQ, Sony v1, Sennheiser BLE) can ship as Experimental before that.
 
 ## The goal
 
