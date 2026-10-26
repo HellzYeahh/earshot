@@ -19,11 +19,20 @@ data class SavedDevice(val address: String, val name: String?)
 private val Context.btDeviceDataStore: DataStore<Preferences> by preferencesDataStore(name = "bt_device")
 
 /**
- * Tiny DataStore holding the Bluetooth address of the chosen QC Ultra, so reconnects and the
- * manifest receiver can recognise the right device without heuristics.
+ * Tiny DataStore holding the chosen headset (address and name), so reconnects and the manifest
+ * receiver can recognise the right device without heuristics, plus what Earshot learned about it:
+ * each stack's link hint ([linkHint]), the "Headphone type" choice and the families that answered.
+ *
+ * One instance is shared by every stack (`AppContainer.devicePrefs`); the store behind it is the
+ * process-wide "bt_device" DataStore either way.
+ *
+ * Persisted names that must survive refactors and the module split: the key names below, the
+ * lowercase "Headphone type" values in `family_override` (matched by [DeviceFamily.fromKey]) and
+ * the [DeviceFamily] enum names stored in `known_families` and in the `hint_<family>` keys.
+ * Renaming one orphans users' data.
  */
-class DevicePrefs(context: Context) {
-    private val store = context.applicationContext.btDeviceDataStore
+class DevicePrefs internal constructor(private val store: DataStore<Preferences>) {
+    constructor(context: Context) : this(context.applicationContext.btDeviceDataStore)
 
     val savedDevice: Flow<SavedDevice?> = store.data.map { prefs ->
         prefs[KEY_ADDRESS]?.let { SavedDevice(it, prefs[KEY_NAME]) }
@@ -40,10 +49,43 @@ class DevicePrefs(context: Context) {
             if (!old.equals(address, ignoreCase = true)) {
                 prefs.remove(KEY_CHANNEL)
                 prefs.remove(KEY_BRAGI_PROFILE)
+                prefs.asMap().keys.filter { it.name.startsWith(HINT_PREFIX) }.forEach { prefs.remove(stringPreferencesKey(it.name)) }
                 if (old != null && prefs[KEY_FAMILY] != null && prefs[KEY_FAMILY_ADDRESS] == null) prefs[KEY_FAMILY_ADDRESS] = old
             }
             prefs[KEY_ADDRESS] = address.uppercase()
             if (name != null) prefs[KEY_NAME] = name else prefs.remove(KEY_NAME)
+        }
+    }
+
+    /**
+     * What [family]'s link factory learned about reaching [address] (a channel, a profile id),
+     * so reconnects try it first; null until one has worked. Only for the saved device: like the
+     * legacy hints, a hint is forgotten when [save] picks another one.
+     *
+     * Storage: BOSE and BRAGI keep the keys they always had (`rfcomm_channel` as an Int,
+     * `bragi_profile`), so nothing is migrated and a downgrade still finds them; every other family
+     * gets `hint_<family>` (lowercase enum name).
+     */
+    suspend fun linkHint(family: DeviceFamily, address: String): String? {
+        val prefs = store.data.first()
+        if (!prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) return null
+        return when (family) {
+            DeviceFamily.BOSE -> prefs[KEY_CHANNEL]?.toString()
+            DeviceFamily.BRAGI -> prefs[KEY_BRAGI_PROFILE]
+            else -> prefs[hintKey(family)]
+        }
+    }
+
+    /** Store [value] as [family]'s hint for [address], when that is the saved device. BOSE takes an Int (as text). */
+    suspend fun saveLinkHint(family: DeviceFamily, address: String, value: String) {
+        val channel = if (family == DeviceFamily.BOSE) requireNotNull(value.toIntOrNull()) { "the Bose hint is a channel code" } else null
+        store.edit { prefs ->
+            if (!prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) return@edit
+            when (family) {
+                DeviceFamily.BOSE -> prefs[KEY_CHANNEL] = channel!!
+                DeviceFamily.BRAGI -> prefs[KEY_BRAGI_PROFILE] = value
+                else -> prefs[hintKey(family)] = value
+            }
         }
     }
 
@@ -53,28 +95,16 @@ class DevicePrefs(context: Context) {
      * reconnects try it first. Null until one has worked. Only a hint: [BoseLinkFactory] falls
      * through to the other candidates when it stops answering and stores the new winner.
      */
-    suspend fun candidateFor(address: String): BmapCandidate? {
-        val prefs = store.data.first()
-        return if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) BmapCandidate.fromPref(prefs[KEY_CHANNEL]) else null
-    }
+    suspend fun candidateFor(address: String): BmapCandidate? =
+        BmapCandidate.fromPref(linkHint(DeviceFamily.BOSE, address)?.toInt())
 
-    suspend fun saveCandidate(address: String, candidate: BmapCandidate) {
-        store.edit { prefs ->
-            if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_CHANNEL] = candidate.prefValue
-        }
-    }
+    suspend fun saveCandidate(address: String, candidate: BmapCandidate) =
+        saveLinkHint(DeviceFamily.BOSE, address, candidate.prefValue.toString())
 
     /** The Bragi link profile ([BragiLinkProfile.id]) that last answered for [address], or null. */
-    suspend fun bragiProfileFor(address: String): String? {
-        val prefs = store.data.first()
-        return if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_BRAGI_PROFILE] else null
-    }
+    suspend fun bragiProfileFor(address: String): String? = linkHint(DeviceFamily.BRAGI, address)
 
-    suspend fun saveBragiProfile(address: String, profileId: String) {
-        store.edit { prefs ->
-            if (prefs[KEY_ADDRESS].equals(address, ignoreCase = true)) prefs[KEY_BRAGI_PROFILE] = profileId
-        }
-    }
+    suspend fun saveBragiProfile(address: String, profileId: String) = saveLinkHint(DeviceFamily.BRAGI, address, profileId)
 
     /**
      * The user's "Headphone type" choice ("bose" / "bragi" / "generic") for the saved device, or
@@ -158,5 +188,9 @@ class DevicePrefs(context: Context) {
         /** "ADDRESS=FAMILY" for every device a stack answered on. */
         val KEY_KNOWN_FAMILIES = stringSetPreferencesKey("known_families")
         const val MAX_KNOWN_FAMILIES = 32
+
+        /** Link hints of the families without a legacy key; see [linkHint]. */
+        const val HINT_PREFIX = "hint_"
+        fun hintKey(family: DeviceFamily) = stringPreferencesKey(HINT_PREFIX + family.name.lowercase())
     }
 }
