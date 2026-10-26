@@ -28,6 +28,7 @@ fun rigFor(d: DemoDevice, test: TestScope): ConformanceRig? = when (d) {
 
     DemoDevice.SENNHEISER_MOMENTUM_4 -> SennheiserRig(test, d)
     DemoDevice.SONY_WH1000XM5 -> SonyRig(test, d)
+    DemoDevice.JBL_WAVE_BUDS_2 -> JblRig(test, d)
 
     DemoDevice.AIRPODS_PRO -> null
 }

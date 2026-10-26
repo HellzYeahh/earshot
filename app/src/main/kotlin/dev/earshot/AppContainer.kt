@@ -124,6 +124,15 @@ class AppContainer(private val appContext: Context) {
         } else null
     }
 
+    /** One virtual JBL Wave Buds 2 per process, so its state survives demo reconnects. */
+    private val virtualJbl: dev.earshot.virtual.VirtualJbl by lazy { dev.earshot.virtual.VirtualJbl() }
+
+    private val jblDemoTransport: () -> (() -> ByteTransport)? = {
+        if (demoMode.isEnabledBlocking() && demoMode.deviceBlocking().isJbl) {
+            { dev.earshot.virtual.VirtualJblTransport(virtualJbl) }
+        } else null
+    }
+
     /** The QC Ultra 2 command layer (BMAP addresses, payloads and state mapping). */
     private val headphoneProtocol: HeadphoneProtocol by lazy { QcUltra2Protocol() }
 
@@ -193,6 +202,16 @@ class AppContainer(private val appContext: Context) {
         )
     }
 
+    /** JBL's 2021–24 models on the Harman "AA" protocol over Bluetooth LE (Experimental). */
+    private val jblHeadphones: dev.earshot.service.JblHeadphoneRepository by lazy {
+        dev.earshot.service.JblHeadphoneRepository(
+            appContext, applicationScope, jblDemoTransport,
+            autoConnect = autoConnect,
+            prefs = devicePrefs,
+            finder = deviceFinder,
+        )
+    }
+
     /**
      * Any other headset (AirPods, Galaxy Buds, no-name earbuds): shown by its own name from what Android
      * reports, never sent anything. The same prefs and finder as every other stack, so all of them
@@ -231,6 +250,7 @@ class AppContainer(private val appContext: Context) {
                 VendorDriver(DeviceFamily.SOUNDCORE, soundcoreHeadphones),
                 VendorDriver(DeviceFamily.SENNHEISER, sennheiserHeadphones),
                 VendorDriver(DeviceFamily.SONY, sonyHeadphones),
+                VendorDriver(DeviceFamily.JBL, jblHeadphones),
                 // Not on the session base (it has no link): its release also resets what it showed.
                 VendorDriver(DeviceFamily.GENERIC, genericHeadphones, genericHeadphones::releaseConnection),
             ),
@@ -247,6 +267,7 @@ class AppContainer(private val appContext: Context) {
                         device.isSoundcore -> DeviceFamily.SOUNDCORE
                         device.isSennheiser -> DeviceFamily.SENNHEISER
                         device == DemoDevice.SONY_WH1000XM5 -> DeviceFamily.SONY
+                        device.isJbl -> DeviceFamily.JBL
                         else -> DeviceFamily.BOSE
                     }
                 } else null

@@ -89,7 +89,7 @@ class SennheiserLinkFactory(
             } else {
                 "This Sennheiser model can't be controlled over classic Bluetooth (no GAIA service in its Bluetooth record)"
             }
-            throw RfcommConnectException(message, looksBusy = false)
+            throw ExplainedConnectException(message, retry = false)
         }
     }
 }

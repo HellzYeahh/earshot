@@ -1,6 +1,7 @@
 package dev.earshot.bt
 
 import dev.earshot.protocol.bragi.BragiModel
+import dev.earshot.protocol.jbl.JblModel
 import dev.earshot.protocol.sennheiser.SennheiserModel
 import dev.earshot.protocol.soundcore.SoundcoreModel
 import dev.earshot.protocol.sony.SonyModel
@@ -25,6 +26,13 @@ enum class DeviceFamily {
      * Experimental. BLE-only models (CX Plus TW, CX 500BT) are not in the name rule and stay [GENERIC].
      */
     SENNHEISER,
+
+    /**
+     * JBL's Harman "AA" protocol (H-AA) over the Harman GATT service: the 2021–24 BES models in
+     * `JblModel`, matched by exact name. Experimental. JBL's Protocol 4 (2025+) and Airoha models
+     * are not in the name rule and stay [GENERIC].
+     */
+    JBL,
 
     /**
      * Any other headset: Earshot doesn't speak its control protocol (yet), so it is shown by its
@@ -60,6 +68,7 @@ enum class DeviceFamily {
             // Before the Bose rule: a Sennheiser must never get the BMAP channel walk (its iAP2 record is a power-off risk).
             SennheiserModel.fromName(name) != null -> SENNHEISER
             SonyModel.isSonyName(name) -> SONY
+            JblModel.fromName(name) != null -> JBL
             looksLikeBose(name) -> BOSE
             else -> GENERIC
         }
@@ -76,6 +85,7 @@ enum class DeviceFamily {
             SoundcoreModel.fromName(name)?.earbuds
                 ?: BragiModel.fromBluetoothName(name)?.features?.earbuds
                 ?: SennheiserModel.fromName(name)?.earbuds
+                ?: JblModel.fromName(name)?.earbuds
 
         /**
          * The one rule everything uses, strongest first:

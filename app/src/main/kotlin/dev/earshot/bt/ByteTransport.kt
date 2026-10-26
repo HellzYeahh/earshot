@@ -35,6 +35,14 @@ class RfcommConnectException(
 ) : IOException(message, cause)
 
 /**
+ * A connect that failed for a reason the user should read as it is ("This JBL model uses JBL's
+ * newer protocol…"), instead of the generic "Could not connect". [retry] false when trying again
+ * cannot help (a model Earshot doesn't drive): the manager then waits for the next link-up or a tap
+ * instead of backing off and reopening the link again and again.
+ */
+class ExplainedConnectException(message: String, val retry: Boolean) : IOException(message)
+
+/**
  * Why [BmapConnection] closed itself: the socket is open but nothing answers. Seen on a Galaxy
  * (Android 17, firmware 10.12) while the Bose app ran in the background: channel 2 connected,
  * the greeting was silent and every request timed out. A silent-but-open channel-2 socket is the

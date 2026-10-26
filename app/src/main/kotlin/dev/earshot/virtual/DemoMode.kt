@@ -60,6 +60,9 @@ enum class DemoDevice(
 
     /** The Sony driver (Experimental) against a virtual WH-1000XM5; see `isSony` in VirtualSony.kt. */
     SONY_WH1000XM5("Sony WH-1000XM5"),
+
+    /** The JBL H-AA driver (Experimental) against a virtual Wave Buds 2: four listening modes, EQ presets, voice prompts, battery. */
+    JBL_WAVE_BUDS_2("JBL Wave Buds 2"),
     ;
 
     /** The demo headset for a generic entry, or null. */
@@ -71,6 +74,9 @@ enum class DemoDevice(
 
     /** Runs the Sennheiser stack against a [VirtualSennheiser]. */
     val isSennheiser: Boolean get() = this == SENNHEISER_MOMENTUM_4
+
+    /** Runs the JBL H-AA stack against a [VirtualJbl]. */
+    val isJbl: Boolean get() = this == JBL_WAVE_BUDS_2
 }
 
 /** A generic demo headset: its name and the proximity-pairing advert it "sends". */

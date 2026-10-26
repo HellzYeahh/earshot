@@ -148,29 +148,47 @@ class GattTargets(private val context: Context) {
 
     @SuppressLint("MissingPermission") // BLUETOOTH_CONNECT is held by every caller
     suspend fun find(bonded: BluetoothDevice, name: String?, spec: GattLinkSpec): BluetoothDevice? {
-        val type = runCatching { bonded.type }.getOrDefault(BluetoothDevice.DEVICE_TYPE_UNKNOWN)
-        if (type == BluetoothDevice.DEVICE_TYPE_LE || type == BluetoothDevice.DEVICE_TYPE_DUAL) return bonded
+        if (isLeCapable(bonded)) return bonded
         if (!LeAdvertMatch.isUsable(name)) return null
-        return scan(name!!, spec)
+        return scanAll(name!!, spec).firstOrNull()
     }
+
+    /** A bonded LE or dual-mode device: Android resolves its LE address through the bond. */
+    @SuppressLint("MissingPermission")
+    fun isLeCapable(bonded: BluetoothDevice): Boolean {
+        val type = runCatching { bonded.type }.getOrDefault(BluetoothDevice.DEVICE_TYPE_UNKNOWN)
+        return type == BluetoothDevice.DEVICE_TYPE_LE || type == BluetoothDevice.DEVICE_TYPE_DUAL
+    }
+
+    /**
+     * Every near device whose advert fits [name], strongest first. More than one means another
+     * pair of the same model is near too: the caller should refuse rather than guess, because the
+     * default name is the same on every pair.
+     */
+    suspend fun scanAll(name: String, spec: GattLinkSpec): List<BluetoothDevice> =
+        if (LeAdvertMatch.isUsable(name)) scan(name, spec) else emptyList()
 
     private fun hasScanPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
 
     @SuppressLint("MissingPermission") // checked in hasScanPermission()
-    private suspend fun scan(name: String, spec: GattLinkSpec): BluetoothDevice? {
+    private suspend fun scan(name: String, spec: GattLinkSpec): List<BluetoothDevice> {
         if (!hasScanPermission()) {
             BtLog.d("GATT ${spec.name}: no BLUETOOTH_SCAN, can't look for the LE control address")
-            return null
+            return emptyList()
         }
-        val scanner = context.getSystemService(BluetoothManager::class.java)?.adapter?.bluetoothLeScanner ?: return null
-        var best: ScanResult? = null
+        val scanner = context.getSystemService(BluetoothManager::class.java)?.adapter?.bluetoothLeScanner ?: return emptyList()
+        // Strongest reading per address: a rotating random address shows up as one device per scan.
+        val seen = LinkedHashMap<String, ScanResult>()
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val advertName = result.scanRecord?.deviceName ?: runCatching { result.device.name }.getOrNull()
                 if (result.rssi < MIN_RSSI || !LeAdvertMatch.fits(advertName, name)) return
-                synchronized(this) { if (best == null || result.rssi > best!!.rssi) best = result }
+                synchronized(this) {
+                    val address = result.device.address
+                    if ((seen[address]?.rssi ?: Int.MIN_VALUE) < result.rssi) seen[address] = result
+                }
             }
 
             override fun onScanFailed(errorCode: Int) {
@@ -186,13 +204,15 @@ class GattTargets(private val context: Context) {
         val started = runCatching { scanner.startScan(filters, settings, callback) }
             .onFailure { BtLog.w("GATT ${spec.name}: LE scan refused: ${it.message}") }
             .isSuccess
-        if (!started) return null
+        if (!started) return emptyList()
         try {
             delay(SCAN_MS)
         } finally {
             runCatching { scanner.stopScan(callback) }
         }
-        return synchronized(callback) { best }?.device?.also { BtLog.d("GATT ${spec.name}: LE control address found by scan") }
+        val found = synchronized(callback) { seen.values.sortedByDescending { it.rssi }.map { it.device } }
+        BtLog.d("GATT ${spec.name}: ${found.size} LE control address(es) found by scan")
+        return found
     }
 
     private companion object {

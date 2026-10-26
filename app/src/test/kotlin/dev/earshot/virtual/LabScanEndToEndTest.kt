@@ -5,6 +5,8 @@ import dev.earshot.bt.BragiConnection
 import dev.earshot.bt.BragiFrameReader
 import dev.earshot.bt.BtLog
 import dev.earshot.bt.ByteTransport
+import dev.earshot.bt.JblConnection
+import dev.earshot.bt.JblLog
 import dev.earshot.bt.SennheiserLinkFactory
 import dev.earshot.bt.SennheiserLog
 import dev.earshot.bt.SonyLinkFactory
@@ -24,6 +26,8 @@ import dev.earshot.protocol.gaia.GaiaCommand
 import dev.earshot.protocol.gaia.GaiaFrame
 import dev.earshot.protocol.gaia.GaiaFrameBuffer
 import dev.earshot.protocol.gaia.GaiaVendor
+import dev.earshot.protocol.jbl.JblReads
+import dev.earshot.protocol.jbl.JblWriteGuard
 import dev.earshot.protocol.sennheiser.SennheiserCommands
 import dev.earshot.protocol.sennheiser.SennheiserReads
 import dev.earshot.protocol.sennheiser.SennheiserWriteGuard
@@ -44,6 +48,7 @@ import dev.earshot.service.SonySession
 import dev.earshot.service.SennheiserSession
 import dev.earshot.service.lab.BmapLab
 import dev.earshot.service.lab.BragiLab
+import dev.earshot.service.lab.JblLab
 import dev.earshot.service.lab.SennheiserLab
 import dev.earshot.service.lab.SonyLab
 import dev.earshot.service.lab.SoundcoreLab
@@ -74,6 +79,7 @@ class LabScanEndToEndTest {
         BtLog.sink = { _, _, _ -> }
         SennheiserLog.sink = { _, _, _ -> }
         SonyLog.sink = { _, _, _ -> }
+        JblLog.sink = { _, _, _ -> }
         ProtocolLog.sink = { _, _, _ -> }
     }
 
@@ -313,6 +319,47 @@ class LabScanEndToEndTest {
         // The headset is as it was: no setting changed, still on.
         assertEquals(before, settings())
         assertFalse(unit.poweredOff)
+        conn.close()
+    }
+
+    // ---- JBL (H-AA, Wave Buds 2) ---------------------------------------------------------------
+
+    @Test fun `JBL deep scan sends the documented reads once each and no write`() = runTest {
+        val unit = VirtualJbl()
+        val spy = SpyTransport(VirtualJblTransport(unit))
+        // JblLinkFactory needs an Android Context; the connection is what the factory's adopt() builds.
+        val conn = JblConnection(spy, backgroundScope, clock = { testScheduler.currentTime })
+        testScheduler.runCurrent()
+
+        val profile = JblLab.profile()
+        assertEquals("JBL H-AA", profile.stack)
+        assertEquals(JblReads.ALL.size, profile.deepReadCount)
+        assertEquals(listOf("Device", "Sound", "Settings"), profile.groups.map { it.name })
+        val before = listOf(unit.mode, unit.eqCategory, unit.eqGains.toList(), unit.voicePrompts, unit.ancLevel)
+
+        val readings = JblLab.scan(conn, emptyList(), deep = true).collectAll()
+        assertReadings(readings, JblReads.ALL.size)
+        // The Wave Buds 2 never answers the level read or the older-earbuds battery read: "no answer", not an error that closes the link.
+        assertEquals(listOf("Battery (older earbuds)", "Noise-cancelling level"), readings.filter { r -> r.frames.single().isError }.map { it.knownName })
+        assertFalse(readings.first { it.knownName == "Listening mode" }.frames.single().isError)
+        assertEquals("91 11", readings.first { it.knownName == "Listening mode" }.address)
+
+        // The frames the unit decoded are the documented reads in order, byte for byte what left the phone, each a read for the guard.
+        assertEquals(JblReads.ALL.map { it.frame }, unit.received)
+        assertTrue(spy.all().contentEquals(unit.received.fold(ByteArray(0)) { a, f -> a + f.encode() }), "every byte on the wire was one of those frames")
+        for (f in unit.received) {
+            assertTrue(JblWriteGuard.isRead(f), "$f")
+            assertFalse(f.command in JblWriteGuard.NEVER, "$f")
+        }
+        assertEquals(before, listOf(unit.mode, unit.eqCategory, unit.eqGains.toList(), unit.voicePrompts, unit.ancLevel), "nothing the Lab sent changed the unit")
+        assertTrue(conn.isOpen)
+
+        // One group: only that group's reads.
+        spy.clear()
+        unit.received.clear()
+        val sound = JblLab.scan(conn, listOf(JblReads.GROUP_SOUND), deep = false).collectAll()
+        assertTrue(sound.all { it.block == JblReads.GROUP_SOUND })
+        assertEquals(JblReads.ALL.filter { it.group == JblReads.GROUP_SOUND }.map { it.frame }, unit.received)
         conn.close()
     }
 }

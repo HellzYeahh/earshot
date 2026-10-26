@@ -41,6 +41,7 @@ internal data class SessionEnd(
         fun connectFailureMessage(e: Throwable, linked: Boolean?): String = when {
             linked == false -> MESSAGE_NOT_LINKED
             e is RfcommConnectException && e.looksBusy -> ConnectionManager.MESSAGE_CHANNEL_BUSY
+            e is ExplainedConnectException -> e.message ?: MESSAGE_CONNECT_FAILED
             else -> MESSAGE_CONNECT_FAILED
         }
 
