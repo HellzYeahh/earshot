@@ -28,6 +28,7 @@ analytics, no internet permission.
 | **Sennheiser** | Experimental | MOMENTUM 4 / 5, ACCENTUM / Plus / TW, MOMENTUM True Wireless 3 / 4, MOMENTUM Sport |
 | **Sony** | Experimental | WH-1000XM5 / XM6, WF-1000XM4 / XM5 / XM6, LinkBuds, ULT WEAR, WH-CH720N, WF-C510 / C700N / C710N |
 | **Skullcandy** | Experimental | Crusher 1080 ANC, Method 360 ANC, Method 540 ANC |
+| **JBL** | Experimental | 2021–24 models over Bluetooth LE: Wave / Vibe / Tune Buds 2 and Flex 2, Tune Flex / Beam / Buds, Live Pro 2, Live 660 / 770NC, Tour One M2, Tour Pro 2 and more |
 | **AirPods, Beats** | Battery only | Left, right and case battery |
 | **Everything else** | Any-headset features | Shown by its own name; nothing is sent to it |
 
@@ -60,10 +61,10 @@ Gadgetbridge (AGPL-3.0) were read for protocol facts only. Fonts: Barlow and Jet
 ## Not affiliated
 
 Earshot is not affiliated with, endorsed by or supported by Bose, Apple, Skullcandy, Anker
-(Soundcore), Sony, Sennheiser or any other headphone maker. Bose and QuietComfort are trademarks of
+(Soundcore), Sony, Sennheiser, JBL (Harman) or any other headphone maker. Bose and QuietComfort are trademarks of
 Bose Corporation; AirPods and Beats of Apple Inc.; Skullcandy and Crusher of Skullcandy, Inc.;
 Anker and Soundcore of Anker Innovations Limited; Sony of Sony Group Corporation; Sennheiser of
-Sennheiser electronic SE & Co. KG. Other names belong to their owners.
+Sennheiser electronic SE & Co. KG; JBL of Harman International Industries. Other names belong to their owners.
 
 ## Licence
 

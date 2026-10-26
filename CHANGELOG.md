@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8 (in progress)
+## 0.8.0 — 2026-10-26
 
 Roadmap 0.8, items 1–6 and 8 and the JBL driver (item 7, Google Play preparation, moved to 0.9;
 the Pixel Buds Pro driver dropped): the platform pieces for new drivers, the first of them (JBL),
