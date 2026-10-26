@@ -36,10 +36,7 @@ class VendorBoundaryTest {
     )
 
     /** Files (relative to [root], `/`-separated) that still reach a vendor stack. Only ever remove entries. */
-    private val BASELINE = setOf(
-        "shortcut/ControlDetection.kt",
-        "ui/home/HomeViewModel.kt",
-    )
+    private val BASELINE = emptySet<String>()
 
     private fun isComment(line: String): Boolean = line.trim().let { it.startsWith("*") || it.startsWith("//") || it.startsWith("/*") }
 

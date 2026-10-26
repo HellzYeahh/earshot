@@ -50,11 +50,11 @@ object DetectHints {
     }
 
     /**
-     * Bose's name for the press its Shortcut listens for ("Long press"), from the first record
-     * on Voice assistant (else the first record); null when unknown.
+     * Bose's name for the press its Shortcut listens for ("Long press", as the driver named it),
+     * from the first record on Voice assistant (else the first record); null when unknown.
      */
     fun bosePressName(buttons: List<ButtonAssignment>): String? {
         val b = buttons.firstOrNull { it.action == ButtonAction.VOICE_ASSISTANT } ?: buttons.firstOrNull() ?: return null
-        return ControlClassifier.pressName(b.eventType)
+        return b.eventLabel
     }
 }

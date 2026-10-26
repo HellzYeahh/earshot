@@ -8,8 +8,6 @@ import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.TransportControl
-import dev.earshot.protocol.qcultra2.ButtonEvent
-import dev.earshot.protocol.qcultra2.ButtonId
 import dev.earshot.ui.common.EarshotViewModel
 import dev.earshot.ui.common.UiMessenger
 import kotlinx.coroutines.flow.StateFlow
@@ -65,6 +63,7 @@ class HomeViewModel(
     fun transport(control: TransportControl) = launchCatching { headphones.transport(control) }
     fun setVolume(level: Int) = launchCatching { headphones.setVolume(level) }
 
-    private fun buttonName(press: ButtonPress): String = ButtonId.fromCode(press.buttonId)?.label ?: "Button ${press.buttonId}"
-    private fun eventName(press: ButtonPress): String = (ButtonEvent.fromCode(press.eventType)?.label ?: "event ${press.eventType}").lowercase()
+    // The driver names the button and the press (Bose: its [1.9] tables); the numbers stand in otherwise.
+    private fun buttonName(press: ButtonPress): String = press.buttonLabel ?: "Button ${press.buttonId}"
+    private fun eventName(press: ButtonPress): String = (press.eventLabel ?: "event ${press.eventType}").lowercase()
 }

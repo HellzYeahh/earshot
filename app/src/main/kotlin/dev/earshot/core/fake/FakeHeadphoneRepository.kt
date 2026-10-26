@@ -360,6 +360,8 @@ class FakeHeadphoneRepository(
                     // Real firmware 10.12: the shortcut button offers these four (Bose app menu).
                     buttonId = 0x80, eventType = 9, action = ButtonAction.SPATIAL_AUDIO,
                     supportedActions = listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED, ButtonAction.SPOTIFY_TAP, ButtonAction.SPATIAL_AUDIO),
+                    // The names the Bose driver gives these codes.
+                    buttonLabel = "Shortcut button", eventLabel = "Long press",
                 ),
                 lastUpdatedMillis = System.currentTimeMillis(),
                 // Values from the fw 10.12 deep scan (2026-10-17).

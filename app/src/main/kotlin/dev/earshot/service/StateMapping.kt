@@ -334,7 +334,11 @@ internal fun ButtonAction.toActionCode(): Int = when (this) {
 /** What [toActionCode] gives [ButtonAction.UNKNOWN]: the value core's table carried before it moved here. */
 private const val NO_ACTION_CODE = -1
 
-/** `[1.9]` → [ButtonAssignment]; action codes outside the enum map to [ButtonAction.UNKNOWN] and are dropped from the choices. */
+/**
+ * `[1.9]` → [ButtonAssignment]; action codes outside the enum map to [ButtonAction.UNKNOWN] and are
+ * dropped from the choices. The button and press names are Bose's (`[1.9]` byte 0 and 1 tables),
+ * so the UI needs no Bose table to show them; null for a code the tables don't know.
+ */
 internal fun ButtonConfig.toButtonAssignment(): ButtonAssignment = ButtonAssignment(
     buttonId = buttonCode,
     eventType = eventCode,
@@ -343,6 +347,8 @@ internal fun ButtonConfig.toButtonAssignment(): ButtonAssignment = ButtonAssignm
         .map { buttonActionFromCode(it) }
         .filter { it != ButtonAction.UNKNOWN }
         .distinct(),
+    buttonLabel = button?.label,
+    eventLabel = event?.label,
 )
 
 /**
@@ -459,9 +465,11 @@ internal fun TransportControl.toWire(): WireTransportControl = when (this) {
 internal fun transportControlsFrom(codes: Set<Int>): Set<TransportControl> =
     TransportControl.entries.filter { it.toWire().code in codes }.toSet()
 
-/** `[2.12]` push → [ButtonPress]. */
-internal fun ButtonConfig.toButtonPress(atMillis: Long): ButtonPress =
-    ButtonPress(buttonId = buttonCode, eventType = eventCode, action = buttonActionFromCode(actionCode), atMillis = atMillis)
+/** `[2.12]` push → [ButtonPress], with Bose's names for the button and the press (null when unknown). */
+internal fun ButtonConfig.toButtonPress(atMillis: Long): ButtonPress = ButtonPress(
+    buttonId = buttonCode, eventType = eventCode, action = buttonActionFromCode(actionCode), atMillis = atMillis,
+    buttonLabel = button?.label, eventLabel = event?.label,
+)
 
 internal fun HeadphoneState.withLatency(level: LatencyLevel): HeadphoneState =
     copy(latencyMs = level.current, latencyRangeMs = level.range)

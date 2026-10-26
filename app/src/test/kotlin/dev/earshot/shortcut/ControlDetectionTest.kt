@@ -44,12 +44,15 @@ class ControlDetectionTest {
 
     @Test
     fun `volume and a new button push are reported`() {
-        val after = connected.copy(volume = 16, lastButtonPress = ButtonPress(0x80, 9, ButtonAction.VOICE_ASSISTANT, atMillis = 5))
+        // Named as the Bose driver names a [2.12] push (StateMapping.toButtonPress).
+        val pushed = ButtonPress(0x80, 9, ButtonAction.VOICE_ASSISTANT, atMillis = 5, buttonLabel = "Shortcut button", eventLabel = "Long press")
+        val after = connected.copy(volume = 16, lastButtonPress = pushed)
         val out = ControlClassifier.fromHeadphoneState(connected, after, 7)
         assertEquals(ControlSignal.Volume(14, 16, SignalOrigin.HEADPHONES, 7), out.filterIsInstance<ControlSignal.Volume>().single())
         val press = out.filterIsInstance<ControlSignal.ButtonEventSeen>().single()
         assertEquals(0x80, press.buttonId)
-        assertEquals("Shortcut button · Long press", ControlClassifier.buttonLabel(press.buttonId, press.eventType))
+        assertEquals("Shortcut button · Long press", ControlClassifier.buttonLabel(press.buttonId, press.eventType, press.buttonLabel, press.eventLabel))
+        assertEquals("Shortcut button · Long press", DetectionLog().add(press).entries.single().label)
         // The same push again (no new atMillis) is not a second press.
         assertTrue(ControlClassifier.fromHeadphoneState(after, after.copy(), 8).isEmpty())
     }
@@ -68,8 +71,10 @@ class ControlDetectionTest {
 
     @Test
     fun `unknown Bose codes are named in hex`() {
+        // A push the driver could not name.
         assertEquals("Button 0x42 · event 99", ControlClassifier.buttonLabel(0x42, 99))
-        assertEquals("Right shortcut · Press and hold", ControlClassifier.buttonLabel(0x03, 5))
+        assertEquals("Right shortcut · Press and hold", ControlClassifier.buttonLabel(0x03, 5, "Right shortcut", "Press and hold"))
+        assertEquals("Right shortcut · event 99", ControlClassifier.buttonLabel(0x03, 99, "Right shortcut", null))
     }
 
     // ── Debounce ─────────────────────────────────────────────────────────────────────

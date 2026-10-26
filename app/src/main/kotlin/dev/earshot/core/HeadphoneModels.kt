@@ -158,6 +158,10 @@ data class ButtonPress(
     val action: ButtonAction,
     /** When the push arrived, wall clock; distinguishes two identical presses in a row. */
     val atMillis: Long,
+    /** The driver's name for the button ("Shortcut button"); null when it has none (the UI falls back to the id). */
+    val buttonLabel: String? = null,
+    /** The driver's name for the press ("Long press"); null when it has none (the UI falls back to the number). */
+    val eventLabel: String? = null,
 )
 
 /** A bonded Bluetooth device the user may pick as "my headphones". */
@@ -347,6 +351,10 @@ data class ButtonAssignment(
     val eventType: Int,
     val action: ButtonAction,
     val supportedActions: List<ButtonAction>,
+    /** The driver's name for the button ("Right shortcut"); null when it has none. */
+    val buttonLabel: String? = null,
+    /** The driver's name for the press it listens for ("Long press"); null when it has none. */
+    val eventLabel: String? = null,
 )
 
 data class VoicePrompts(val enabled: Boolean, val languageId: Int)

@@ -106,6 +106,18 @@ class WireCodeMappingTest {
         assertContentEquals(byteArrayOf(0x80.toByte(), 0x09, 0x0e), Buttons.build(0x80, 0x09, ButtonAction.DISABLED.toActionCode()))
     }
 
+    @Test fun `the Bose driver names the buttons and presses the UI shows`() {
+        // The labels the UI used to look up in the Bose tables itself (ControlDetection, Home).
+        val shortcut = config(14)
+        assertEquals("Shortcut button" to "Long press", shortcut.toButtonAssignment().let { it.buttonLabel to it.eventLabel })
+        assertEquals("Shortcut button" to "Long press", shortcut.toButtonPress(0).let { it.buttonLabel to it.eventLabel })
+        val right = ButtonConfig(0x03, 5, 1, emptySet(), emptySet(), tail = ByteArray(0), raw = ByteArray(0))
+        assertEquals("Right shortcut" to "Press and hold", right.toButtonPress(0).let { it.buttonLabel to it.eventLabel })
+        val unknown = ButtonConfig(0x42, 99, 1, emptySet(), emptySet(), tail = ByteArray(0), raw = ByteArray(0))
+        assertEquals(null to null, unknown.toButtonAssignment().let { it.buttonLabel to it.eventLabel })
+        assertEquals(null to null, unknown.toButtonPress(0).let { it.buttonLabel to it.eventLabel })
+    }
+
     @Test fun `the three actions Bose names differently map by meaning`() {
         assertEquals(dev.earshot.protocol.qcultra2.ButtonAction.VPA.code, ButtonAction.VOICE_ASSISTANT.toActionCode())
         assertEquals(dev.earshot.protocol.qcultra2.ButtonAction.SPOTIFY_GO.code, ButtonAction.SPOTIFY_TAP.toActionCode())

@@ -487,6 +487,7 @@ private val previewBose = RemapperHeadset("68:F2:1F:12:34:56", "Fargo", earbuds 
 private val previewButton = ButtonAssignment(
     buttonId = 0x80, eventType = 9, action = ButtonAction.VOICE_ASSISTANT,
     supportedActions = listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED, ButtonAction.SPOTIFY_TAP, ButtonAction.SPATIAL_AUDIO),
+    buttonLabel = "Shortcut button", eventLabel = "Long press",
 )
 
 private val previewState = ShortcutsUiState(
