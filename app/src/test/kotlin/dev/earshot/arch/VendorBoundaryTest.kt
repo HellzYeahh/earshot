@@ -30,10 +30,10 @@ class VendorBoundaryTest {
     private val neutral = listOf("ui", "extras", "shortcut", "call", "core", "audio", "mic", "codec", "find")
 
     private val vendorReference = Regex(
-        """dev\.earshot\.protocol\.(?:(?:qcultra2|bragi|soundcore|sennheiser|sony|gaia|airoha|apple)\b|Bmap\w*|FunctionAddress\b|DecodeResult\b)""" +
+        """dev\.earshot\.protocol\.(?:(?:qcultra2|bragi|soundcore|sennheiser|sony|gaia|airoha|apple|jbl)\b|Bmap\w*|FunctionAddress\b|DecodeResult\b)""" +
             """|dev\.earshot\.virtual\.Virtual\w*""" +
             """|dev\.earshot\.service\.\w+""" +
-            """|dev\.earshot\.bt\.(?:Bmap|Bragi|Soundcore|Sennheiser|Sony|Race|Airoha|AndroidBragi|BoseLinkFactory|LivenessProbe|WriteGuard)\w*""" +
+            """|dev\.earshot\.bt\.(?:Bmap|Bragi|Soundcore|Sennheiser|Sony|Jbl|Race|Airoha|AndroidBragi|BoseLinkFactory|LivenessProbe|WriteGuard)\w*""" +
             // A wildcard import makes every later use unqualified, so it can't be checked: refused.
             """|import\s+dev\.earshot\.(?:service|virtual|bt|protocol)(?:\.\w+)*\.\*""",
     )
@@ -66,6 +66,8 @@ class VendorBoundaryTest {
             "import dev.earshot.bt.BmapConnection",
             "import dev.earshot.bt.SoundcoreConnection",
             "import dev.earshot.protocol.FunctionAddress",
+            "import dev.earshot.protocol.jbl.JblModel",
+            "import dev.earshot.bt.JblConnection",
             "import dev.earshot.service.*",
             "import dev.earshot.protocol.qcultra2.*",
             "import dev.earshot.bt.*",

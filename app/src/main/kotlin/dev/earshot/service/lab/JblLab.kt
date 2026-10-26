@@ -49,7 +49,8 @@ object JblLab {
             LabFrames.refused(read.group, id)
         } else {
             LabFrames.attempt({ conn.isOpen }, read.group, id) {
-                val reply = conn.request(read.frame, attempts = 1, answers = read.answers)
+                // A model without the feature stays silent: that never counts toward closing the link.
+                val reply = conn.request(read.frame, attempts = 1, countsSilence = false, answers = read.answers)
                 if (reply == null) LabFrames.error(read.group, id, "no answer") else LabFrames.response(read.group, id, reply.payload)
             }
         }

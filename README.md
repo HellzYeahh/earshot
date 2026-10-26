@@ -52,7 +52,7 @@ Protocol research: [docs/research/](docs/research/)
 Protocol knowledge builds on these MIT-licensed projects: [bosectl](https://github.com/aaronsb/bosectl),
 [Quiet Rebellion](https://github.com/MadEyez/quietrebellion), [soundcorebridge](https://github.com/mervin008/soundcorebridge),
 [momentum4-control](https://github.com/Ariazonaa/momentum4-control), [momentumctl](https://codeberg.org/galen/momentumctl),
-[SonyHeadphonesClient](https://github.com/mos9527/SonyHeadphonesClient), and
+[SonyHeadphonesClient](https://github.com/mos9527/SonyHeadphonesClient), [jbl-control](https://github.com/AhmadRun/jbl-control), and
 [AutoEq](https://github.com/jaakkopasanen/AutoEq) for the correction curves. OpenSCQ30 (GPL-3.0) and
 Gadgetbridge (AGPL-3.0) were read for protocol facts only. Fonts: Barlow and JetBrains Mono (SIL OFL
 1.1). Reference copies and licences: `docs/reference/`.

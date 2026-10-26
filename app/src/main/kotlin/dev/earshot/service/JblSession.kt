@@ -64,11 +64,15 @@ class JblSession(
         readAll()
     }
 
-    /** Every probe once, in the order jbl-control and the app read them. A feature that stays silent costs one timeout. */
+    /**
+     * Every probe once, in the order jbl-control and the app read them. A feature that stays silent
+     * costs one timeout. Only the modes and the TLV, which every H-AA model answers, count toward
+     * the connection's dead-link rule (JBL's app holding the link answers nothing at all).
+     */
     suspend fun readAll() {
-        probe(JblFeature.MODES, C.modeGet(), attempts = 2, answers = ::isModeStatus)
+        probe(JblFeature.MODES, C.modeGet(), attempts = 2, optional = false, answers = ::isModeStatus)
         probe(JblFeature.LEVEL, C.levelGet(), answers = ::isManualLevel)
-        readTlv(C.INFO_READ_FIDS, attempts = 2)
+        readTlv(C.INFO_READ_FIDS, attempts = 2, optional = false)
         probe(JblFeature.EQ, C.eqGet(), answers = ::isEq)
         probe(JblFeature.VOICE_PROMPTS, C.voicePromptsGet(), answers = ::isVoicePrompts)
         // Older earbuds have no battery in the TLV; their own read is `AA 25`. Known headphones never do.
@@ -145,18 +149,27 @@ class JblSession(
 
     // ---- Helpers --------------------------------------------------------------------------
 
-    private suspend fun readTlv(fids: List<Int>, attempts: Int = 1) {
+    private suspend fun readTlv(fids: List<Int>, attempts: Int = 1, optional: Boolean = true) {
         // The call-status push is a TLV return too: only an answer carrying an id we asked for is ours.
-        probe(JblFeature.TLV, C.infoGet(fids), attempts) { f -> f.command == C.INFO && f.sub == TLV_RETURN && tlvIds(f).any { it in fids } }
+        probe(JblFeature.TLV, C.infoGet(fids), attempts, optional) { f -> f.command == C.INFO && f.sub == TLV_RETURN && tlvIds(f).any { it in fids } }
     }
 
     private suspend fun readTwsBattery() {
         probe(JblFeature.TWS_BATTERY, C.batteryGet()) { it.command == C.BATTERY }
     }
 
-    /** One read folded into [status] by [JblConnection.attach]; a silent headset leaves the feature unknown. A dead link throws. */
-    private suspend fun probe(feature: JblFeature?, frame: JblFrame, attempts: Int = 1, answers: (JblFrame) -> Boolean): JblFrame? {
-        val reply = conn.request(frame, attempts = attempts, answers = answers)
+    /**
+     * One read folded into [status] by [JblConnection.attach]; a silent headset leaves the feature
+     * unknown. A dead link throws. [optional] reads (the default) never count toward closing the link.
+     */
+    private suspend fun probe(
+        feature: JblFeature?,
+        frame: JblFrame,
+        attempts: Int = 1,
+        optional: Boolean = true,
+        answers: (JblFrame) -> Boolean,
+    ): JblFrame? {
+        val reply = conn.request(frame, attempts = attempts, countsSilence = !optional, answers = answers)
         if (reply == null) JblLog.d("no answer to ${C.name(frame.command)}") else if (feature != null) probed += feature
         return reply
     }

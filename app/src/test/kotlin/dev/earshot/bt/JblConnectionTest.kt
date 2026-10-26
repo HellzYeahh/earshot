@@ -7,7 +7,6 @@ import dev.earshot.protocol.jbl.JblFrame
 import dev.earshot.protocol.jbl.JblStatus
 import dev.earshot.virtual.VirtualJbl
 import dev.earshot.virtual.VirtualJblTransport
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -588,32 +587,28 @@ class JblConnectionTest {
 
     // ---- Link loss while a call is waiting -------------------------------------------------------
     //
-    // BUG (JblConnection, not fixed here, see the report): when the link ends while a request or an
-    // awaitDeviceInfo is waiting, finish() cancels the waiter and the caller gets a bare
-    // CancellationException instead of a HeadphoneCommandException. ConnectionManager rethrows a
-    // CancellationException from factory.open() as its own cancellation, so a link that drops during
-    // the probe would end the connect loop without a state change or a retry. The fix is to catch
-    // the waiter's cancellation when `!isOpen && currentCoroutineContext().isActive` and throw
-    // HeadphoneCommandException(NOT_CONNECTED), as BmapConnection.writeSpaced does. These two tests
-    // pin today's behaviour; when the fix lands they should expect HeadphoneCommandException.
+    // A caller waiting when the link ends is still alive: it must hear "Headphones not connected",
+    // not a bare CancellationException, which ConnectionManager would take for its own cancellation
+    // (the connect attempt would end without a state change or a retry).
 
-    @Test fun `BUG - a request waiting when the link ends fails with a bare CancellationException`() = runTest {
+    @Test fun `a request waiting when the link ends fails with not connected`() = runTest {
         val t = manual()
         val conn = connect(t)
         val pending = async { runCatching { conn.request(C.modeGet(), answers = modeStatus) } }
         testScheduler.runCurrent()
         assertEquals(1, t.written.size, "the request is out and waiting")
         t.close()
-        assertIs<CancellationException>(pending.await().exceptionOrNull())
+        val e = assertIs<HeadphoneCommandException>(pending.await().exceptionOrNull())
+        assertEquals(JblConnection.NOT_CONNECTED, e.message)
         assertFalse(conn.isOpen)
     }
 
-    @Test fun `BUG - awaitDeviceInfo waiting when the link ends fails with a bare CancellationException`() = runTest {
+    @Test fun `awaitDeviceInfo waiting when the link ends fails with not connected`() = runTest {
         val t = manual()
         val conn = connect(t)
         val pending = async { runCatching { conn.awaitDeviceInfo(1_500) } }
         testScheduler.runCurrent()
         t.close()
-        assertIs<CancellationException>(pending.await().exceptionOrNull())
+        assertIs<HeadphoneCommandException>(pending.await().exceptionOrNull())
     }
 }

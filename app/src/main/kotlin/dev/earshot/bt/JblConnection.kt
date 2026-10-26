@@ -145,11 +145,15 @@ class JblConnection(
      * Send [frame] and return the first frame [answers] accepts, or null when none came within
      * [timeoutMs] after any of [attempts] sends (many H-AA reads simply go unanswered on models
      * without the feature). One request at a time. Throws like [send].
+     *
+     * [countsSilence] false for reads a model may lack (the level, EQ, prompts, the battery poll,
+     * the Lab): their silence says nothing about the link, so it never counts toward closing it.
      */
     suspend fun request(
         frame: JblFrame,
         timeoutMs: Long = REPLY_TIMEOUT_MS,
         attempts: Int = 1,
+        countsSilence: Boolean = true,
         answers: (JblFrame) -> Boolean,
     ): JblFrame? = requestLock.withLock {
         repeat(attempts) {
@@ -163,7 +167,7 @@ class JblConnection(
             } finally {
                 waiters -= waiter
             }
-            if (framesReceived == before && ++silentRequests >= SILENT_REQUESTS_BEFORE_DEAD) {
+            if (countsSilence && framesReceived == before && ++silentRequests >= SILENT_REQUESTS_BEFORE_DEAD) {
                 JblLog.w("$silentRequests requests without a frame back; closing the link")
                 finish(UnresponsiveLinkException("the JBL control service is open but nothing answers"))
                 throw HeadphoneCommandException("The headphones didn't answer (${JblCommands.name(frame.command)})")

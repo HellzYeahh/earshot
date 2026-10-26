@@ -47,6 +47,14 @@ and RACE have no driver on top yet and have not met real hardware.
   find-me tone needs the user's own tap. RACE is opened on the Airoha SPP record or the Airoha
   GATT service, never by channel number, and **never on Sony, Bose or Bragi headsets**.
 
+- **JBL (Experimental, first driver on the Bluetooth LE link).** JBL's 2021–24 models (Wave, Vibe
+  and Tune Buds / Flex / Beam 2, Live 660 / 770NC, Tour One M2, Tour Pro 2 and others) over JBL's
+  Harman protocol: Noise cancelling / Ambient Aware / TalkThru / Off, the noise-cancelling level
+  where the headset reports it, JBL's EQ presets, voice prompts and battery for each earbud and
+  the case. Built from protocol notes and jbl-control's captures of a Wave Buds 2 (MIT); not yet
+  tried on real JBL headphones. JBL's 2025+ models and its Airoha-based models are recognised by
+  the product ID they report and stay generic. Demo mode has a virtual Wave Buds 2.
+
 ### Changed
 - **Listening modes are saved by what they do, not by slot number.** Automation rules, the Quick
   Settings tile and the widget remember a mode as noise cancelling, aware, off or a named custom

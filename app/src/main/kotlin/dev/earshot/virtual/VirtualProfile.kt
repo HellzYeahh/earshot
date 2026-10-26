@@ -220,4 +220,5 @@ fun DemoDevice.virtualProfile(): VirtualProfile? = when (this) {
     DemoDevice.METHOD_360, DemoDevice.METHOD_540 -> null
     DemoDevice.SENNHEISER_MOMENTUM_4 -> null
     DemoDevice.SONY_WH1000XM5 -> null
+    DemoDevice.JBL_WAVE_BUDS_2 -> null
 }
