@@ -17,18 +17,28 @@ import java.nio.ByteOrder
 object JblWriteGuard {
     val NEVER: Set<Int> = setOf(0x95, 0x97, 0xF0, 0xA4, 0xA3, 0x15, 0x74, 0x61, 0xB0)
 
-    fun isAllowed(f: JblFrame): Boolean = f.command !in NEVER && (isRead(f) || isWrite(f))
+    fun isAllowed(f: JblFrame): Boolean = isRead(f) || isWrite(f)
+
+    /**
+     * The length form each command is sent with: two bytes for the TLV and the EQ write, one for
+     * everything else (the EQ read included). A frame in the other form would be a different frame.
+     */
+    private fun hasItsLengthForm(f: JblFrame): Boolean = when (f.command) {
+        C.INFO -> f.longLength
+        C.EQ -> f.longLength == (f.sub == C.EQ_SET)
+        else -> !f.longLength
+    }
 
     /** Frames that only read (the Lab sends nothing else) and the two link chores: pushes on, heartbeat. */
     fun isRead(f: JblFrame): Boolean {
-        if (f.command in NEVER) return false
+        if (f.command in NEVER || !hasItsLengthForm(f)) return false
         val p = f.payload.map { it.toInt() and 0xFF }
         return when (f.command) {
             C.NOTIFY_ON -> p == listOf(0x01, 0x01)
-            C.DEVICE_INFO_GET -> p.isEmpty() && !f.longLength
+            C.DEVICE_INFO_GET -> p.isEmpty()
             C.LISTENING -> p == listOf(C.MODE_GET) || p == listOf(C.LEVEL_GET)
-            C.INFO -> f.longLength && isTlvGet(p)
-            C.EQ -> !f.longLength && p == listOf(C.EQ_GET, C.EQ_CURRENT)
+            C.INFO -> isTlvGet(p)
+            C.EQ -> p == listOf(C.EQ_GET, C.EQ_CURRENT)
             C.VOICE_PROMPTS -> p == listOf(0x04)
             C.BATTERY -> p == listOf(0x00)
             C.SERIAL, C.VOICE_AWARE, C.FIND, C.SAV -> p == listOf(0x01)
@@ -39,11 +49,11 @@ object JblWriteGuard {
 
     /** The settings Earshot changes: mode, manual noise-cancelling level, EQ preset, voice prompts. */
     fun isWrite(f: JblFrame): Boolean {
-        if (f.command in NEVER) return false
+        if (f.command in NEVER || !hasItsLengthForm(f)) return false
         val p = f.payload.map { it.toInt() and 0xFF }
         return when (f.command) {
             C.LISTENING -> isModeSet(p) || isLevelSet(p)
-            C.EQ -> f.longLength && isEqSet(f.payload)
+            C.EQ -> isEqSet(f.payload)
             C.VOICE_PROMPTS -> p.size == 2 && p[0] == 0x03 && p[1] in 0..1
             else -> false
         }
@@ -52,7 +62,7 @@ object JblWriteGuard {
     private fun isTlvGet(p: List<Int>): Boolean {
         if (p.size < 3 || p[0] != 0x01 || (p.size - 1) % 2 != 0) return false
         val ids = (1 until p.size step 2).map { (p[it] shl 8) or p[it + 1] }
-        return ids.all { it in C.INFO_READ_FIDS } && ids.distinct().size == ids.size
+        return ids.all { it in C.TLV_READ_IDS } && ids.distinct().size == ids.size
     }
 
     /** `10` then `[mode, on]` pairs: known modes, each once, on is 0 or 1, at most one on. */

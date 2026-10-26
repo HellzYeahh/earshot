@@ -104,7 +104,10 @@ class JblConnection(
         framesReceived++
         silentRequests = 0
         JblLog.d("<- $frame")
-        if (frame.command == JblCommands.DEVICE_INFO) JblDeviceInfo.parse(frame)?.let { deviceInfo = it }
+        // A cut device info (small MTU) never replaces a whole one.
+        if (frame.command == JblCommands.DEVICE_INFO) {
+            JblDeviceInfo.parse(frame)?.let { if (!it.isPartial || deviceInfo == null) deviceInfo = it }
+        }
         synchronized(attachLock) {
             val callback = onFrame
             if (callback != null) callback(frame) else if (early.size < EARLY_CAP) early += frame
@@ -167,8 +170,8 @@ class JblConnection(
             } finally {
                 waiters -= waiter
             }
-            if (countsSilence && framesReceived == before && ++silentRequests >= SILENT_REQUESTS_BEFORE_DEAD) {
-                JblLog.w("$silentRequests requests without a frame back; closing the link")
+            if (countsSilence && framesReceived == before && ++silentRequests >= SILENT_REQUESTS_BEFORE_DEAD && !confirmAlive()) {
+                JblLog.w("$silentRequests requests without a frame back, device info silent too; closing the link")
                 finish(UnresponsiveLinkException("the JBL control service is open but nothing answers"))
                 throw HeadphoneCommandException("The headphones didn't answer (${JblCommands.name(frame.command)})")
             }
@@ -176,9 +179,33 @@ class JblConnection(
         null
     }
 
+    /**
+     * Before calling the link dead: one device-info read (`AA 11 00`), which every H-AA headset
+     * answers (the Bose driver confirms with GET `[0.1]` the same way). Any frame back means the
+     * silent reads were features this model lacks, so the counter starts again.
+     */
+    private suspend fun confirmAlive(): Boolean {
+        val before = framesReceived
+        val waiter = Waiter { true }
+        waiters += waiter
+        try {
+            send(JblCommands.deviceInfoGet())
+            withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { waiter.frame.await() }
+        } finally {
+            waiters -= waiter
+        }
+        val alive = framesReceived != before
+        if (alive) {
+            JblLog.d("silent reads, but the device info answered: the link is alive")
+            silentRequests = 0
+        }
+        return alive
+    }
+
     /** The device info, waiting up to [timeoutMs] for the one the headset sends by itself. */
     suspend fun awaitDeviceInfo(timeoutMs: Long): JblDeviceInfo? {
         deviceInfo?.let { return it }
+        if (!isOpen) throw HeadphoneCommandException(NOT_CONNECTED)
         val waiter = Waiter { it.command == JblCommands.DEVICE_INFO }
         waiters += waiter
         try {
@@ -216,6 +243,9 @@ class JblConnection(
         const val PACE_MS = 450L
 
         const val SILENT_REQUESTS_BEFORE_DEAD = 3
+
+        /** How long the device-info confirmation waits before the link is called dead. */
+        const val CONFIRM_TIMEOUT_MS = 2_000L
 
         private const val EARLY_CAP = 32
     }

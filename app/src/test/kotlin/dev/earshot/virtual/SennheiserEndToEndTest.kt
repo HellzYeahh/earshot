@@ -3,10 +3,11 @@ package dev.earshot.virtual
 import dev.earshot.bt.BtLog
 import dev.earshot.bt.ByteTransport
 import dev.earshot.bt.DeviceFamily
-import dev.earshot.bt.RfcommConnectException
+import dev.earshot.bt.ExplainedConnectException
 import dev.earshot.bt.SennheiserConnection
 import dev.earshot.bt.SennheiserLinkFactory
 import dev.earshot.bt.SennheiserLog
+import dev.earshot.bt.SessionEnd
 import dev.earshot.bt.UnresponsiveLinkException
 import dev.earshot.core.FormFactor
 import dev.earshot.core.HeadphoneCommandException
@@ -367,9 +368,12 @@ class SennheiserEndToEndTest {
         SennheiserLinkFactory.checkServiceRecord(emptyList())
         SennheiserLinkFactory.checkServiceRecord(listOf(SPP, IAP2, SennheiserModel.GAIA3_SERVICE))
         // Only iAP2 / SPP (a BLE-first model) or only the legacy GAIA record: refused before any socket.
-        assertFalse(assertFailsWith<RfcommConnectException> { SennheiserLinkFactory.checkServiceRecord(listOf(SPP, IAP2)) }.looksBusy)
+        // The reason reaches the user as it is, and the manager stops retrying a model it can't drive.
+        val bleFirst = assertFailsWith<ExplainedConnectException> { SennheiserLinkFactory.checkServiceRecord(listOf(SPP, IAP2)) }
+        assertFalse(bleFirst.retry)
+        assertEquals(bleFirst.message, SessionEnd.connectFailureMessage(bleFirst, linked = true))
         assertTrue(
-            assertFailsWith<RfcommConnectException> { SennheiserLinkFactory.checkServiceRecord(listOf(SennheiserModel.GAIA_LEGACY_SERVICE)) }
+            assertFailsWith<ExplainedConnectException> { SennheiserLinkFactory.checkServiceRecord(listOf(SennheiserModel.GAIA_LEGACY_SERVICE)) }
                 .message!!.contains("older protocol"),
         )
     }

@@ -334,7 +334,7 @@ class JblSessionTest {
         r.unit.written.clear()
         r.unit.tlv[C.FID_BATTERY_LEFT] = listOf(0, 80)
         r.session.readBattery()
-        assertEquals(listOf(JblCaptured.hex(C.infoGet(C.BATTERY_FIDS).encode())), r.unit.written.hexes())
+        assertEquals(listOf(JblCaptured.hex(C.infoGet(C.BUD_BATTERY_FIDS).encode())), r.unit.written.hexes())
         assertEquals(JblBattery(80, false), r.session.status.value.left)
         r.conn.close()
     }
@@ -388,7 +388,7 @@ class JblSessionTest {
         val r = rig { declineModes = true }
         r.session.start()
         val e = assertFailsWith<HeadphoneCommandException> { r.session.setMode(JblStateMapping.MODE_ANC) }
-        assertEquals("The headphones stayed in Ambient Aware (JBL earbuds take that mode only with both buds in)", e.message)
+        assertEquals("The headphones stayed in Ambient Aware (JBL earbuds may need both buds in for that)", e.message)
         assertEquals(C.WIRE_AMBIENT, r.session.status.value.activeMode)
         r.conn.close()
 

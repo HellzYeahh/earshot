@@ -18,7 +18,8 @@ import java.nio.ByteOrder
  *  - the device info (`AA 12`) comes by itself when the link opens ([hello]) and on `AA 11 00`;
  *  - `AA 9B` (pushes on) is not answered, but the pair then pushes the call-status TLV, as it did;
  *  - the level read `AA 91 01 21` is silent unless [ancLevel] is set, as on a real Wave Buds 2;
- *  - the older-earbuds battery read (`AA 25`) is never answered;
+ *  - the older-earbuds battery read (`AA 25`) is never answered (an assumption: the capture never sent
+ *    it, and a protocol-3 pair reports its batteries in the TLV);
  *  - ANC and TalkThru are declined (silently, status unchanged) while [bothBudsIn] is false;
  *  - the EQ with the category Off is the all-zero frame the real buds sent, a preset carries ten bands;
  *  - everything else, including the commands Earshot must never send, gets silence.
@@ -108,7 +109,7 @@ class VirtualJbl(
                 if (p == listOf(0x01, 0x00, 0x01, 0x00)) heartbeatEchoes++
                 emptyList()
             }
-            // `AA 25` (the older-earbuds battery) included: a Wave Buds 2 does not answer it.
+            // `AA 25` (the older-earbuds battery) included: assumed silent on a Wave Buds 2, never captured.
             else -> emptyList()
         }
     }

@@ -19,9 +19,30 @@ data class JblBattery(val percent: Int?, val charging: Boolean) {
  * The `AA 12` device info a headset sends by itself right after the link opens (and in answer to
  * `AA 11 00`). Offsets count from the payload, three bytes after the `AA` (JBL notes §3, checked
  * against jbl-control's Wave Buds 2 capture): name 16 bytes at 0, product id little-endian at
- * 16–17, battery byte at 19, firmware at 26–28. The Bluetooth address at 20–25 is not kept.
+ * 16–17, battery byte at 19, a Bluetooth address at 20–25 (byte-reversed), firmware at 26–28.
+ *
+ * [address] is kept in memory only, to tell the user's buds from an identical pair nearby
+ * ([addressIs]); it is never logged. Whether it is the classic or the LE address is unconfirmed.
  */
-data class JblDeviceInfo(val name: String?, val productId: Int?, val battery: JblBattery?, val firmware: String?) {
+data class JblDeviceInfo(
+    val name: String?,
+    val productId: Int?,
+    val battery: JblBattery?,
+    val firmware: String?,
+    val address: String? = null,
+) {
+    /** True when [address] is [other], read in either byte order. */
+    fun addressIs(other: String?): Boolean {
+        val mine = address?.uppercase() ?: return false
+        val theirs = other?.uppercase() ?: return false
+        return mine == theirs || mine == theirs.split(':').reversed().joinToString(":")
+    }
+
+    /** Stopped before the product id: the frame was cut (a small MTU). */
+    val isPartial: Boolean get() = productId == null
+
+    override fun toString(): String = "JblDeviceInfo(name=$name, productId=$productId, battery=$battery, firmware=$firmware)"
+
     companion object {
         fun parse(p: JblFrame): JblDeviceInfo? {
             if (p.command != C.DEVICE_INFO || p.size < NAME_SIZE) return null
@@ -29,8 +50,9 @@ data class JblDeviceInfo(val name: String?, val productId: Int?, val battery: Jb
             val name = String(bytes, 0, NAME_SIZE, Charsets.UTF_8).substringBefore('\u0000').trim().ifEmpty { null }
             val pid = if (p.size >= 18) p[16] or (p[17] shl 8) else null
             val battery = if (p.size >= 20) JblBattery.ofByte(p[19]) else null
+            val address = if (p.size >= 26) (25 downTo 20).joinToString(":") { "%02X".format(p[it]) } else null
             val firmware = if (p.size >= 29) "${p[26]}.${p[27]}.${p[28]}" else null
-            return JblDeviceInfo(name, pid, battery, firmware)
+            return JblDeviceInfo(name, pid, battery, firmware, address)
         }
 
         private const val NAME_SIZE = 16
@@ -74,7 +96,9 @@ data class JblStatus(
 
     fun fold(f: JblFrame): JblStatus = try {
         when (f.command) {
-            C.DEVICE_INFO -> JblDeviceInfo.parse(f)?.let { i -> copy(info = i, firmware = firmware ?: i.firmware) } ?: this
+            // A cut device info never replaces a whole one.
+            C.DEVICE_INFO -> JblDeviceInfo.parse(f)?.takeIf { !it.isPartial || info == null }
+                ?.let { i -> copy(info = i, firmware = firmware ?: i.firmware) } ?: this
             C.LISTENING -> foldListening(f)
             C.INFO -> foldTlv(f)
             C.EQ -> foldEq(f)
@@ -111,7 +135,8 @@ data class JblStatus(
             val len = f[i + 2]
             val end = minOf(i + 3 + len, f.size)
             val v = (i + 3 until end).map { f[it] }
-            ids += fid
+            // The call status arrives as a push on its own: it says nothing about which reads a model answers.
+            if (fid != C.FID_CALL) ids += fid
             s = s.withTlv(fid, v)
             i += 3 + len
         }

@@ -151,8 +151,9 @@ Release 0.8.0 once these are done; no partial release.
    bundled fonts and the dependencies' licences belong in the licences screen it adds.
 4. **Done (2026-10-25).** **Item 8, A6 + A7 + F2, then the module split**, before any new driver, as this roadmap
    already says. Gate: the Bose end-to-end tests stay green and a manual pass on the QC Ultra 2.
-5. **Drivers on the new platform:** JBL H-AA over GATT (jbl-control, MIT), Experimental: no
-   hardware here. Item 10's Pixel Buds Pro driver is dropped from 0.8 (user decision 2026-10-25):
+5. **Done (2026-10-26).** **Drivers on the new platform:** JBL H-AA over GATT (jbl-control, MIT), Experimental: no
+   hardware here. 33 H-AA models by exact name and product id; Protocol 4 (H-P4) and JBL's Airoha
+   models are refused by product id and wait for their own drivers. Item 10's Pixel Buds Pro driver is dropped from 0.8 (user decision 2026-10-25):
    its protocol serves Pixel Buds only.
 6. **Item 9** moves drivers to Tested only with owner reports; the reference-only writes (Soundcore
    Space 2 and EQ, Sony v1, Sennheiser BLE) can ship as Experimental before that.
@@ -455,7 +456,7 @@ Full report: `docs/research/reports/Top brand headset protocols.md`. Its ranking
 | 4 | Sony v2 over RFCOMM | **Done** (Experimental) |
 | 5 | Soundcore gen-2 earbud writes | **Done from references, Experimental** (no owner captures yet) |
 | 6 | BLE GATT byte transport | 0.8 |
-| 7, 8 | JBL H-AA, then H-P4 | 0.8, after rank 6 |
+| 7, 8 | JBL H-AA (done in 0.8), then H-P4 | H-AA 0.8; H-P4 after a capture of a 2025 model |
 | 9 | Soundcore headphones (Space One, One Pro, Q45; Space 2 with its init script) | Space One / One Pro / Q45 done; Space 2 read-only → 0.8 |
 | 10 | Airoha RACE allow-list codec → JBL A-RACE | 0.8, after a decision |
 | 11 | Sony v1 (WH-1000XM4); Sennheiser BLE (CX Plus, CX 500) | 0.8 |

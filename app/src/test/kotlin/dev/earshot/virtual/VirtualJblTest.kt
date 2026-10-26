@@ -100,7 +100,7 @@ class VirtualJblTest {
         assertEquals(6, frames.size, "the level and the older battery reads are silent")
         assertTrue(frames.none { it.truncated })
         val s = frames.fold(JblStatus()) { acc, f -> acc.fold(f) }
-        assertEquals(JblDeviceInfo("JBL Wave Buds 2", 0x2100, JblBattery(100, false), "2.7.0"), s.info)
+        assertEquals(JblDeviceInfo("JBL Wave Buds 2", 0x2100, JblBattery(100, false), "2.7.0", "50:1B:6A:2F:2D:FF"), s.info)
         assertEquals(listOf(1, 2, 3), s.modes)
         assertEquals(C.WIRE_AMBIENT, s.activeMode)
         assertEquals(JblBattery(100, false), s.left)
@@ -268,7 +268,7 @@ class VirtualJblTest {
         val never = listOf(
             JblFrame(0x95), JblFrame(0x97), JblFrame(0xF0, byteArrayOf(1, 2)), JblFrame(0xA4), JblFrame(0xA3), JblFrame(0x15),
             JblFrame(0x74), JblFrame(0x61), JblFrame(0xB0), JblFrame(0x42, byteArrayOf(9)),
-            C.batteryGet(), // the Wave Buds 2 does not answer the older-earbuds battery read
+            C.batteryGet(), // assumed silent on a Wave Buds 2 (never captured): the older-earbuds battery read
             C.notifyOn().let { JblFrame(it.command, byteArrayOf(1, 0)) }, // not the pushes-on frame
         )
         for (f in never) assertTrue(unit.reply(f).isEmpty(), "$f")
@@ -305,7 +305,8 @@ class VirtualJblTest {
         assertFailsWith<IllegalArgumentException> { unit.pushMode(4) }
     }
 
-    @Test fun `the heartbeat is the captured frame`() {
+    // From the JBL app notes (`AA B1 04 01 00 01 00`); jbl-control's capture has no heartbeat.
+    @Test fun `the heartbeat is the app's frame`() {
         assertEquals("aa b1 04 01 00 01 00", VirtualJbl().pushHeartbeat().encode().hex())
     }
 

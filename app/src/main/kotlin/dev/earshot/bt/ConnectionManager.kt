@@ -248,6 +248,8 @@ class ConnectionManager<C : ManagedLink>(
                 BtLog.w("connect to $address failed (linked=$linked): ${e.message}")
                 setState(ConnectionStatus.DISCONNECTED, name, address, message = message)
                 if (linked == false) return // ACL_CONNECTED will wake us
+                // A model this stack doesn't drive: retrying only reopens the link to be refused again.
+                if (e is ExplainedConnectException && !e.retry) return
             }
 
             // Retry policy.

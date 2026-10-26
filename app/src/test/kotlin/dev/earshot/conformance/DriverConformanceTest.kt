@@ -3,6 +3,7 @@ package dev.earshot.conformance
 import dev.earshot.bt.BtLog
 import dev.earshot.bt.ConnectionManager
 import dev.earshot.bt.DeviceFamily
+import dev.earshot.bt.JblLog
 import dev.earshot.bt.SennheiserLog
 import dev.earshot.bt.SonyLog
 import dev.earshot.core.HeadphoneCommandException
@@ -71,6 +72,7 @@ class DriverConformanceTest(private val device: DemoDevice) {
         BtLog.sink = { _, _, _ -> }
         SennheiserLog.sink = { _, _, _ -> }
         SonyLog.sink = { _, _, _ -> }
+        JblLog.sink = { _, _, _ -> }
         ProtocolLog.sink = { _, _, _ -> }
     }
 

@@ -3,6 +3,7 @@ package dev.earshot.bt
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.protocol.jbl.JblBattery
 import dev.earshot.protocol.jbl.JblCommands as C
+import dev.earshot.protocol.jbl.JblDeviceInfo
 import dev.earshot.protocol.jbl.JblFrame
 import dev.earshot.protocol.jbl.JblStatus
 import dev.earshot.virtual.VirtualJbl
@@ -186,7 +187,7 @@ class JblConnectionTest {
         assertEquals(rxModes, modes.encode().hex())
         assertEquals(C.WIRE_AMBIENT, JblStatus().fold(modes).activeMode)
 
-        val info = assertNotNull(r.conn.request(C.infoGet(C.INFO_READ_FIDS - C.FID_BATTERY_HEADBAND)) { it.command == C.INFO && it.sub == 0x02 })
+        val info = assertNotNull(r.conn.request(C.infoGet()) { it.command == C.INFO && it.sub == 0x02 })
         assertEquals(rxInfo, info.encode().hex())
 
         // The session folds replies and pushes the same way, so both reach the callback in order.
@@ -219,7 +220,7 @@ class JblConnectionTest {
         assertNotNull(r.conn.request(C.modeGet(), answers = modeStatus))
     }
 
-    @Test fun `three requests in a row with no frame at all close the link as unresponsive`() = runTest {
+    @Test fun `three requests in a row with no frame at all, and a silent device info, close the link as unresponsive`() = runTest {
         val t = manual()
         val conn = connect(t)
         repeat(2) { assertNull(conn.request(C.modeGet(), answers = modeStatus)) }
@@ -230,11 +231,12 @@ class JblConnectionTest {
         assertFalse(conn.isOpen)
         assertFalse(t.isConnected, "the transport is closed with the link")
         assertIs<UnresponsiveLinkException>(conn.awaitClosed())
-        assertEquals(3, t.written.size)
+        // Three reads, then the device-info check that found the link dead too.
+        assertEquals(listOf("aa 91 01 11", "aa 91 01 11", "aa 91 01 11", "aa 11 00"), t.written.map { it.hex() })
         // Closed: no further request is even written.
         val later = assertFailsWith<HeadphoneCommandException> { conn.request(C.modeGet(), answers = modeStatus) }
         assertEquals(JblConnection.NOT_CONNECTED, later.message)
-        assertEquals(3, t.written.size)
+        assertEquals(4, t.written.size)
     }
 
     @Test fun `every unanswered attempt of one request counts, as the device-info probe relies on`() = runTest {
@@ -249,7 +251,7 @@ class JblConnectionTest {
             conn.request(C.deviceInfoGet(), timeoutMs = 2_000, attempts = 3) { it.command == C.DEVICE_INFO }
         }
         assertFalse(conn.isOpen)
-        assertEquals(3, t.written.size, "the dead link stops the retries")
+        assertEquals(4, t.written.size, "the dead link (three sends and the device-info check) stops the retries")
         assertIs<UnresponsiveLinkException>(conn.awaitClosed())
     }
 
@@ -266,10 +268,11 @@ class JblConnectionTest {
         testScheduler.runCurrent()
         assertNull(r.conn.request(C.levelGet(), answers = levelStatus))
         assertTrue(r.conn.isOpen)
-        // Three in a row now close it.
+        // Three in a row: the link is checked with the device info, which this unit answers, so it stays.
         assertNull(r.conn.request(C.levelGet(), answers = levelStatus))
-        assertFailsWith<HeadphoneCommandException> { r.conn.request(C.levelGet(), answers = levelStatus) }
-        assertFalse(r.conn.isOpen)
+        assertNull(r.conn.request(C.levelGet(), answers = levelStatus))
+        assertTrue(r.conn.isOpen, "a model that lacks a feature is not a dead link")
+        assertEquals(C.DEVICE_INFO_GET, r.unit.received.last().command)
     }
 
     @Test fun `a retry that is answered returns the reply`() = runTest {
@@ -557,7 +560,7 @@ class JblConnectionTest {
         val info = assertNotNull(JblLinkFactory.probe(r.conn))
         assertEquals(0x2100, info.productId)
         assertTrue(r.unit.received.isEmpty())
-        JblLinkFactory.checkProduct(info) // a Wave Buds 2 passes
+        JblLinkFactory.checkProduct(info, name = null) // a Wave Buds 2 passes, on its product id alone
     }
 
     @Test fun `the probe asks for the device info when the headset stays quiet`() = runTest {
@@ -581,8 +584,37 @@ class JblConnectionTest {
     @Test fun `a headset of another JBL stack is refused after the probe`() = runTest {
         val r = rig(VirtualJbl(productId = 0x2101)) // a Protocol 4 model
         val info = assertNotNull(JblLinkFactory.probe(r.conn))
-        val e = assertFailsWith<RfcommConnectException> { JblLinkFactory.checkProduct(info) }
-        assertFalse(e.looksBusy)
+        val e = assertFailsWith<ExplainedConnectException> { JblLinkFactory.checkProduct(info, "JBL Wave Buds 2") }
+        assertFalse(e.retry, "retrying cannot make it another protocol")
+        assertTrue(e.message!!.contains("newer protocol"))
+        // The user reads that sentence, not "Could not connect".
+        assertEquals(e.message, SessionEnd.connectFailureMessage(e, linked = true))
+    }
+
+    @Test fun `a cut device info is asked for again, and without a product id only an exact model name passes`() = runTest {
+        val t = manual()
+        t.onWrite = { t.deliverHex(rxDeviceInfo) }
+        val conn = connect(t)
+        t.deliver(hex(rxDeviceInfo).copyOfRange(0, 20)) // cut at a default MTU: no product id
+        t.deliver(hex(rxModes))
+        val info = assertNotNull(JblLinkFactory.probe(conn))
+        assertEquals(0x2100, info.productId, "the second, whole device info")
+        assertEquals(listOf("aa 11 00"), t.written.map { it.hex() })
+
+        val partial = JblDeviceInfo("JBL Wave Buds 2", null, null, null)
+        JblLinkFactory.checkProduct(partial, "JBL Wave Buds 2")
+        val e = assertFailsWith<ExplainedConnectException> { JblLinkFactory.checkProduct(partial, "Alex's buds") }
+        assertFalse(e.retry)
+    }
+
+    @Test fun `several silent reads close the link only when the device info is silent too`() = runTest {
+        val t = manual()
+        // Answers nothing but the device info: the silent reads were features it lacks.
+        t.onWrite = { n -> if (t.written[n - 1].hex() == "aa 11 00") t.deliverHex(rxDeviceInfo) }
+        val conn = connect(t)
+        repeat(JblConnection.SILENT_REQUESTS_BEFORE_DEAD + 1) { assertNull(conn.request(C.levelGet(), answers = modeStatus)) }
+        assertTrue(conn.isOpen)
+        assertTrue("aa 11 00" in t.written.map { it.hex() }, "the link was checked before it was called dead")
     }
 
     // ---- Link loss while a call is waiting -------------------------------------------------------

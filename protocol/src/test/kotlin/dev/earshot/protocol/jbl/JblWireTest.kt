@@ -31,7 +31,7 @@ class JblWireTest {
         assertEquals("aa 91 01 21", C.levelGet().encode().hex())
         assertEquals(
             "aa 06 15 00 01 00 01 00 05 00 06 00 0b 00 0c 00 0d 00 1a 00 1b 00 1c 00 20",
-            C.infoGet(C.INFO_READ_FIDS - C.FID_BATTERY_HEADBAND).encode().hex(),
+            C.infoGet().encode().hex(),
         )
         assertEquals("aa a2 02 01 ff", C.eqGet().encode().hex())
         assertEquals("aa 93 01 04", C.voicePromptsGet().encode().hex())
@@ -74,7 +74,9 @@ class JblWireTest {
         assertTrue(frames.none { it.truncated })
         val s = frames.fold(JblStatus()) { acc, f -> acc.fold(f) }
 
-        assertEquals(JblDeviceInfo("JBL Wave Buds 2", 0x2100, JblBattery(100, false), "2.7.0"), s.info)
+        assertEquals(JblDeviceInfo("JBL Wave Buds 2", 0x2100, JblBattery(100, false), "2.7.0", "50:1B:6A:2F:2D:FF"), s.info)
+        assertTrue(s.info!!.addressIs("FF:2D:2F:6A:1B:50"), "either byte order")
+        assertFalse(s.info!!.addressIs("50:1B:6A:2F:2D:00"))
         assertEquals(JblModel.WAVE_BUDS_2, JblModel.fromPid(s.info?.productId))
         assertEquals(listOf(1, 2, 3), s.modes)
         assertEquals(C.WIRE_AMBIENT, s.activeMode)
@@ -104,6 +106,22 @@ class JblWireTest {
         var junk = 0
         assertEquals(1, JblFrameBuffer { junk += it }.feed(hex("01 02 " + rxVoicePrompts)).size)
         assertEquals(2, junk)
+    }
+
+    @Test fun `a cut device info never replaces a whole one`() {
+        val whole = JblFrameBuffer().feed(hex(rxDeviceInfo)).single()
+        val cut = JblFrameBuffer().flushAfter(hex(rxDeviceInfo).copyOfRange(0, 20))
+        assertTrue(cut.truncated)
+        assertTrue(JblDeviceInfo.parse(cut)!!.isPartial, "17 payload bytes: the name, no product id")
+        val s = JblStatus().fold(whole).fold(cut)
+        assertEquals(0x2100, s.info?.productId)
+        // On its own, a cut one is still better than nothing.
+        assertEquals("JBL Wave Buds 2", JblStatus().fold(cut).info?.name)
+    }
+
+    private fun JblFrameBuffer.flushAfter(bytes: ByteArray): JblFrame {
+        assertTrue(feed(bytes).isEmpty())
+        return flush().single()
     }
 
     @Test fun `a cut or odd frame never throws`() {

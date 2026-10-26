@@ -68,13 +68,23 @@ object JblCommands {
     const val FID_BATTERY_CASE = 0x1C
     const val FID_SAFE_SOUND = 0x20
 
-    /** jbl-control's probe list (the ids a Wave Buds 2 answers), plus the headband battery from the notes. */
+    /**
+     * jbl-control's probe list, the exact request a Wave Buds 2 answered in its capture. Nobody has
+     * seen what a headset does with an id it doesn't know, so this read never carries one more.
+     */
     val INFO_READ_FIDS: List<Int> = listOf(
         FID_NAME, FID_FIRMWARE, FID_TWS, FID_AUTO_OFF, FID_SPATIAL, FID_SIDETONE,
-        FID_BATTERY_LEFT, FID_BATTERY_RIGHT, FID_BATTERY_CASE, FID_SAFE_SOUND, FID_BATTERY_HEADBAND,
+        FID_BATTERY_LEFT, FID_BATTERY_RIGHT, FID_BATTERY_CASE, FID_SAFE_SOUND,
     )
 
-    val BATTERY_FIDS: List<Int> = listOf(FID_BATTERY_LEFT, FID_BATTERY_RIGHT, FID_BATTERY_CASE, FID_BATTERY_HEADBAND)
+    /** The buds' and case batteries, re-read by the poll. */
+    val BUD_BATTERY_FIDS: List<Int> = listOf(FID_BATTERY_LEFT, FID_BATTERY_RIGHT, FID_BATTERY_CASE)
+
+    /** Headphones' battery (notes only, never captured): its own read, sent only when no bud reported. */
+    val HEADBAND_BATTERY_FIDS: List<Int> = listOf(FID_BATTERY_HEADBAND)
+
+    /** Every TLV id Earshot may ask for; the guard refuses a read of any other. */
+    val TLV_READ_IDS: Set<Int> = (INFO_READ_FIDS + HEADBAND_BATTERY_FIDS).toSet()
 
     // ---- 0xA2: EQ --------------------------------------------------------------------------------
 

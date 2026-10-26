@@ -2,11 +2,11 @@
 
 ## 0.8 (in progress)
 
-Roadmap 0.8, items 1–6 and 8 so far (item 7, Google Play preparation, moved to 0.9; the Pixel Buds
-Pro driver dropped): the platform pieces for the next drivers, Find my earbuds and a Bluetooth
-history. The companion-device
-pieces were tested on a Galaxy Z Fold7 (One UI 9, Android 17) with the QC Ultra 2; the GATT link
-and RACE have no driver on top yet and have not met real hardware.
+Roadmap 0.8, items 1–6 and 8 and the JBL driver (item 7, Google Play preparation, moved to 0.9;
+the Pixel Buds Pro driver dropped): the platform pieces for new drivers, the first of them (JBL),
+Find my earbuds and a Bluetooth history. The companion-device pieces were tested on a Galaxy Z
+Fold7 (One UI 9, Android 17) with the QC Ultra 2; the GATT link, the JBL driver and RACE have not
+met real JBL or Airoha hardware.
 
 ### New
 - **Find my earbuds** (Tools → Find my earbuds, or Find my headphones). Earshot plays a two-note
@@ -53,7 +53,9 @@ and RACE have no driver on top yet and have not met real hardware.
   where the headset reports it, JBL's EQ presets, voice prompts and battery for each earbud and
   the case. Built from protocol notes and jbl-control's captures of a Wave Buds 2 (MIT); not yet
   tried on real JBL headphones. JBL's 2025+ models and its Airoha-based models are recognised by
-  the product ID they report and stay generic. Demo mode has a virtual Wave Buds 2.
+  the product ID they report, told why, and not retried. When another pair of the same model is
+  nearby, Earshot controls only the one whose own reported address matches yours, or none. Factory
+  reset, power off and firmware transfer are never sent. Demo mode has a virtual Wave Buds 2.
 
 ### Changed
 - **Listening modes are saved by what they do, not by slot number.** Automation rules, the Quick
@@ -86,6 +88,8 @@ and RACE have no driver on top yet and have not met real hardware.
   dropped halfway now says so instead of showing the old values as fresh.
 - A headset update (a volume swipe, say) that arrived while the Lab console was busy could later
   overwrite a newer value.
+- Sennheiser (experimental): a model Earshot can't drive (an older protocol, or one controlled
+  only over Bluetooth LE) now says so instead of "Could not connect", and Earshot stops retrying it.
 
 ## 0.75.0 — 2026-10-21
 

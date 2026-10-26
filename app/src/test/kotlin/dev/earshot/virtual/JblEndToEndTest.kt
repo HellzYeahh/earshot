@@ -205,7 +205,7 @@ class JblEndToEndTest {
     @Test fun `with a bud out the buds stay put and the sentence says why`() = runTest {
         val r = connected(VirtualJbl(bothBudsIn = false))
         val e = assertFailsWith<HeadphoneCommandException> { r.repo.setMode(JblStateMapping.MODE_ANC) }
-        assertEquals("The headphones stayed in Ambient Aware (JBL earbuds take that mode only with both buds in)", e.message)
+        assertEquals("The headphones stayed in Ambient Aware (JBL earbuds may need both buds in for that)", e.message)
         assertEquals(C.WIRE_AMBIENT, r.unit.mode)
         assertEquals(JblStateMapping.MODE_AMBIENT, r.state.currentModeIndex, "the screen shows what the headset reports")
         assertFalse(r.state.isBusy, "the busy flag came down")
@@ -213,7 +213,7 @@ class JblEndToEndTest {
 
         // TalkThru is declined the same way; Off needs no second bud.
         assertEquals(
-            "The headphones stayed in Ambient Aware (JBL earbuds take that mode only with both buds in)",
+            "The headphones stayed in Ambient Aware (JBL earbuds may need both buds in for that)",
             assertFailsWith<HeadphoneCommandException> { r.repo.setMode(JblStateMapping.MODE_TALKTHRU) }.message,
         )
         r.repo.setMode(JblStateMapping.MODE_OFF)

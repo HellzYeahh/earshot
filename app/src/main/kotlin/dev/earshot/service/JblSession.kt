@@ -75,10 +75,14 @@ class JblSession(
         readTlv(C.INFO_READ_FIDS, attempts = 2, optional = false)
         probe(JblFeature.EQ, C.eqGet(), answers = ::isEq)
         probe(JblFeature.VOICE_PROMPTS, C.voicePromptsGet(), answers = ::isVoicePrompts)
-        // Older earbuds have no battery in the TLV; their own read is `AA 25`. Known headphones never do.
-        val s = _status.value
-        val noTlvBattery = s.left == null && s.right == null && s.headband == null
-        if (noTlvBattery && model?.earbuds != false) readTwsBattery()
+        // No bud reported: headphones may report their headband battery under its own id (notes
+        // only), asked for separately so the captured read above never carries an id a headset
+        // might reject. Older earbuds have no battery in the TLV at all; their read is `AA 25`.
+        if (!reportsBudBattery()) {
+            if (model?.earbuds != true) readTlv(C.HEADBAND_BATTERY_FIDS)
+            val s = _status.value
+            if (s.headband == null && model?.earbuds != false) readTwsBattery()
+        }
     }
 
     /**
@@ -88,12 +92,15 @@ class JblSession(
     suspend fun readBattery() {
         val s = _status.value
         when {
-            s.infoIds.any { it in C.BATTERY_FIDS } -> readTlv(C.BATTERY_FIDS)
+            reportsBudBattery() -> readTlv(C.BUD_BATTERY_FIDS)
+            C.FID_BATTERY_HEADBAND in s.infoIds -> readTlv(C.HEADBAND_BATTERY_FIDS)
             JblFeature.TWS_BATTERY in answered -> readTwsBattery()
             s.info?.battery != null -> probe(null, C.deviceInfoGet()) { it.command == C.DEVICE_INFO }
-            else -> readTlv(C.BATTERY_FIDS)
+            else -> readTlv(C.BUD_BATTERY_FIDS)
         }
     }
+
+    private fun reportsBudBattery() = _status.value.infoIds.any { it in C.BUD_BATTERY_FIDS }
 
     // ---- Commands -------------------------------------------------------------------------
 
@@ -108,14 +115,18 @@ class JblSession(
         val listed = _status.value.modes ?: throw HeadphoneCommandException("These headphones didn't report their listening modes")
         if (slot.wire != null && slot.wire !in listed) throw HeadphoneCommandException("These headphones don't have ${slot.name}")
         JblLog.i("mode → ${slot.name}")
-        val reply = conn.request(C.modeSet(listed, slot.wire), attempts = 1, answers = ::isModeStatus)
-        // Nothing came back: ask, so a change that worked without a report still shows.
+        // Only a status that shows the new mode is the answer: without request ids, an older push
+        // (or a status sent just before the switch) would otherwise pass for a decline.
+        val wanted = slot.wire ?: 0
+        val reply = conn.request(C.modeSet(listed, slot.wire), attempts = 1) { isModeStatus(it) && JblStatus().fold(it).activeMode == wanted }
+        // No such status: ask once, so a change made without a report still counts and a decline shows the mode kept.
         if (reply == null && conn.request(C.modeGet(), attempts = 2, answers = ::isModeStatus) == null) {
             throw HeadphoneCommandException("The headphones didn't confirm the mode change")
         }
         val now = JblStateMapping.slotOfActive(_status.value.activeMode)
         if (now != slot) {
-            val hint = if (JblStateMapping.isEarbuds(_status.value, model)) " (JBL earbuds take that mode only with both buds in)" else ""
+            // jbl-control's finding on a Wave Buds 2: the buds decline a mode while one is in its case.
+            val hint = if (JblStateMapping.isEarbuds(_status.value, model)) " (JBL earbuds may need both buds in for that)" else ""
             throw HeadphoneCommandException("The headphones stayed in ${now?.name ?: "their current mode"}$hint")
         }
     }

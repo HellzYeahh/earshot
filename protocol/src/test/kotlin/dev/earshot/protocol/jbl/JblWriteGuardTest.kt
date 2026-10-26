@@ -14,7 +14,7 @@ class JblWriteGuardTest {
 
     @Test fun `everything Earshot builds passes`() {
         val built = listOf(
-            C.notifyOn(), C.deviceInfoGet(), C.modeGet(), C.levelGet(), C.infoGet(), C.infoGet(C.BATTERY_FIDS), C.eqGet(),
+            C.notifyOn(), C.deviceInfoGet(), C.modeGet(), C.levelGet(), C.infoGet(), C.infoGet(C.BUD_BATTERY_FIDS), C.infoGet(C.HEADBAND_BATTERY_FIDS), C.eqGet(),
             C.voicePromptsGet(), C.batteryGet(), C.heartbeatEcho(), C.serialGet(), C.voiceAwareGet(), C.findGet(), C.savGet(),
             C.modeSet(listOf(1, 2, 3), C.WIRE_TALKTHRU), C.modeSet(listOf(1, 2), null), C.ancLevelSet(1), C.ancLevelSet(7),
             C.voicePromptsSet(true), C.voicePromptsSet(false),
@@ -59,6 +59,13 @@ class JblWriteGuardTest {
             frame(0x81, 0x00), // codec blobs
         )
         refused.forEach { assertFalse(JblWriteGuard.isAllowed(it), "$it ${it.payload.joinToString(" ") { b -> "%02x".format(b) }}") }
+    }
+
+    @Test fun `a known frame in the other length form is refused`() {
+        assertFalse(JblWriteGuard.isAllowed(JblFrame(C.LISTENING, C.modeGet().payload, longLength = true)))
+        assertFalse(JblWriteGuard.isAllowed(JblFrame(C.INFO, C.infoGet().payload, longLength = false)))
+        assertFalse(JblWriteGuard.isAllowed(JblFrame(C.EQ, C.eqGet().payload, longLength = true)))
+        assertFalse(JblWriteGuard.isRead(JblFrame(C.NOTIFY_ON, C.notifyOn().payload, longLength = true)))
     }
 
     @Test fun `an EQ write must be exactly the app's layout`() {
