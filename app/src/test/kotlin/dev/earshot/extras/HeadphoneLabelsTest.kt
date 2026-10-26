@@ -1,5 +1,6 @@
 package dev.earshot.extras
 
+import dev.earshot.bt.DeviceFamily
 import dev.earshot.core.BatteryDetail
 import dev.earshot.core.BatteryLevel
 import dev.earshot.core.ConnectionState
@@ -57,6 +58,20 @@ class HeadphoneLabelsTest {
         assertEquals(FormFactor.OPEN_EARBUDS, HeadphoneLabels.formFactorFromName("Bose Ultra Open Earbuds"))
         assertEquals(FormFactor.HEADPHONES, HeadphoneLabels.formFactorFromName("Bose QC Ultra Headphones"))
         assertEquals(FormFactor.HEADPHONES, HeadphoneLabels.formFactorFromName(null))
+    }
+
+    @Test
+    fun `the brand tables say earbuds or headphones through the router's registry`() {
+        assertEquals(true, DeviceFamily.earbudsByName("soundcore Liberty 4 NC"))
+        assertEquals(false, DeviceFamily.earbudsByName("soundcore Space One Pro"))
+        assertEquals(true, DeviceFamily.earbudsByName("Skullcandy Method 360 ANC"))
+        assertEquals(false, DeviceFamily.earbudsByName("Skullcandy Crusher 1080 ANC"))
+        assertEquals(true, DeviceFamily.earbudsByName("MOMENTUM TW 4"))
+        assertEquals(false, DeviceFamily.earbudsByName("MOMENTUM 4"))
+        // No table knows these: the word rules in formFactorFromName decide.
+        assertNull(DeviceFamily.earbudsByName("AirPods Pro"))
+        assertNull(DeviceFamily.earbudsByName("Bose QC Ultra Earbuds"))
+        assertNull(DeviceFamily.earbudsByName(null))
     }
 
     @Test

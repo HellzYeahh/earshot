@@ -37,7 +37,6 @@ class VendorBoundaryTest {
 
     /** Files (relative to [root], `/`-separated) that still reach a vendor stack. Only ever remove entries. */
     private val BASELINE = setOf(
-        "extras/HeadphoneLabels.kt",
         "shortcut/ControlDetection.kt",
         "ui/home/HomeViewModel.kt",
         "ui/tools/ShortcutsRemapperViewModel.kt",
