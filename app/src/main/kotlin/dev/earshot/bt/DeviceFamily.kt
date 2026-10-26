@@ -67,6 +67,17 @@ enum class DeviceFamily {
         fun fromKey(key: String?): DeviceFamily? = entries.firstOrNull { it.name.equals(key, ignoreCase = true) }
 
         /**
+         * Earbuds (true) or headphones (false) for a name one of the brand tables knows, else null:
+         * the names that don't say "buds" ("Method 360 ANC", "Liberty 4 NC", "MOMENTUM TW 4"). Here
+         * because this registry already holds the tables, so the labels need no vendor import.
+         * Soundcore, then Bragi, then Sennheiser: the order the labels always asked them in.
+         */
+        fun earbudsByName(name: String?): Boolean? =
+            SoundcoreModel.fromName(name)?.earbuds
+                ?: BragiModel.fromBluetoothName(name)?.features?.earbuds
+                ?: SennheiserModel.fromName(name)?.earbuds
+
+        /**
          * The one rule everything uses, strongest first:
          *  1. the user's "Headphone type" [override] for this device;
          *  2. the family that already answered on this address ([learned], kept in [DevicePrefs]):

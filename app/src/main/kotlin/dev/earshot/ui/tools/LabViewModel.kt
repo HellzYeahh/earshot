@@ -4,7 +4,6 @@ import androidx.lifecycle.viewModelScope
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
-import dev.earshot.protocol.qcultra2.FunctionNames
 import dev.earshot.ui.common.EarshotViewModel
 import dev.earshot.ui.common.UiMessenger
 import kotlinx.coroutines.CancellationException
@@ -147,15 +146,18 @@ object LabExport {
     /** `[1.7]` on BMAP, the stack's own address (`01 05`, `0495/0603`, `2.1`, `T1 66 17`) elsewhere. */
     fun address(r: LabReading): String = r.address ?: "[${r.block}.${r.function}]"
 
-    /** The stack's name for the read, else (BMAP) the catalogue's. */
-    fun functionName(r: LabReading): String? =
-        r.knownName ?: if (r.address == null) FunctionNames.functionName(r.block, r.function) else null
+    /**
+     * The stack's name for the read. Every producer fills it, BMAP included (BmapLab names each
+     * read from the Bose catalogue), so the UI needs no vendor table of its own.
+     */
+    fun functionName(r: LabReading): String? = r.knownName
 
     /** "Block 1 · Settings", "Feature 3 · Battery and power", "Service 2 · device". */
     fun heading(profile: LabProfile?, group: Int, readings: List<LabReading>, separator: String = " · ", unknown: String = "?"): String {
         val g = profile?.group(group)
         val noun = profile?.groupNoun ?: "Block"
-        val name = g?.name ?: readings.firstNotNullOfOrNull { it.groupName } ?: if (profile == null) FunctionNames.blockName(group) else null
+        // A group the profile doesn't list (a Bose deep scan reaches every block): the readings carry its name.
+        val name = g?.name ?: readings.firstNotNullOfOrNull { it.groupName }
         return "$noun ${g?.code ?: group}$separator${name ?: unknown}"
     }
 

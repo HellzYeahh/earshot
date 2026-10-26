@@ -3,8 +3,6 @@ package dev.earshot.shortcut
 import dev.earshot.core.ButtonAction
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.PlaybackState
-import dev.earshot.protocol.qcultra2.ButtonEvent
-import dev.earshot.protocol.qcultra2.ButtonId
 
 /**
  * What "Detect a button" can tell about a press. Learned on the QC Ultra 2 (fw 10.12, a Samsung
@@ -36,12 +34,15 @@ sealed interface ControlSignal {
     data class TrackChange(val seeking: Boolean, override val origin: SignalOrigin, override val at: Long) : ControlSignal
     /** [from] null when the previous level is unknown; the scale is the origin's own (Bose 0..31, Android's stream steps). */
     data class Volume(val from: Int?, val to: Int, override val origin: SignalOrigin, override val at: Long) : ControlSignal
+    /** [buttonLabel] / [eventLabel]: the driver's names for the button and the press, when it has them. */
     data class ButtonEventSeen(
         val buttonId: Int,
         val eventType: Int,
         val action: ButtonAction,
         override val at: Long,
         override val origin: SignalOrigin = SignalOrigin.HEADPHONES,
+        val buttonLabel: String? = null,
+        val eventLabel: String? = null,
     ) : ControlSignal
     /** [headsetAddress]: the headset that pressed, when Android said; [wired] for the wired / USB-C alias. */
     data class AssistantGesture(
@@ -118,7 +119,7 @@ data class DetectionLog(val entries: List<DetectedControl> = emptyList(), val ca
             ),
         )
         is ControlSignal.ButtonEventSeen -> {
-            val label = ControlClassifier.buttonLabel(signal.buttonId, signal.eventType)
+            val label = ControlClassifier.buttonLabel(signal.buttonId, signal.eventType, signal.buttonLabel, signal.eventLabel)
             val detail = signal.action.takeIf { it != ButtonAction.UNKNOWN }?.label
             mergeOrAdd(
                 ControlKind.HEADPHONE_BUTTON_EVENT, signal, PLAY_PAUSE_MERGE_MS,
@@ -233,7 +234,9 @@ object ControlClassifier {
 
         val press = after.lastButtonPress
         if (press != null && press != before.lastButtonPress) {
-            out += ControlSignal.ButtonEventSeen(press.buttonId, press.eventType, press.action, now)
+            out += ControlSignal.ButtonEventSeen(
+                press.buttonId, press.eventType, press.action, now, buttonLabel = press.buttonLabel, eventLabel = press.eventLabel,
+            )
         }
         return out
     }
@@ -251,14 +254,13 @@ object ControlClassifier {
     fun isPlaying(state: PlaybackState): Boolean =
         state == PlaybackState.PLAYING || state == PlaybackState.FAST_FORWARDING || state == PlaybackState.REWINDING
 
-    /** "Shortcut button · Long press", from the `[1.9]` / `[2.12]` tables; unknown codes in hex. */
-    fun buttonLabel(buttonId: Int, eventType: Int): String =
-        "${buttonName(buttonId)} · ${pressName(eventType) ?: "event $eventType"}"
-
-    fun buttonName(buttonId: Int): String = ButtonId.fromCode(buttonId)?.label ?: "Button 0x%02x".format(buttonId)
-
-    /** Bose's name for a `[1.9]` event type ("Long press"), or null when the code isn't in the table. */
-    fun pressName(eventType: Int): String? = ButtonEvent.fromCode(eventType)?.label
+    /**
+     * "Shortcut button · Long press": the names the driver gave the push ([buttonName], [pressName];
+     * the Bose driver fills them from its `[1.9]` / `[2.12]` tables), else the id in hex and the
+     * event number.
+     */
+    fun buttonLabel(buttonId: Int, eventType: Int, buttonName: String? = null, pressName: String? = null): String =
+        "${buttonName ?: "Button 0x%02x".format(buttonId)} · ${pressName ?: "event $eventType"}"
 
     private const val TRACK_RESTART_FROM = 5
     private const val TRACK_RESTART_TO = 1

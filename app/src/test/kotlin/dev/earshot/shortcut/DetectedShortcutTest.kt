@@ -35,7 +35,7 @@ class DetectedShortcutTest {
     @Test
     fun `detections and button choices survive the round trip, and older stores read as empty`() {
         val s = ShortcutSettings().withDetected(bose, 5).withDetectedName(bose, PhysicalControl.VOLUME_STRIP, PressStyle.TOUCH_AND_HOLD, null)
-            .withButtonChoice(bose, 0x04, ButtonAction.SPATIAL_AUDIO.wire)
+            .withButtonChoice(bose, 0x04, ButtonAction.SPATIAL_AUDIO.storedId)
         val back = ShortcutCodec.decodeSettings(
             ShortcutCodec.encodeAction(s.defaultAction), ShortcutCodec.encodeOverrides(s.overrides), true, false,
             ShortcutExtrasCodec.encodeDetected(s.detected), ShortcutExtrasCodec.encodeButtonChoices(s.buttonChoices),
@@ -56,11 +56,11 @@ class DetectedShortcutTest {
     fun `a secondary button can share the Earshot action or do the headset's own modes it reports`() {
         val left = ButtonAssignment(0x04, 9, ButtonAction.SPATIAL_AUDIO, listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED, ButtonAction.SPATIAL_AUDIO))
         assertEquals(listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.SPATIAL_AUDIO, ButtonAction.DISABLED), SecondaryButtonPolicy.options(left))
-        val choice = ButtonChoice(bose, 0x04, ButtonAction.VOICE_ASSISTANT.wire)
+        val choice = ButtonChoice(bose, 0x04, ButtonAction.VOICE_ASSISTANT.storedId)
         assertEquals(ButtonAction.VOICE_ASSISTANT, SecondaryButtonPolicy.writeFor(choice, left))
         assertNull(SecondaryButtonPolicy.writeFor(null, left), "nothing written for a button never set")
         assertNull(SecondaryButtonPolicy.writeFor(choice, left.copy(action = ButtonAction.VOICE_ASSISTANT)), "already there")
-        assertNull(SecondaryButtonPolicy.writeFor(ButtonChoice(bose, 0x04, ButtonAction.SPOTIFY_TAP.wire), left), "not an offered mode")
+        assertNull(SecondaryButtonPolicy.writeFor(ButtonChoice(bose, 0x04, ButtonAction.SPOTIFY_TAP.storedId), left), "not an offered mode")
         assertNull(SecondaryButtonPolicy.writeFor(choice, left.copy(supportedActions = listOf(ButtonAction.DISABLED))), "not reported")
         assertEquals(ButtonAction.SPATIAL_AUDIO, SecondaryButtonPolicy.displayed(null, left))
         assertEquals(SecondaryButtonPolicy.Side.LEFT, SecondaryButtonPolicy.side(0x04))

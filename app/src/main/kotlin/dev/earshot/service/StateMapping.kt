@@ -46,10 +46,12 @@ import dev.earshot.protocol.qcultra2.OperationModeCode
 import dev.earshot.protocol.qcultra2.PairedDevices
 import dev.earshot.protocol.qcultra2.PlaybackStatus
 import dev.earshot.protocol.qcultra2.QcUltra2
+import dev.earshot.protocol.qcultra2.SidetoneLevel
 import dev.earshot.protocol.qcultra2.SidetoneState
 import dev.earshot.protocol.qcultra2.VoicePromptsState
 import dev.earshot.protocol.qcultra2.VolumeState
 import dev.earshot.protocol.qcultra2.TransportControl as WireTransportControl
+import dev.earshot.protocol.qcultra2.ButtonAction as WireButtonAction
 
 /*
  * Pure conversions between the typed wire structures in `:protocol` and the human-unit models
@@ -252,17 +254,101 @@ internal fun List<EqBand>.toHeadphoneEq(): HeadphoneEq? {
 }
 
 /** `[1.11]` level byte → [Sidetone]; the wire order is 0 off, 1 high, 2 medium, 3 low. Unknown codes read as OFF. */
-internal fun SidetoneState.toSidetone(): Sidetone = Sidetone.fromWire(levelCode)
+internal fun SidetoneState.toSidetone(): Sidetone = sidetoneFromLevelCode(levelCode)
 
-/** `[1.9]` → [ButtonAssignment]; action codes outside the enum map to [ButtonAction.UNKNOWN] and are dropped from the choices. */
+/** A `[1.11]` level code as [Sidetone]; a code outside the table reads as OFF (as before the table moved to `:protocol`). */
+internal fun sidetoneFromLevelCode(code: Int): Sidetone = when (SidetoneLevel.fromCode(code)) {
+    SidetoneLevel.OFF, null -> Sidetone.OFF
+    SidetoneLevel.HIGH -> Sidetone.HIGH
+    SidetoneLevel.MEDIUM -> Sidetone.MEDIUM
+    SidetoneLevel.LOW -> Sidetone.LOW
+}
+
+/** [Sidetone] → `[1.11]` level code (1 is high, 3 is low). */
+internal fun Sidetone.toLevelCode(): Int = when (this) {
+    Sidetone.OFF -> SidetoneLevel.OFF
+    Sidetone.LOW -> SidetoneLevel.LOW
+    Sidetone.MEDIUM -> SidetoneLevel.MEDIUM
+    Sidetone.HIGH -> SidetoneLevel.HIGH
+}.code
+
+/**
+ * A `[1.9]` action code as [ButtonAction]. Three names differ from Bose's (VPA, SPOTIFY_GO,
+ * SPATIAL_AUDIO_MODE); the codes core has no action for (18 volume presets, 22-27 panic, third-party,
+ * smart action, Alexa) and any code outside the table read as [ButtonAction.UNKNOWN].
+ */
+internal fun buttonActionFromCode(code: Int): ButtonAction = when (WireButtonAction.fromCode(code)) {
+    WireButtonAction.NOT_CONFIGURED -> ButtonAction.NOT_CONFIGURED
+    WireButtonAction.VPA -> ButtonAction.VOICE_ASSISTANT
+    WireButtonAction.ANC_CYCLE -> ButtonAction.ANC_CYCLE
+    WireButtonAction.BATTERY_LEVEL -> ButtonAction.BATTERY_LEVEL
+    WireButtonAction.PLAY_PAUSE -> ButtonAction.PLAY_PAUSE
+    WireButtonAction.INCREASE_CNC -> ButtonAction.INCREASE_CNC
+    WireButtonAction.DECREASE_CNC -> ButtonAction.DECREASE_CNC
+    WireButtonAction.TOGGLE_WAKE_WORD -> ButtonAction.TOGGLE_WAKE_WORD
+    WireButtonAction.SWITCH_DEVICE -> ButtonAction.SWITCH_DEVICE
+    WireButtonAction.CONVERSATION_MODE -> ButtonAction.CONVERSATION_MODE
+    WireButtonAction.TRACK_FORWARD -> ButtonAction.TRACK_FORWARD
+    WireButtonAction.TRACK_BACK -> ButtonAction.TRACK_BACK
+    WireButtonAction.FETCH_NOTIFICATIONS -> ButtonAction.FETCH_NOTIFICATIONS
+    WireButtonAction.WIND_MODE -> ButtonAction.WIND_MODE
+    WireButtonAction.DISABLED -> ButtonAction.DISABLED
+    WireButtonAction.CLIENT_INTERACTION -> ButtonAction.CLIENT_INTERACTION
+    WireButtonAction.SPOTIFY_GO -> ButtonAction.SPOTIFY_TAP
+    WireButtonAction.MODES_CAROUSEL -> ButtonAction.MODES_CAROUSEL
+    WireButtonAction.SPATIAL_AUDIO_MODE -> ButtonAction.SPATIAL_AUDIO
+    WireButtonAction.LINE_IN_SWITCH -> ButtonAction.LINE_IN_SWITCH
+    WireButtonAction.LINKING -> ButtonAction.LINKING
+    WireButtonAction.VOLUME_PRESET_CAROUSEL, WireButtonAction.PANIC_LOCAL, WireButtonAction.PANIC_REMOTE,
+    WireButtonAction.PANIC_BOTH, WireButtonAction.THIRD_PARTY_SERVICE, WireButtonAction.SMART_ACTION,
+    WireButtonAction.ALEXA, null,
+    -> ButtonAction.UNKNOWN
+}
+
+/** [ButtonAction] → `[1.9]` action code. UNKNOWN has none: -1, which is never sent (setShortcutButton refuses UNKNOWN first). */
+internal fun ButtonAction.toActionCode(): Int = when (this) {
+    ButtonAction.NOT_CONFIGURED -> WireButtonAction.NOT_CONFIGURED
+    ButtonAction.VOICE_ASSISTANT -> WireButtonAction.VPA
+    ButtonAction.ANC_CYCLE -> WireButtonAction.ANC_CYCLE
+    ButtonAction.BATTERY_LEVEL -> WireButtonAction.BATTERY_LEVEL
+    ButtonAction.PLAY_PAUSE -> WireButtonAction.PLAY_PAUSE
+    ButtonAction.INCREASE_CNC -> WireButtonAction.INCREASE_CNC
+    ButtonAction.DECREASE_CNC -> WireButtonAction.DECREASE_CNC
+    ButtonAction.TOGGLE_WAKE_WORD -> WireButtonAction.TOGGLE_WAKE_WORD
+    ButtonAction.SWITCH_DEVICE -> WireButtonAction.SWITCH_DEVICE
+    ButtonAction.CONVERSATION_MODE -> WireButtonAction.CONVERSATION_MODE
+    ButtonAction.TRACK_FORWARD -> WireButtonAction.TRACK_FORWARD
+    ButtonAction.TRACK_BACK -> WireButtonAction.TRACK_BACK
+    ButtonAction.FETCH_NOTIFICATIONS -> WireButtonAction.FETCH_NOTIFICATIONS
+    ButtonAction.WIND_MODE -> WireButtonAction.WIND_MODE
+    ButtonAction.DISABLED -> WireButtonAction.DISABLED
+    ButtonAction.CLIENT_INTERACTION -> WireButtonAction.CLIENT_INTERACTION
+    ButtonAction.SPOTIFY_TAP -> WireButtonAction.SPOTIFY_GO
+    ButtonAction.MODES_CAROUSEL -> WireButtonAction.MODES_CAROUSEL
+    ButtonAction.SPATIAL_AUDIO -> WireButtonAction.SPATIAL_AUDIO_MODE
+    ButtonAction.LINE_IN_SWITCH -> WireButtonAction.LINE_IN_SWITCH
+    ButtonAction.LINKING -> WireButtonAction.LINKING
+    ButtonAction.UNKNOWN -> null
+}?.code ?: NO_ACTION_CODE
+
+/** What [toActionCode] gives [ButtonAction.UNKNOWN]: the value core's table carried before it moved here. */
+private const val NO_ACTION_CODE = -1
+
+/**
+ * `[1.9]` → [ButtonAssignment]; action codes outside the enum map to [ButtonAction.UNKNOWN] and are
+ * dropped from the choices. The button and press names are Bose's (`[1.9]` byte 0 and 1 tables),
+ * so the UI needs no Bose table to show them; null for a code the tables don't know.
+ */
 internal fun ButtonConfig.toButtonAssignment(): ButtonAssignment = ButtonAssignment(
     buttonId = buttonCode,
     eventType = eventCode,
-    action = ButtonAction.fromWire(actionCode),
+    action = buttonActionFromCode(actionCode),
     supportedActions = supportedActionCodes.sorted()
-        .map { ButtonAction.fromWire(it) }
+        .map { buttonActionFromCode(it) }
         .filter { it != ButtonAction.UNKNOWN }
         .distinct(),
+    buttonLabel = button?.label,
+    eventLabel = event?.label,
 )
 
 /**
@@ -379,9 +465,11 @@ internal fun TransportControl.toWire(): WireTransportControl = when (this) {
 internal fun transportControlsFrom(codes: Set<Int>): Set<TransportControl> =
     TransportControl.entries.filter { it.toWire().code in codes }.toSet()
 
-/** `[2.12]` push → [ButtonPress]. */
-internal fun ButtonConfig.toButtonPress(atMillis: Long): ButtonPress =
-    ButtonPress(buttonId = buttonCode, eventType = eventCode, action = ButtonAction.fromWire(actionCode), atMillis = atMillis)
+/** `[2.12]` push → [ButtonPress], with Bose's names for the button and the press (null when unknown). */
+internal fun ButtonConfig.toButtonPress(atMillis: Long): ButtonPress = ButtonPress(
+    buttonId = buttonCode, eventType = eventCode, action = buttonActionFromCode(actionCode), atMillis = atMillis,
+    buttonLabel = button?.label, eventLabel = event?.label,
+)
 
 internal fun HeadphoneState.withLatency(level: LatencyLevel): HeadphoneState =
     copy(latencyMs = level.current, latencyRangeMs = level.range)

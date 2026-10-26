@@ -8,7 +8,11 @@ import kotlin.test.assertNull
 
 /** The detect sheet's hints, and the trigger never running an action while it listens. */
 class DetectHintsTest {
-    private val shortcut = ButtonAssignment(0x80, 9, ButtonAction.VOICE_ASSISTANT, listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED))
+    // Named as the Bose driver names a [1.9] record (StateMapping.toButtonAssignment).
+    private val shortcut = ButtonAssignment(
+        0x80, 9, ButtonAction.VOICE_ASSISTANT, listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED),
+        buttonLabel = "Shortcut button", eventLabel = "Long press",
+    )
     private val base = DetectHintInput(
         listening = true, finished = false, sawAssistantGesture = false, bose = true,
         buttons = listOf(shortcut), touchControlsEnabled = true, handler = HandlerStatus.Earshot,

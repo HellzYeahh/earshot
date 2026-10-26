@@ -21,10 +21,11 @@ class LabLogicTest {
     private val bose = BmapLab.profile()
 
     @Test fun `the Bose export keeps its 0_5 format under a stack line`() {
+        // Named as BmapLab names them: the BMAP catalogue's function and block names.
         val readings = listOf(
-            LabReading(1, 7, null, listOf(RawFrame(1, 7, "STATUS", "f60a", false)), groupName = "Settings"),
-            LabReading(1, 8, null, listOf(RawFrame(1, 8, "ERROR", "04", true, "FUNC_NOT_SUPPORTED")), groupName = "Settings"),
-            LabReading(40, 0, null, emptyList()),
+            LabReading(1, 7, FunctionNames.functionName(1, 7), listOf(RawFrame(1, 7, "STATUS", "f60a", false)), groupName = "Settings"),
+            LabReading(1, 8, FunctionNames.functionName(1, 8), listOf(RawFrame(1, 8, "ERROR", "04", true, "FUNC_NOT_SUPPORTED")), groupName = "Settings"),
+            LabReading(40, 0, FunctionNames.functionName(40, 0), emptyList(), groupName = FunctionNames.blockName(40)),
         )
         val text = LabExport.text(bose, readings).lines()
         assertEquals("# Earshot Lab · Bose BMAP", text[0])

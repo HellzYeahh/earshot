@@ -222,8 +222,8 @@ fun ShortcutsRemapperContent(
                             ShortcutChoice.VOICE_MEMO -> callbacks.onChoose(ShortcutAction.VoiceMemo)
                             // Nothing is saved until an app is picked: cancelling keeps the old choice.
                             ShortcutChoice.LAUNCH_APP -> if ((choice as? ShortcutAction.LaunchApp)?.packageName == null) pickingApp = true
-                            ShortcutChoice.IMMERSIVE_AUDIO -> callbacks.onChoose(ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.wire))
-                            ShortcutChoice.OFF -> callbacks.onChoose(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.wire))
+                            ShortcutChoice.IMMERSIVE_AUDIO -> callbacks.onChoose(ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.storedId))
+                            ShortcutChoice.OFF -> callbacks.onChoose(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.storedId))
                         }
                     },
                 )
@@ -487,6 +487,7 @@ private val previewBose = RemapperHeadset("68:F2:1F:12:34:56", "Fargo", earbuds 
 private val previewButton = ButtonAssignment(
     buttonId = 0x80, eventType = 9, action = ButtonAction.VOICE_ASSISTANT,
     supportedActions = listOf(ButtonAction.VOICE_ASSISTANT, ButtonAction.DISABLED, ButtonAction.SPOTIFY_TAP, ButtonAction.SPATIAL_AUDIO),
+    buttonLabel = "Shortcut button", eventLabel = "Long press",
 )
 
 private val previewState = ShortcutsUiState(

@@ -925,7 +925,7 @@ class QcUltra2Protocol(
     /** `[1.11]` SET_GET `[persist, level]`; level order on the wire is 0 off, 1 high, 2 medium, 3 low. */
     override suspend fun setSidetone(c: BmapRequester, current: HeadphoneState, level: Sidetone, persistent: Boolean): HeadphoneState {
         requireDriven()
-        val echo = c.setGet(QcUltra2.SIDETONE, SidetoneCodec.build(level.wire, persistent))
+        val echo = c.setGet(QcUltra2.SIDETONE, SidetoneCodec.build(level.toLevelCode(), persistent))
         val state = parsed(QcUltra2.SIDETONE) { SidetoneCodec.parse(echo.payload) }
         return if (state != null) current.copy(sidetone = state.toSidetone(), sidetonePersistent = state.persist)
         else current.copy(sidetone = level, sidetonePersistent = persistent)
@@ -1037,10 +1037,10 @@ class QcUltra2Protocol(
     ): HeadphoneState {
         requireDriven()
         if (action == ButtonAction.UNKNOWN) throw HeadphoneCommandException("That button action is not known to the headphones")
-        val echo = c.setGet(QcUltra2.BUTTONS, Buttons.build(buttonId, eventType, action.wire))
+        val echo = c.setGet(QcUltra2.BUTTONS, Buttons.build(buttonId, eventType, action.toActionCode()))
         val config = parsed(QcUltra2.BUTTONS) { Buttons.parse(echo.payload) }
             ?: throw unexpected(QcUltra2.BUTTONS, "short echo (${echo.payload.size} bytes)")
-        if (config.actionCode != action.wire) {
+        if (config.actionCode != action.toActionCode()) {
             throw HeadphoneCommandException("The headphones ignored the change (that action may be unavailable right now)")
         }
         return current.withButtonRecord(config.toButtonAssignment())

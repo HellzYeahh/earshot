@@ -17,8 +17,8 @@ class FirstPressHintTest {
     private val never = listOf(
         ShortcutAction.OpenAssistant(),
         ShortcutAction.OpenAssistant("a.b/a.b.C", "Google"),
-        ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.wire),
-        ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.wire),
+        ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.storedId),
+        ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.storedId),
     )
 
     @Test

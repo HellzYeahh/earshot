@@ -124,11 +124,20 @@ class SonySession(
         if (SonyFunction.SMART_TALKING_MODE_TYPE2 in s.t1) read(t1(SonySystem.getParam(SystemType.SMART_TALKING_MODE_TYPE2)), "speak-to-chat")
         if (SonyFunction.PLAYBACK_CONTROL_BY_WEARING in s.t1) read(t1(SonySystem.getParam(SystemType.PLAYBACK_CONTROL_BY_WEARING)), "pause when taken off")
         s.voiceGuidanceType?.let { read(t2(SonyVoiceGuidance.getParam(it)), "voice guidance") }
-        return snapshot
+        return checkedSnapshot()
     }
 
     suspend fun readBattery(): SonySnapshot {
         for (type in SonyBattery.typesFor(snapshot.t1)) read(t1(SonyBattery.get(type)), "battery %02x".format(type))
+        return checkedSnapshot()
+    }
+
+    /**
+     * Each read above is optional (a function may not answer), so a link that died during them
+     * would otherwise hand back the old values as a successful refresh.
+     */
+    private fun checkedSnapshot(): SonySnapshot {
+        if (!conn.isOpen) throw HeadphoneCommandException("Headphones not connected")
         return snapshot
     }
 

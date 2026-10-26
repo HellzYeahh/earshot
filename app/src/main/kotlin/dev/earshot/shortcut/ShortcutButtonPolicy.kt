@@ -27,7 +27,7 @@ object ShortcutButtonPolicy {
      */
     fun desiredMode(choice: ShortcutAction, supported: Collection<ButtonAction>): ButtonAction? {
         val wanted = when (choice) {
-            is ShortcutAction.HeadphoneButton -> ButtonAction.fromWire(choice.mode).takeIf { it in NATIVE_MODES }
+            is ShortcutAction.HeadphoneButton -> ButtonAction.fromStoredId(choice.mode).takeIf { it in NATIVE_MODES }
             else -> ButtonAction.VOICE_ASSISTANT
         }
         return wanted?.takeIf { it in supported }
@@ -69,7 +69,7 @@ object ShortcutButtonPolicy {
      */
     fun displayedChoice(settings: ShortcutSettings, address: String?, button: ButtonAssignment?): ShortcutAction {
         if (!settings.hasExplicitChoice(address) && button != null && button.action in NATIVE_MODES) {
-            return ShortcutAction.HeadphoneButton(button.action.wire)
+            return ShortcutAction.HeadphoneButton(button.action.storedId)
         }
         return settings.actionFor(address)
     }

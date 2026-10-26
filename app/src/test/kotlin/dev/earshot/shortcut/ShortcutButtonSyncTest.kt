@@ -65,7 +65,7 @@ class ShortcutButtonSyncTest {
     @Test
     fun `no write without a choice of the user's, or when the mode already matches`() = runTest {
         assertTrue(setUp(ShortcutSettings()).writes.isEmpty())
-        assertTrue(setUp(ShortcutSettings().withChoice(address, "QC", ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.wire))).writes.isEmpty())
+        assertTrue(setUp(ShortcutSettings().withChoice(address, "QC", ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.storedId))).writes.isEmpty())
     }
 
     @Test
@@ -81,9 +81,9 @@ class ShortcutButtonSyncTest {
     fun `a choice from the remapper is applied right away and its error surfaces`() = runTest {
         val repo = setUp(ShortcutSettings())
         val sync = ShortcutButtonSync(repo, { ShortcutSettings() }, backgroundScope, log = {})
-        sync.applyChoice(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.wire))
+        sync.applyChoice(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.storedId))
         assertEquals(ButtonAction.DISABLED, repo.state.value.shortcutButton?.action)
-        sync.applyChoice(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.wire))
+        sync.applyChoice(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.storedId))
         assertEquals(listOf(ButtonAction.DISABLED), repo.writes) // already there: no second write
 
         repo.refuse = true
@@ -103,7 +103,7 @@ class ShortcutButtonSyncTest {
         }
         val sync = ShortcutButtonSync(repo, { ShortcutSettings() }, backgroundScope, log = {})
         sync.button(repo.state.value) // the full read seen first
-        sync.applyChoice(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.wire))
+        sync.applyChoice(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.storedId))
         assertTrue(repo.state.value.shortcutButton!!.supportedActions.isEmpty())
         sync.applyChoice(ShortcutAction.CycleEq)
         assertEquals(ButtonAction.VOICE_ASSISTANT, repo.state.value.shortcutButton?.action)
@@ -130,7 +130,7 @@ class ShortcutButtonSyncTest {
     @Test
     fun `each bud's record is written with its own id and event, only when the user set it`() = runTest {
         val buds = Buds(FakeHeadphoneRepository(backgroundScope, commandDelayMillis = 0, startConnected = true))
-        val settings = ShortcutSettings().withButtonChoice(address, 0x04, ButtonAction.VOICE_ASSISTANT.wire)
+        val settings = ShortcutSettings().withButtonChoice(address, 0x04, ButtonAction.VOICE_ASSISTANT.storedId)
         ShortcutButtonSync(buds, { settings }, backgroundScope, log = {}).start()
         testScheduler.runCurrent()
         // The right bud is already on Voice assistant (no explicit choice anyway); the left gets its saved mode.
