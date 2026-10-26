@@ -110,14 +110,20 @@ class BoseRig(
         return true
     }
 
+    /**
+     * Judged by the poll's own result: the unit also pushes `[2.2]` (block 2 is subscribed), and a
+     * push alone would bring the state to [percent]. So the poll starts from a snapshot without a
+     * battery, and its return value, taken before parked pushes are merged, is what counts.
+     */
     override suspend fun pollBattery(percent: Int): HeadphoneState {
+        var polled: HeadphoneState? = null
         repeat(MAX_DRAIN_STEPS) {
-            bose { s -> protocol.pollBattery(c(), s) }
-            if (state.batteryPercent == percent) return state
+            bose { s -> protocol.pollBattery(c(), s.copy(batteryPercent = null, battery = null)).also { polled = it } }
+            polled?.takeIf { it.batteryPercent == percent }?.let { return it }
             test.testScheduler.advanceTimeBy(DRAIN_MS)
             runCurrent()
         }
-        return state
+        return polled ?: state
     }
 
     /** bt/WriteGuard's refusals: firmware update and authentication blocks, factory default, ship mode, reset, clear device list. */

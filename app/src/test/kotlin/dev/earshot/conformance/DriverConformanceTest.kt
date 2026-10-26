@@ -61,6 +61,9 @@ class DriverConformanceTest(private val device: DemoDevice) {
 
         /** Virtual milliseconds a dropped link gets to close. */
         const val CLOSE_TIMEOUT_MS = 10_000L
+
+        /** Virtual milliseconds a stack gets to fail a command on a closed link (Sony resends for 7.5 s). */
+        const val DEAD_CALL_LIMIT_MS = 30_000L
     }
 
     @Before
@@ -183,6 +186,16 @@ class DriverConformanceTest(private val device: DemoDevice) {
         assertFalse(link.isOpen, "$device: closed after the far end went away")
         assertFailsWith<HeadphoneCommandException>("$device: refresh on a dead link") { rig.refresh() }
         assertFailsWith<HeadphoneCommandException>("$device: setMode on a dead link") { rig.setMode(0) }
+        // Past the repository's guard: the stack itself must fail on the closed link, in bounded time.
+        rig.repositoryGuard = false
+        suspend fun failsInTime(what: String, call: suspend () -> Any) {
+            val start = testScheduler.currentTime
+            val result = runCatching { withTimeout(DEAD_CALL_LIMIT_MS) { call() } }
+            assertTrue(result.isFailure, "$device: the stack's $what worked on a dead link")
+            assertTrue(testScheduler.currentTime - start < DEAD_CALL_LIMIT_MS, "$device: the stack's $what hung on a dead link")
+        }
+        failsInTime("refresh") { rig.refresh() }
+        failsInTime("setMode") { rig.setMode(0) }
     }
 
     @Test

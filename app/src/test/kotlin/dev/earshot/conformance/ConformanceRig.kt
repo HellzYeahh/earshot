@@ -86,6 +86,12 @@ interface ConformanceRig {
 
     /** Checks this stack cannot have, with the reason the test reports when it skips them. */
     val notApplicable: Map<Check, String> get() = emptyMap()
+
+    /**
+     * The repository's "not connected" check before every command. C6 turns it off to see the
+     * stack itself fail on a closed link instead of hanging or pretending it worked.
+     */
+    var repositoryGuard: Boolean
 }
 
 /**
@@ -145,9 +151,11 @@ abstract class RigBase<P>(protected val test: TestScope, final override val blue
         while (true) apply(synchronized(parked) { parked.removeFirstOrNull() } ?: break)
     }
 
+    final override var repositoryGuard: Boolean = true
+
     /** `connectionManager.connection.value?.takeIf { it.isOpen } ?: throw` in every repository. */
     protected fun requireOpen() {
-        if (connection?.isOpen != true) throw HeadphoneCommandException("Headphones not connected")
+        if (repositoryGuard && connection?.isOpen != true) throw HeadphoneCommandException("Headphones not connected")
     }
 
     /** One command: the repository's guard, then [block]'s state is published and parked pushes merged on top. */

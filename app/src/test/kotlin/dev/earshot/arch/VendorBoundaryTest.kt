@@ -2,6 +2,7 @@ package dev.earshot.arch
 
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -29,10 +30,12 @@ class VendorBoundaryTest {
     private val neutral = listOf("ui", "extras", "shortcut", "call", "core", "audio", "mic", "codec", "find")
 
     private val vendorReference = Regex(
-        """dev\.earshot\.protocol\.(?:(?:qcultra2|bragi|soundcore|sennheiser|sony|gaia|airoha|apple)\b|Bmap\w*)""" +
+        """dev\.earshot\.protocol\.(?:(?:qcultra2|bragi|soundcore|sennheiser|sony|gaia|airoha|apple)\b|Bmap\w*|FunctionAddress\b|DecodeResult\b)""" +
             """|dev\.earshot\.virtual\.Virtual\w*""" +
             """|dev\.earshot\.service\.\w+""" +
-            """|dev\.earshot\.bt\.(?:Bmap|Bragi|Soundcore|Sennheiser|Sony|Race|Airoha|AndroidBragi|BoseLinkFactory|LivenessProbe|WriteGuard)\w*""",
+            """|dev\.earshot\.bt\.(?:Bmap|Bragi|Soundcore|Sennheiser|Sony|Race|Airoha|AndroidBragi|BoseLinkFactory|LivenessProbe|WriteGuard)\w*""" +
+            // A wildcard import makes every later use unqualified, so it can't be checked: refused.
+            """|import\s+dev\.earshot\.(?:service|virtual|bt|protocol)(?:\.\w+)*\.\*""",
     )
 
     private fun isComment(line: String): Boolean = line.trim().let { it.startsWith("*") || it.startsWith("//") || it.startsWith("/*") }
@@ -62,6 +65,10 @@ class VendorBoundaryTest {
             "import dev.earshot.service.QcUltra2Protocol",
             "import dev.earshot.bt.BmapConnection",
             "import dev.earshot.bt.SoundcoreConnection",
+            "import dev.earshot.protocol.FunctionAddress",
+            "import dev.earshot.service.*",
+            "import dev.earshot.protocol.qcultra2.*",
+            "import dev.earshot.bt.*",
         )) assertTrue(vendorReference.containsMatchIn(line), line)
         for (line in listOf(
             "import dev.earshot.bt.DeviceFamily",
@@ -80,21 +87,41 @@ class VendorBoundaryTest {
     }
 
     /**
-     * Core types that may still declare `wire` / `fromWire`. Only SpatialAudio: its code is also the
-     * id saved in the automation rules (`spatialAudioWire`), and A7 replaces it with a stored id and
-     * a migration. Remove it from here then; nothing may be added.
+     * Core types that may still declare `wire` / `fromWire`. Only SpatialAudio: StateMapping still
+     * maps the Bose `[31.10]` byte through it (A7 gave the rules their own `storedId`). Remove it
+     * from here once the Bose driver maps that byte itself; nothing may be added.
      */
     private val wireCodesAllowed = setOf("SpatialAudio")
 
+    private val wire = Regex("""\b(?:val|var)\s+(?:[\w.]+\.)?wire\w*\b|\bfun\s+(?:[\w.]+\.)?fromWire\w*\b""")
+
+    // A top-level declaration (no indent, annotations allowed) names the type the following lines
+    // belong to; any other top-level declaration ends the previous type.
+    private val declaration = Regex(
+        """^(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:enum|data|sealed|value|abstract|open|internal|private|inline)\s+)*(class|interface|object|fun|val|var|typealias)\s+([\w.]+)""",
+    )
+
+    @Test fun `the wire check sees extensions and annotated types`() {
+        for (line in listOf("val wire: Int", "val Sidetone.wire: Int get() = 0", "fun ButtonAction.Companion.fromWire(c: Int)", "val wireCode = 3")) {
+            assertTrue(wire.containsMatchIn(line), line)
+        }
+        assertEquals("Mode", ownerOf("@Serializable enum class Mode(val id: Int)"))
+        assertEquals(null, ownerOf("fun helper() = 1"))
+    }
+
+    /** The type a top-level line declares, null for a top-level function or property (it ends the previous type). */
+    private fun ownerOf(line: String): String? = declaration.find(line)?.let { m ->
+        if (m.groupValues[1] in setOf("class", "interface", "object")) m.groupValues[2] else null
+    }
+
     @Test fun `core declares no wire codes`() {
-        val wire = Regex("""\b(?:val|var)\s+wire\b|\bfun\s+fromWire\b""")
-        // A top-level declaration (no indent) names the type the following lines belong to.
-        val declaration = Regex("""^(?:(?:enum|data|sealed|value|abstract|open|internal|private)\s+)*(?:class|interface|object)\s+(\w+)""")
         val offenders = kotlinFiles("core").flatMap { file ->
             var owner: String? = null
             file.readLines().mapIndexedNotNull { i, line ->
-                declaration.find(line)?.let { owner = it.groupValues[1] }
-                if (isComment(line) || !wire.containsMatchIn(line) || owner in wireCodesAllowed) null
+                if (declaration.containsMatchIn(line)) owner = ownerOf(line)
+                // An extension (`val SpatialAudio.wire`) belongs to its receiver, wherever it sits.
+                val receiver = Regex("""\b(?:val|var|fun)\s+(\w+)\.""").find(line)?.groupValues?.get(1)
+                if (isComment(line) || !wire.containsMatchIn(line) || (receiver ?: owner) in wireCodesAllowed) null
                 else "${file.relativeTo(root).invariantSeparatorsPath}:${i + 1} ($owner): ${line.trim()}"
             }
         }
