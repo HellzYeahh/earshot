@@ -226,11 +226,12 @@ class AppContainer(private val appContext: Context) {
     val headphones: HeadphoneRepository by lazy {
         RoutingHeadphoneRepository(
             drivers = listOf(
-                VendorDriver(DeviceFamily.BOSE, boseHeadphones, boseHeadphones::releaseConnection),
-                VendorDriver(DeviceFamily.BRAGI, crusherHeadphones, crusherHeadphones::releaseConnection),
-                VendorDriver(DeviceFamily.SOUNDCORE, soundcoreHeadphones, soundcoreHeadphones::releaseConnection),
-                VendorDriver(DeviceFamily.SENNHEISER, sennheiserHeadphones, sennheiserHeadphones::releaseConnection),
-                VendorDriver(DeviceFamily.SONY, sonyHeadphones, sonyHeadphones::releaseConnection),
+                VendorDriver(DeviceFamily.BOSE, boseHeadphones),
+                VendorDriver(DeviceFamily.BRAGI, crusherHeadphones),
+                VendorDriver(DeviceFamily.SOUNDCORE, soundcoreHeadphones),
+                VendorDriver(DeviceFamily.SENNHEISER, sennheiserHeadphones),
+                VendorDriver(DeviceFamily.SONY, sonyHeadphones),
+                // Not on the session base (it has no link): its release also resets what it showed.
                 VendorDriver(DeviceFamily.GENERIC, genericHeadphones, genericHeadphones::releaseConnection),
             ),
             prefs = devicePrefs,

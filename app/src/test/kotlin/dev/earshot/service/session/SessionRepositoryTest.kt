@@ -1,12 +1,14 @@
 package dev.earshot.service.session
 
 import dev.earshot.bt.DeviceCandidate
+import dev.earshot.bt.DeviceFamily
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneCandidate
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.NoiseSettings
+import dev.earshot.service.VendorDriver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.update
@@ -228,6 +230,15 @@ class SessionRepositoryTest {
         assertEquals("Not on this driver", assertFailsWith<HeadphoneCommandException> { oneSentence.repo.setMultipoint(true) }.message)
         // Members with a default in HeadphoneRepository keep it.
         assertEquals("Not supported by this connection", assertFailsWith<HeadphoneCommandException> { oneSentence.repo.setAutoOff(20) }.message)
+    }
+
+    @Test fun `a VendorDriver of the repository releases the link and keeps the service`() = runTest {
+        val r = rig()
+        val driver = VendorDriver(DeviceFamily.SONY, r.repo)
+        assertSame(r.repo, driver.repository)
+        driver.release()
+        assertEquals(1, r.link.disconnects)
+        assertEquals(0, r.foreground.stops)
     }
 
     @Test fun `start runs once`() = runTest {
