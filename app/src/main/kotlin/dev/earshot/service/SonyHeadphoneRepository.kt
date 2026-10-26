@@ -6,47 +6,35 @@ import dev.earshot.bt.ConnectionManager
 import dev.earshot.bt.DeviceCandidate
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
+import dev.earshot.bt.LinkSource
 import dev.earshot.bt.SonyConnection
 import dev.earshot.bt.SonyLinkFactory
 import dev.earshot.bt.SonyLog
-import dev.earshot.core.ButtonAction
-import dev.earshot.core.ConnectionStatus
-import dev.earshot.core.HeadphoneCandidate
 import dev.earshot.core.HeadphoneCommandException
-import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
-import dev.earshot.core.HeadphoneState
 import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.NoiseSettings
-import dev.earshot.core.Sidetone
-import dev.earshot.core.VoicePrompts
 import dev.earshot.service.lab.SonyLab
+import dev.earshot.service.session.AndroidForegroundHost
+import dev.earshot.service.session.ForegroundHost
+import dev.earshot.service.session.SessionLog
+import dev.earshot.service.session.SessionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
  * [HeadphoneRepository] for Sony headphones on MDR v2 (Experimental). The same [ConnectionManager]
  * policy as the other stacks (reconnects, Bluetooth on/off, "close Sony Sound Connect"), over
- * [SonyConnection] and a [SonySession] per connection:
+ * [SonyConnection] and a [SonySession] per connection; the shared part is [SessionRepository]:
  *  - connect: the init sequence, then everything the headset announced is mapped by
  *    [SonyStateMapping];
  *  - pushes: the headset sends NTFY frames for every change (also from its own buttons); battery
@@ -55,125 +43,83 @@ import kotlinx.coroutines.sync.withLock
  *    power off. Each reads its setting back, so the screen shows what the headphones did.
  * Everything else throws a readable [HeadphoneCommandException]: Tools let anyone try a setting.
  */
-class SonyHeadphoneRepository(
-    context: Context,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-    demoTransport: () -> (() -> ByteTransport)? = { null },
-    autoConnect: () -> Boolean = { true },
-) : HeadphoneRepository {
+class SonyHeadphoneRepository internal constructor(
+    link: LinkSource<SonyConnection>,
+    candidates: suspend () -> List<DeviceCandidate>,
+    foreground: ForegroundHost,
+    scope: CoroutineScope,
+    /** The session's clock for the confirmation-prompt window; tests pass the virtual one. */
+    private val clock: () -> Long = System::currentTimeMillis,
+) : SessionRepository<SonyConnection>(link, candidates, foreground, scope, SonySessionLog) {
 
-    private val appContext = context.applicationContext
-
-    val devicePrefs = DevicePrefs(appContext)
-    val deviceFinder = DeviceFinder(appContext, devicePrefs)
-    val connectionManager = ConnectionManager(
-        appContext, deviceFinder, devicePrefs, scope, SonyLinkFactory(),
-        autoConnect = autoConnect,
-        demoTransport = demoTransport,
-        demoName = { DEMO_NAME },
+    constructor(
+        context: Context,
+        scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+        demoTransport: () -> (() -> ByteTransport)? = { null },
+        autoConnect: () -> Boolean = { true },
+        /** Shared with the other stacks (`AppContainer`); one store per process either way. */
+        prefs: DevicePrefs = DevicePrefs(context),
+        finder: DeviceFinder = DeviceFinder(context.applicationContext, prefs),
+        demoName: () -> String = { DEMO_NAME },
+    ) : this(
+        link = ConnectionManager(
+            context.applicationContext, finder, prefs, scope, SonyLinkFactory(),
+            autoConnect = autoConnect,
+            demoTransport = demoTransport,
+            demoName = demoName,
+        ),
+        candidates = finder::candidates,
+        foreground = AndroidForegroundHost(context, finder),
+        scope = scope,
     )
-
-    private val _state = MutableStateFlow(HeadphoneState())
-    override val state: StateFlow<HeadphoneState> = _state.asStateFlow()
-
-    private val _events = MutableSharedFlow<HeadphoneEvent>(extraBufferCapacity = 16)
-    override val events: SharedFlow<HeadphoneEvent> = _events.asSharedFlow()
-
-    private val commands = Mutex()
 
     @Volatile
     private var session: SonySession? = null
 
     init {
-        scope.launch {
-            var wasConnected = false
-            connectionManager.state.collect { cs ->
-                val connected = cs.status == ConnectionStatus.CONNECTED
-                _state.update { s -> if (connected || !wasConnected) s.copy(connection = cs) else HeadphoneState(connection = cs) }
-                if (wasConnected && !connected) _events.tryEmit(HeadphoneEvent.Disconnected)
-                wasConnected = connected
-            }
-        }
-        scope.launch {
-            connectionManager.connection.collectLatest { conn -> if (conn != null) runSession(conn) }
-        }
+        start() // last: runSession reads the fields above
     }
 
-    // ---- Connection ------------------------------------------------------------------------
-
-    override fun connect() {
-        if (deviceFinder.hasConnectPermission()) HeadphoneService.start(appContext)
-        connectionManager.connect()
-    }
-
-    override fun disconnect() {
-        connectionManager.disconnect()
-        HeadphoneService.stop(appContext)
-    }
-
-    /** Drop the connection without stopping the foreground service: another repository is taking over. */
-    fun releaseConnection() = connectionManager.disconnect()
-
-    override suspend fun deviceCandidates(): List<HeadphoneCandidate> = deviceFinder.candidates().map { it.toCandidate() }
-
-    private fun DeviceCandidate.toCandidate() =
-        HeadphoneCandidate(address = address, name = name, looksLikeBose = looksLikeBose, isAudioDevice = isAudioDevice)
-
-    override suspend fun chooseDevice(address: String, name: String?) {
-        HeadphoneService.start(appContext)
-        connectionManager.chooseDevice(address, name)
-    }
-
-    // The session lives until every child below ends; the inner coroutineScope is what makes the
-    // finally wait for them. (0.75 cleared `session` as soon as the poll was launched, so every
-    // command after Connected threw "Headphones not connected".)
-    private suspend fun runSession(conn: SonyConnection) {
-        val s = SonySession(conn)
+    override suspend fun CoroutineScope.runSession(conn: SonyConnection) {
+        val s = SonySession(conn, clock)
         session = s
-        try {
-            coroutineScope {
-                launch {
-                    conn.unsolicited.collect { m ->
-                        s.onPush(m)?.let { _events.tryEmit(HeadphoneEvent.Info(it)) }
-                        publish(s.snapshot)
-                    }
-                }
-                try {
-                    commands.withLock { publish(s.initialize()) }
-                } catch (e: HeadphoneCommandException) {
-                    SonyLog.w("init failed: ${e.message}")
-                    _events.tryEmit(HeadphoneEvent.Error("Connected, but reading the headphones failed: ${e.message}", e))
-                }
-                _events.tryEmit(HeadphoneEvent.Connected)
-                launch {
-                    while (conn.isOpen) {
-                        delay(BATTERY_POLL_MS)
-                        if (!conn.isOpen) break
-                        runCatching { commands.withLock { publish(s.readBattery()) } }.onFailure { SonyLog.d("battery poll failed: ${it.message}") }
-                    }
-                }
+        launch {
+            conn.unsolicited.collect { m ->
+                s.onPush(m)?.let { mutableEvents.tryEmit(HeadphoneEvent.Info(it)) }
+                publish(s.snapshot)
             }
-        } finally {
-            if (session === s) session = null
         }
+        try {
+            commands.withLock { publish(s.initialize()) }
+        } catch (e: HeadphoneCommandException) {
+            log.w("init failed: ${e.message}")
+            mutableEvents.tryEmit(HeadphoneEvent.Error("Connected, but reading the headphones failed: ${e.message}", e))
+        }
+        mutableEvents.tryEmit(HeadphoneEvent.Connected)
+        pollWhileOpen(conn, BATTERY_POLL_MS) { commands.withLock { publish(s.readBattery()) } }
+    }
+
+    /** The base runs this once the session and every child above ended (the 0.75 bug cleared it right after launch). */
+    override fun onSessionEnd(conn: SonyConnection) {
+        session = null
     }
 
     private fun publish(snapshot: SonySnapshot) {
-        _state.update { SonyStateMapping.apply(it, snapshot) }
+        mutableState.update { SonyStateMapping.apply(it, snapshot) }
     }
 
-    private fun requireSession(): SonySession = session?.takeIf { connectionManager.connection.value?.isOpen == true }
-        ?: throw HeadphoneCommandException("Headphones not connected")
+    private fun requireSession(): SonySession = session?.takeIf { openConnection() != null }
+        ?: throw HeadphoneCommandException(NOT_CONNECTED)
 
     /** One command at a time; the session reads the setting back before [publish]. */
     private suspend fun command(what: String, block: suspend (SonySession) -> SonySnapshot) = commands.withLock {
         val s = requireSession()
-        _state.update { it.copy(isBusy = true) }
+        mutableState.update { it.copy(isBusy = true) }
         try {
-            SonyLog.i("set $what")
+            log.i("set $what")
             publish(block(s))
         } finally {
-            _state.update { it.copy(isBusy = false) }
+            mutableState.update { it.copy(isBusy = false) }
         }
     }
 
@@ -190,37 +136,31 @@ class SonyHeadphoneRepository(
     override suspend fun powerOff() = commands.withLock { requireSession().powerOff() }
 
     // ---- What it doesn't have (or Earshot doesn't drive yet) --------------------------------
+    // Custom modes, favourites, the 3-band EQ (Sony's EQ has its own bands and presets: they are
+    // vendor controls), sidetone, the Bose toggles, renaming, switching, pairing mode: the base
+    // answers them with [UNSUPPORTED].
 
-    override suspend fun saveCustomMode(index: Int, name: String, settings: NoiseSettings) = unsupported()
-    override suspend fun setFavorites(indices: Set<Int>) = unsupported()
-
-    /** The Sony EQ has its own bands and presets: they are vendor controls, not the 3-band `HeadphoneEq`. */
-    override suspend fun setEq(eq: HeadphoneEq) = unsupported()
-    override suspend fun setSidetone(level: Sidetone, persistent: Boolean) = unsupported()
-    override suspend fun setAutoPlayPause(enabled: Boolean) = unsupported()
-    override suspend fun setAutoAnswer(enabled: Boolean) = unsupported()
-    override suspend fun setMultipoint(enabled: Boolean) = unsupported()
-    override suspend fun setVoicePrompts(prompts: VoicePrompts) = unsupported()
-    override suspend fun setShortcutButton(action: ButtonAction) = unsupported()
-    override suspend fun setDeviceName(name: String) = unsupported()
-    override suspend fun switchToDevice(address: String) = unsupported()
-    override suspend fun enterPairingMode() = unsupported()
+    override fun unsupportedMessage(feature: String): String = UNSUPPORTED
 
     // ---- Lab (GET inquiries for the announced functions, see SonyLab) ----------------------
 
     override fun labProfile(): LabProfile? {
         val s = session ?: return null
-        if (connectionManager.connection.value?.isOpen != true) return null
+        if (openConnection() == null) return null
         return SonyLab.profile(s.snapshot)
     }
 
     override fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> = flow {
         val s = requireSession()
-        val conn = connectionManager.connection.value?.takeIf { it.isOpen } ?: throw HeadphoneCommandException("Headphones not connected")
-        emitAll(SonyLab.scan(conn, s.snapshot, groupIds, deep))
+        emitAll(SonyLab.scan(requireConnection(), s.snapshot, groupIds, deep))
     }
 
-    private fun unsupported(): Nothing = throw HeadphoneCommandException(UNSUPPORTED)
+    /** Through [SonyLog], so the repository's lines stay in the Lab's connection report. */
+    private object SonySessionLog : SessionLog {
+        override fun d(msg: String) = SonyLog.d(msg)
+        override fun i(msg: String) = SonyLog.i(msg)
+        override fun w(msg: String, t: Throwable?) = SonyLog.w(msg, t)
+    }
 
     companion object {
         const val DEMO_NAME = "Virtual Sony WH-1000XM5 (demo)"

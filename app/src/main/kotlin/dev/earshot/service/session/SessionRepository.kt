@@ -189,19 +189,20 @@ abstract class SessionRepository<C : ManagedLink>(
 
     protected fun unsupported(feature: String): Nothing = throw HeadphoneCommandException(unsupportedMessage(feature))
 
-    override suspend fun saveCustomMode(index: Int, name: String, settings: NoiseSettings) = unsupported("Custom modes")
-    override suspend fun setFavorites(indices: Set<Int>) = unsupported("Favourite modes")
-    override suspend fun setEq(eq: HeadphoneEq) = unsupported("The headphones' own equaliser")
-    override suspend fun setSidetone(level: Sidetone, persistent: Boolean) = unsupported("Sidetone")
-    override suspend fun setAutoPlayPause(enabled: Boolean) = unsupported("Auto play/pause")
-    override suspend fun setAutoAnswer(enabled: Boolean) = unsupported("Auto answer")
-    override suspend fun setMultipoint(enabled: Boolean) = unsupported("Multipoint")
-    override suspend fun setVoicePrompts(prompts: VoicePrompts) = unsupported("Voice prompts")
-    override suspend fun setShortcutButton(action: ButtonAction) = unsupported("The shortcut button")
-    override suspend fun setDeviceName(name: String) = unsupported("Renaming")
-    override suspend fun switchToDevice(address: String) = unsupported("Switching devices")
-    override suspend fun enterPairingMode() = unsupported("Pairing mode")
-    override suspend fun powerOff() = unsupported("Power off")
+    // Declared `: Unit`: inferred from unsupported() they would be `Nothing`, and no driver could override them.
+    override suspend fun saveCustomMode(index: Int, name: String, settings: NoiseSettings): Unit = unsupported("Custom modes")
+    override suspend fun setFavorites(indices: Set<Int>): Unit = unsupported("Favourite modes")
+    override suspend fun setEq(eq: HeadphoneEq): Unit = unsupported("The headphones' own equaliser")
+    override suspend fun setSidetone(level: Sidetone, persistent: Boolean): Unit = unsupported("Sidetone")
+    override suspend fun setAutoPlayPause(enabled: Boolean): Unit = unsupported("Auto play/pause")
+    override suspend fun setAutoAnswer(enabled: Boolean): Unit = unsupported("Auto answer")
+    override suspend fun setMultipoint(enabled: Boolean): Unit = unsupported("Multipoint")
+    override suspend fun setVoicePrompts(prompts: VoicePrompts): Unit = unsupported("Voice prompts")
+    override suspend fun setShortcutButton(action: ButtonAction): Unit = unsupported("The shortcut button")
+    override suspend fun setDeviceName(name: String): Unit = unsupported("Renaming")
+    override suspend fun switchToDevice(address: String): Unit = unsupported("Switching devices")
+    override suspend fun enterPairingMode(): Unit = unsupported("Pairing mode")
+    override suspend fun powerOff(): Unit = unsupported("Power off")
 
     companion object {
         const val NOT_CONNECTED = "Headphones not connected"
