@@ -25,8 +25,12 @@ import dev.earshot.R
 
 /** The `[1.4]` auto-off choices the UI offers. Pure, for `AutoOffOptionsTest`. */
 object AutoOffOptions {
-    /** The Bose app's "Auto-Off" list (5, 20, 40 min, 1 h, 3 h, 24 h, never), from the protocol module. */
-    val STANDARD: List<Int> = dev.earshot.protocol.qcultra2.AutoOffOptions.MINUTES
+    /**
+     * The Bose app's "Auto-Off" list (5, 20, 40 min, 1 h, 3 h, 24 h, never). Spelled out rather than
+     * imported so the UI doesn't reach into the Bose protocol package (VendorBoundaryTest);
+     * UiLogicTest keeps it equal to `qcultra2.AutoOffOptions.MINUTES`.
+     */
+    val STANDARD: List<Int> = listOf(5, 20, 40, 60, 180, 1440, 0)
 
     /** [STANDARD] plus [current] when the headphones are set to something else, Never first. */
     fun options(current: Int?): List<Int> =

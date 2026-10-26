@@ -28,7 +28,8 @@ class UiLogicTest {
 
     @Test
     fun `auto-off offers the standard list plus an odd current value`() {
-        // The Bose app's list (protocol AutoOffOptions.MINUTES), Never first.
+        // The Bose app's list, Never first. The UI spells it out; it must stay the protocol's list.
+        assertEquals(dev.earshot.protocol.qcultra2.AutoOffOptions.MINUTES, AutoOffOptions.STANDARD)
         assertEquals(listOf(0, 5, 20, 40, 60, 180, 1440), AutoOffOptions.options(20))
         assertEquals(listOf(0, 5, 20, 40, 60, 90, 180, 1440), AutoOffOptions.options(90))
         assertEquals(listOf(0, 5, 20, 40, 60, 180, 1440), AutoOffOptions.options(null))

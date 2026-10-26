@@ -41,7 +41,6 @@ class VendorBoundaryTest {
         "shortcut/ControlDetection.kt",
         "ui/home/HomeViewModel.kt",
         "ui/tools/LabViewModel.kt",
-        "ui/more/AutoOff.kt",
         "ui/tools/ShortcutsRemapperViewModel.kt",
     )
 
