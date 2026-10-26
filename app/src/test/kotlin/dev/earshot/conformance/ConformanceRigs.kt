@@ -2,6 +2,7 @@ package dev.earshot.conformance
 
 import dev.earshot.virtual.DemoDevice
 import dev.earshot.virtual.VirtualCrusher
+import dev.earshot.virtual.virtualProfile
 import kotlinx.coroutines.test.TestScope
 
 /**
@@ -11,17 +12,16 @@ import kotlinx.coroutines.test.TestScope
  * wire protocol, nothing sent.
  */
 fun rigFor(d: DemoDevice, test: TestScope): ConformanceRig? = when (d) {
-    // The Bose rows follow in the next step (their end-to-end tests are the gate for it).
     DemoDevice.QC_ULTRA, DemoDevice.QC_ULTRA_EARBUDS_2, DemoDevice.QC_EARBUDS_2, DemoDevice.QC_EARBUDS,
     DemoDevice.QC45, DemoDevice.NC700, DemoDevice.ULTRA_OPEN, DemoDevice.QC35_II,
-    -> null
+    -> BoseRig(test, d, checkNotNull(d.virtualProfile()) { "$d has no virtual profile" }, seed = d.ordinal + 1)
 
     DemoDevice.CRUSHER -> BragiRig(test, d, VirtualCrusher(), "Skullcandy Crusher 1080")
     DemoDevice.CRUSHER_SECURE -> BragiRig(test, d, VirtualCrusher(authenticatedAccess = true), "Skullcandy Crusher 1080")
     DemoDevice.METHOD_360 -> BragiRig(test, d, VirtualCrusher.method360(), "Skullcandy Method 360 ANC")
     DemoDevice.METHOD_540 -> BragiRig(test, d, VirtualCrusher.method540(), "Skullcandy Method 540 ANC")
 
-    // The Soundcore rows follow after the Bose ones.
+    // The Soundcore rows follow in the next step.
     DemoDevice.SOUNDCORE_SLEEP_A30, DemoDevice.SOUNDCORE_LIBERTY_4_NC, DemoDevice.SOUNDCORE_SPACE_ONE_PRO -> null
 
     DemoDevice.SENNHEISER_MOMENTUM_4 -> SennheiserRig(test, d)
