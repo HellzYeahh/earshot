@@ -66,17 +66,24 @@ class AutomationRepositoryImpl(
         .map { prefs -> decodeLog(prefs[KEY_LOG]) }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
-    override suspend fun upsertRule(rule: AutomationRule) = editRules { current -> current.filterNot { it.id == rule.id } + rule }
+    override suspend fun upsertRule(rule: AutomationRule) = editRules(userEdit = true) { current -> current.filterNot { it.id == rule.id } + rule }
 
-    override suspend fun deleteRule(id: String) = editRules { current -> current.filterNot { it.id == id } }
+    override suspend fun deleteRule(id: String) = editRules(userEdit = true) { current -> current.filterNot { it.id == id } }
 
-    override suspend fun updateRules(transform: (List<AutomationRule>) -> List<AutomationRule>) = editRules(transform)
+    override suspend fun updateRules(transform: (List<AutomationRule>) -> List<AutomationRule>) = editRules(userEdit = false, transform)
 
-    /** Read-modify-write inside one DataStore edit; rules this build can't read are written back untouched. */
-    private suspend fun editRules(transform: (List<AutomationRule>) -> List<AutomationRule>) {
+    /**
+     * Read-modify-write inside one DataStore edit; rules this build can't read are written back
+     * untouched. Nothing is written when nothing changed, and stored text that isn't a rule list at
+     * all is replaced only by the user's own edit (as in 0.75), never by an automatic rewrite.
+     */
+    private suspend fun editRules(userEdit: Boolean, transform: (List<AutomationRule>) -> List<AutomationRule>) {
         store.edit { prefs ->
             val current = decodeRules(prefs[KEY_RULES])
-            prefs[KEY_RULES] = AutomationJson.encodeRules(transform(current.rules), current.unreadable)
+            if (current.corrupt && !userEdit) return@edit
+            val next = transform(current.rules)
+            if (next == current.rules && !current.corrupt) return@edit
+            prefs[KEY_RULES] = AutomationJson.encodeRules(next, current.unreadable)
         }
     }
 
@@ -162,15 +169,18 @@ class AutomationRepositoryImpl(
         val defaults = AppPreferences()
         val lowBatteryEnabled = prefs[KEY_LOW_BATTERY_ENABLED] ?: (defaults.lowBatteryThreshold != null)
         val threshold = prefs[KEY_LOW_BATTERY_THRESHOLD] ?: defaults.lowBatteryThreshold ?: 20
+        val legacyTile = AutomationJson.decodeLegacyTileCycle(prefs[KEY_TILE_CYCLE])
+        val tileCycle = AutomationJson.decodeTileCycle(prefs[KEY_TILE_CYCLE_REFS])
+        val migrated = (prefs[KEY_MODE_REFS_MIGRATED] ?: defaults.modeRefsMigrated) && AutomationJson.tileRefsCurrent(legacyTile, tileCycle)
         return AppPreferences(
             lowBatteryThreshold = if (lowBatteryEnabled) threshold else null,
             persistentNotification = prefs[KEY_PERSISTENT_NOTIFICATION] ?: defaults.persistentNotification,
             autoConnectOnBluetooth = prefs[KEY_AUTO_CONNECT] ?: defaults.autoConnectOnBluetooth,
-            tileCycleModes = AutomationJson.decodeLegacyTileCycle(prefs[KEY_TILE_CYCLE]) ?: defaults.tileCycleModes,
+            tileCycleModes = legacyTile ?: defaults.tileCycleModes,
             // A name from a newer build that this one doesn't know falls back to the default.
             appearance = prefs[KEY_APPEARANCE]?.let { name -> Appearance.entries.firstOrNull { it.name == name } } ?: defaults.appearance,
-            tileCycle = AutomationJson.decodeTileCycle(prefs[KEY_TILE_CYCLE_REFS]),
-            modeRefsMigrated = prefs[KEY_MODE_REFS_MIGRATED] ?: defaults.modeRefsMigrated,
+            tileCycle = tileCycle,
+            modeRefsMigrated = migrated,
         )
     }
 

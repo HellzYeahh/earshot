@@ -1,5 +1,6 @@
 package dev.earshot.extras.automation
 
+import android.util.Log
 import dev.earshot.core.AppPreferences
 import dev.earshot.core.AutomationAction
 import dev.earshot.core.AutomationRepository
@@ -8,6 +9,7 @@ import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.ListeningMode
 import dev.earshot.core.ModeResolver
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,8 +24,8 @@ import kotlinx.coroutines.launch
  * mode meanings, on the first real headset that shows its modes after the upgrade. It reads the
  * slot as 0.75 meant it, on the headset connected now, and keeps the number as
  * [dev.earshot.core.ModeRef.legacySlot], so a migrated rule never does less than it did in 0.75:
- * on that headset it hits the same slots; elsewhere the meaning wins where it exists, the old slot
- * where it doesn't.
+ * on that headset it hits the same slots; elsewhere a built-in meaning wins where it exists, else
+ * the old slot, unless that slot means Off there ([ModeResolver.slotFor]).
  *
  * Until a rule is bound, RuleRunner runs its slot exactly as 0.75 did, so nothing changes for it
  * before this has run. Rules are re-checked on every connect (only unbound ones change: a rule a
@@ -37,6 +39,8 @@ class ModeRefMigration(
     private val demoEnabled: Flow<Boolean>,
     /** The Bose dump can arrive a little after the presets: wait for the mode list to settle. */
     private val settleMillis: Long = SETTLE_MILLIS,
+    /** This runs by itself on every connect, so a store error (disk full, corrupt file) is logged, never thrown. */
+    private val onError: (Throwable) -> Unit = { Log.w(TAG, "Mode migration failed; it is retried on the next connect", it) },
 ) {
     fun start(scope: CoroutineScope): Job = scope.launch {
         combine(headphones.state, demoEnabled) { state, demo -> if (demo) null else Ready.of(state) }
@@ -44,13 +48,21 @@ class ModeRefMigration(
             .collectLatest { ready ->
                 if (ready == null) return@collectLatest
                 delay(settleMillis)
-                migrate(ready.modes, ready.address)
+                try {
+                    migrate(ready.modes, ready.address)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    onError(e)
+                }
             }
     }
 
     /** Binds what can be bound on the headset at [address] with [modes]. */
     suspend fun migrate(modes: List<ListeningMode>, address: String) {
-        if (automation.rules.value.any(::hasUnboundMode) || automation.rules.value.isEmpty()) {
+        // Only when there is something to bind. An empty list may be stored text this build can't
+        // read, which only a user's own edit may replace.
+        if (automation.rules.value.any(::hasUnboundMode)) {
             automation.updateRules { rules -> bindRules(rules, modes, address) }
         }
         if (!automation.preferences.value.modeRefsMigrated) {
@@ -74,6 +86,7 @@ class ModeRefMigration(
 
     companion object {
         const val SETTLE_MILLIS = 3_000L
+        private const val TAG = "Earshot/Automation"
 
         private fun hasUnboundMode(rule: AutomationRule) = rule.actions.any { it is AutomationAction.SetMode && it.mode == null }
 

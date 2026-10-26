@@ -2,6 +2,7 @@ package dev.earshot.extras.automation
 
 import dev.earshot.core.AppPreferences
 import dev.earshot.core.AutomationAction
+import dev.earshot.core.AutomationRepository
 import dev.earshot.core.AutomationRule
 import dev.earshot.core.ConnectionState
 import dev.earshot.core.ConnectionStatus
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -142,6 +144,41 @@ class ModeRefMigrationTest {
         advanceTimeBy(600); runCurrent()
         assertEquals(ModeMeaning.QUIET, modeOf(automation.rules.value.single()).mode?.meaning)
         assertTrue(automation.preferences.value.modeRefsMigrated)
+    }
+
+    @Test fun `a store error is logged and the next time the headset shows up it tries again`() = runTest {
+        val base = store(rule("quiet", AutomationAction.SetMode(0)))
+        val failing = object : AutomationRepository by base {
+            var calls = 0
+            override suspend fun updateRules(transform: (List<AutomationRule>) -> List<AutomationRule>) {
+                calls++
+                throw IOException("disk full")
+            }
+        }
+        val connected = { HeadphoneState(connection = ConnectionState(ConnectionStatus.CONNECTED, "QC", bose), modes = boseModes) }
+        val headset = FakeHeadphoneRepository(commandDelayMillis = 0, startConnected = true, connectedTemplate = connected)
+        val errors = mutableListOf<Throwable>()
+        // Demo mode on and off again stands in for a reconnect (the fake's connect runs on real time).
+        val demo = MutableStateFlow(false)
+        val job = ModeRefMigration(headset, failing, demo, settleMillis = 1_000, onError = { errors += it }).start(backgroundScope)
+
+        advanceTimeBy(2_000); runCurrent()
+        assertEquals(listOf("disk full"), errors.map { it.message })
+        assertTrue(job.isActive, "still collecting after the failure")
+        demo.value = true; runCurrent()
+        demo.value = false; advanceTimeBy(2_000); runCurrent()
+        assertEquals(2, failing.calls)
+        assertTrue(job.isActive)
+    }
+
+    @Test fun `no rules, no rewrite`() = runTest {
+        val empty = store()
+        val automation = object : AutomationRepository by empty {
+            var rewrites = 0
+            override suspend fun updateRules(transform: (List<AutomationRule>) -> List<AutomationRule>) { rewrites++ }
+        }
+        ModeRefMigration(FakeHeadphoneRepository(), automation, MutableStateFlow(false)).migrate(boseModes, bose)
+        assertEquals(0, automation.rewrites)
     }
 
     @Test fun `nothing happens without a connected headset that has modes`() = runTest {

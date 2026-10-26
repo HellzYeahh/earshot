@@ -143,8 +143,21 @@ class AutomationJsonCompatTest {
         val refs = listOf(ModeRef(ModeMeaning.QUIET, "Quiet", "AA", 0), ModeRef(ModeMeaning.CUSTOM, "Gym", "AA", 5, legacySlot = 5))
         assertEquals(refs, AutomationJson.decodeTileCycle(AutomationJson.encodeTileCycle(refs)))
         val withJunk = """[{"meaning":"quiet"},{"name":"no meaning"},42,{"meaning":"adaptive2","name":"Zen"}]"""
-        assertEquals(listOf(ModeRef(ModeMeaning.QUIET), ModeRef(ModeMeaning.CUSTOM, "Zen")), AutomationJson.decodeTileCycle(withJunk))
+        assertEquals(
+            listOf(ModeRef(ModeMeaning.QUIET), ModeRef(ModeMeaning.CUSTOM, "Zen", unknownMeaning = "adaptive2")),
+            AutomationJson.decodeTileCycle(withJunk),
+        )
         assertTrue(AutomationJson.decodeTileCycle("oops").isEmpty())
+    }
+
+    @Test fun `a tile list an older build changed after a downgrade counts as not migrated`() {
+        val refs = listOf(ModeRef(ModeMeaning.QUIET, "Quiet", "AA", 0), ModeRef(ModeMeaning.CUSTOM, legacySlot = 5))
+        // What 0.8 wrote next to the refs.
+        assertTrue(AutomationJson.tileRefsCurrent(AutomationJson.decodeLegacyTileCycle("0,5"), refs))
+        assertTrue(AutomationJson.tileRefsCurrent(AutomationJson.decodeLegacyTileCycle(""), emptyList()))
+        assertTrue(AutomationJson.tileRefsCurrent(null, refs))
+        // 0.75 picked Aware and Immersion meanwhile.
+        assertFalse(AutomationJson.tileRefsCurrent(AutomationJson.decodeLegacyTileCycle("1,2"), refs))
     }
 
     @Test fun `the stored spatial audio codes are frozen`() {

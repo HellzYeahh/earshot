@@ -49,7 +49,7 @@ internal object ModeMeaningSerializer : KSerializer<ModeMeaning> {
  * Persisted inside the automation rules and the tile cycle; every field after [meaning] is optional
  * so older and newer builds can read each other's JSON.
  */
-@Serializable
+@Serializable(with = ModeRefSerializer::class)
 data class ModeRef(
     val meaning: ModeMeaning,
     /** For [ModeMeaning.CUSTOM] the match key (case-insensitive); otherwise only for display. */
@@ -64,7 +64,45 @@ data class ModeRef(
      * less than before. A ref picked in 0.8 has none.
      */
     val legacySlot: Int? = null,
+    /**
+     * The stored meaning when a newer build wrote one this build doesn't know: [meaning] is then
+     * [ModeMeaning.CUSTOM] for resolving, and this is written back unchanged, so the newer build
+     * still finds its meaning after a downgrade and a rewrite of the rules.
+     */
+    val unknownMeaning: String? = null,
 )
+
+/** [ModeRef]'s stored shape, with the meaning as its raw name (see [ModeRef.unknownMeaning]). */
+@Serializable
+private class StoredModeRef(
+    val meaning: String,
+    val name: String? = null,
+    val address: String? = null,
+    val slot: Int? = null,
+    val legacySlot: Int? = null,
+)
+
+internal object ModeRefSerializer : KSerializer<ModeRef> {
+    override val descriptor: SerialDescriptor = StoredModeRef.serializer().descriptor
+
+    override fun serialize(encoder: Encoder, value: ModeRef) = encoder.encodeSerializableValue(
+        StoredModeRef.serializer(),
+        StoredModeRef(value.unknownMeaning ?: value.meaning.storedName, value.name, value.address, value.slot, value.legacySlot),
+    )
+
+    override fun deserialize(decoder: Decoder): ModeRef {
+        val stored = decoder.decodeSerializableValue(StoredModeRef.serializer())
+        val known = ModeMeaning.entries.firstOrNull { it.storedName == stored.meaning }
+        return ModeRef(
+            meaning = known ?: ModeMeaning.CUSTOM,
+            name = stored.name,
+            address = stored.address,
+            slot = stored.slot,
+            legacySlot = stored.legacySlot,
+            unknownMeaning = stored.meaning.takeIf { known == null },
+        )
+    }
+}
 
 /**
  * Meaning ↔ slot, in core so no driver changes: `HeadphoneRepository.setMode(index)` stays as it is
@@ -122,25 +160,36 @@ object ModeResolver {
      *     mode any custom mode, so renaming it there keeps the rule working);
      *  2. a built-in meaning: the lowest slot with that meaning (Sony keeps its slot numbers when
      *     it lacks noise cancelling, so this is by index, never by list position);
-     *  3. a custom mode: the custom mode with that name, ignoring case;
-     *  4. the 0.75 slot number, if the migration left one and that slot exists.
+     *  3. a migrated ref on any other headset: its 0.75 slot number. The migration only guessed
+     *     which headset a 0.75 rule was written for (the first one connected), so on the others
+     *     the slot does what 0.75 did, rather than a custom mode of the same name;
+     *  4. a custom mode: the custom mode with that name, ignoring case;
+     *  5. the 0.75 slot number on the headset it was bound on.
+     * A 0.75 slot number never lands on a slot that means Off unless the ref means Off: a Bose
+     * Immersion rule must not switch the noise control off on a Crusher, Sennheiser or Sony,
+     * where slot 2 is Off (0.75 did exactly that).
      */
     fun slotFor(ref: ModeRef, modes: List<ListeningMode>, address: String?): Int? {
         val configured = modes.filter { it.isConfigured }
-        if (ref.address != null && ref.slot != null && address != null && ref.address.equals(address, ignoreCase = true)) {
+        val onItsHeadset = ref.address != null && address != null && ref.address.equals(address, ignoreCase = true)
+        if (onItsHeadset && ref.slot != null) {
             configured.firstOrNull { it.index == ref.slot && meaningOf(it) == ref.meaning }?.let { return it.index }
         }
         if (ref.meaning != ModeMeaning.CUSTOM) {
             configured.filter { meaningOf(it) == ref.meaning }.minByOrNull { it.index }?.let { return it.index }
-        } else {
+        }
+        val legacy = ref.legacySlot
+            ?.let { slot -> configured.firstOrNull { it.index == slot } }
+            ?.takeIf { meaningOf(it) != ModeMeaning.OFF || ref.meaning == ModeMeaning.OFF }
+        if (legacy != null && !onItsHeadset) return legacy.index
+        if (ref.meaning == ModeMeaning.CUSTOM) {
             val name = ref.name?.trim()?.takeIf { it.isNotEmpty() }
             if (name != null) {
                 configured.filter { meaningOf(it) == ModeMeaning.CUSTOM && it.name.trim().equals(name, ignoreCase = true) }
                     .minByOrNull { it.index }?.let { return it.index }
             }
         }
-        ref.legacySlot?.let { legacy -> if (configured.any { it.index == legacy }) return legacy }
-        return null
+        return legacy?.index
     }
 
     /**

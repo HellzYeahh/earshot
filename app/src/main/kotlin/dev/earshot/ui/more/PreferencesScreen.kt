@@ -191,7 +191,9 @@ fun PreferencesContent(
                         )
                     }
                 }
-                if (chosen.isEmpty()) {
+                // With nothing connected there are no chips, and a saved choice is not "none selected".
+                val nothingSaved = if (prefs.modeRefsMigrated) prefs.tileCycle.isEmpty() else prefs.tileCycleModes.isEmpty()
+                if (nothingSaved || (tileModes.isNotEmpty() && chosen.isEmpty())) {
                     Text(stringResource(R.string.prefs_tile_default), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
                 }
             }

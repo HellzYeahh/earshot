@@ -1,18 +1,25 @@
 package dev.earshot.core
 
+import dev.earshot.bt.BragiConnection
+import dev.earshot.bt.BtLog
 import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.protocol.qcultra2.BoseModel
 import dev.earshot.protocol.qcultra2.ModeConfig
 import dev.earshot.protocol.qcultra2.ModeConfigs
 import dev.earshot.protocol.qcultra2.ModePrompt
 import dev.earshot.protocol.sony.SonyNcAsm
+import dev.earshot.service.CrusherProtocol
 import dev.earshot.service.FakeRequester
+import dev.earshot.service.ProtocolLog
 import dev.earshot.service.SennheiserStateMapping
 import dev.earshot.service.SonySnapshot
 import dev.earshot.service.SonyStateMapping
 import dev.earshot.service.SoundcoreModelMapping
 import dev.earshot.service.SoundcoreStateMapping
 import dev.earshot.service.buildModeList
+import dev.earshot.virtual.VirtualCrusher
+import dev.earshot.virtual.VirtualCrusherTransport
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -58,7 +65,7 @@ class ModeResolverTest {
     private fun state(modes: List<ListeningMode>, address: String?) =
         HeadphoneState(connection = ConnectionState(ConnectionStatus.CONNECTED, "x", address), modes = modes)
 
-    /** CrusherProtocol.withMode's list (built inside the protocol from a hearing-mode frame). */
+    /** CrusherProtocol.withMode's list (built inside the protocol from a hearing-mode frame); checked against the real stack below. */
     private val crusher = listOf(
         ListeningMode(0, "Quiet", isPreset = true, isEditable = false, isConfigured = true),
         ListeningMode(1, "Aware", isPreset = true, isEditable = false, isConfigured = true),
@@ -163,17 +170,46 @@ class ModeResolverTest {
         assertEquals(2, ModeResolver.slotFor(off, crusher, otherAddress))
     }
 
-    @Test fun `the 0_75 slot is the last resort, and only where that slot exists`() {
+    @Test fun `the 0_75 slot is used only where that slot exists, and never to switch the noise control off`() {
         val legacyImmersion = ModeRef(ModeMeaning.CUSTOM, "Immersion", boseAddress, 2, legacySlot = 2)
-        // Kept 0.75 behaviour for migrated rules: slot 2 is Off on the Crusher.
-        assertEquals(2, ModeResolver.slotFor(legacyImmersion, crusher, otherAddress))
+        // Slot 2 is Off on the Crusher and Sennheiser: 0.75 switched them off, 0.8 refuses.
+        assertNull(ModeResolver.slotFor(legacyImmersion, crusher, otherAddress))
+        assertNull(ModeResolver.slotFor(legacyImmersion, SennheiserStateMapping.MODES, otherAddress))
         assertNull(ModeResolver.slotFor(legacyImmersion, SoundcoreStateMapping.MODES, otherAddress))
+        // A migrated Aware rule on the Sleep A30, whose slot 1 is Off: refused too.
+        val legacyAware = ModeRef(ModeMeaning.AWARE, "Aware", boseAddress, 1, legacySlot = 1)
+        assertNull(ModeResolver.slotFor(legacyAware, SoundcoreStateMapping.MODES, otherAddress))
         // Bound first on a Sleep A30 (slot 1 = Off): on the Bose, Off doesn't resolve, so slot 1 = Aware, as in 0.75.
         val boundOnA30 = ModeResolver.refForLegacySlot(1, SoundcoreStateMapping.MODES, otherAddress)
         assertEquals(ModeRef(ModeMeaning.OFF, "Off", otherAddress, 1, legacySlot = 1), boundOnA30)
         assertEquals(1, ModeResolver.slotFor(boundOnA30, qcUltra2(), boseAddress))
         // A slot the headset doesn't have becomes a custom ref that only knows the number.
         assertEquals(ModeRef(ModeMeaning.CUSTOM, legacySlot = 9), ModeResolver.refForLegacySlot(9, qcUltra2(), boseAddress))
+    }
+
+    @Test fun `a rule migrated on one Bose keeps its 0_75 slot on another, not a mode of the same name`() {
+        // 0.75 "Commute -> slot 1", bound on the Ultra Open (slot 1 = Immersion) because it connected first.
+        val open = buildModeList(emptyMap(), null, emptyList(), BoseModel.ULTRA_OPEN_EARBUDS_2)
+        val bound = ModeResolver.refForLegacySlot(1, open, otherAddress)
+        assertEquals(ModeRef(ModeMeaning.CUSTOM, "Immersion", otherAddress, 1, legacySlot = 1), bound)
+        // On the QC Ultra 2 it still means slot 1 (Aware), as in 0.75, not the QC Ultra's own Immersion (slot 2).
+        assertEquals(1, ModeResolver.slotFor(bound, qcUltra2(), boseAddress))
+        // And on the Ultra Open itself, its own slot.
+        assertEquals(1, ModeResolver.slotFor(bound, open, otherAddress))
+        // A ref picked in 0.8 (no legacy slot) still matches by name.
+        assertEquals(2, ModeResolver.slotFor(bound.copy(legacySlot = null), qcUltra2(), boseAddress))
+    }
+
+    @Test fun `the Crusher list above is what the real Bragi stack produces`() = runTest {
+        BtLog.sink = { _, _, _ -> }
+        ProtocolLog.sink = { _, _, _ -> }
+        for (device in listOf(VirtualCrusher(), VirtualCrusher.method360())) {
+            val conn = BragiConnection(VirtualCrusherTransport(device), backgroundScope, clock = { testScheduler.currentTime })
+            val modes = CrusherProtocol().onConnected(conn, HeadphoneState()).modes
+            assertEquals(mapOf(0 to ModeMeaning.QUIET, 1 to ModeMeaning.AWARE, 2 to ModeMeaning.OFF), meanings(modes))
+            assertEquals(crusher.map { it.name }, modes.map { it.name })
+            conn.close()
+        }
     }
 
     @Test fun `an explicit meaning beats the name`() {
@@ -207,5 +243,16 @@ class ModeResolverTest {
         assertEquals(listOf("quiet", "aware", "off", "adaptive", "custom"), ModeMeaning.entries.map { it.storedName })
         assertEquals(ModeMeaning.CUSTOM, json.decodeFromString(ModeRef.serializer(), """{"meaning":"telepathy","name":"Zen"}""").meaning)
         assertEquals(ModeMeaning.OFF, json.decodeFromString(ModeRef.serializer(), """{"meaning":"off"}""").meaning)
+    }
+
+    @Test fun `a meaning from a newer build survives being written back`() {
+        val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+        val stored = """{"meaning":"telepathy","name":"Zen","address":null,"slot":3,"legacySlot":null}"""
+        val ref = json.decodeFromString(ModeRef.serializer(), stored)
+        assertEquals(ModeRef(ModeMeaning.CUSTOM, "Zen", slot = 3, unknownMeaning = "telepathy"), ref)
+        assertEquals(stored, json.encodeToString(ModeRef.serializer(), ref))
+        // A known meaning keeps the 0.8 shape exactly.
+        val aware = """{"meaning":"aware","name":"Aware","address":"68:F2:1F:12:34:56","slot":1,"legacySlot":1}"""
+        assertEquals(aware, json.encodeToString(ModeRef.serializer(), json.decodeFromString(ModeRef.serializer(), aware)))
     }
 }

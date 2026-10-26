@@ -1,5 +1,6 @@
 package dev.earshot.extras.automation
 
+import dev.earshot.core.AppPreferences
 import dev.earshot.core.AutomationRule
 import dev.earshot.core.ModeRef
 import kotlinx.serialization.builtins.ListSerializer
@@ -56,4 +57,12 @@ internal object AutomationJson {
     fun decodeLegacyTileCycle(raw: String?): List<Int>? = raw?.split(',')?.mapNotNull { it.trim().toIntOrNull() }
 
     fun encodeLegacyTileCycle(slots: List<Int>): String = slots.joinToString(",")
+
+    /**
+     * 0.8 writes the tile refs' slots to `tile_cycle_modes` next to the refs. Slots that no longer
+     * match them were written by an older build after a downgrade (it only knows the slots): that
+     * later choice wins, so the refs count as not migrated and the migration reads the slots again.
+     */
+    fun tileRefsCurrent(legacySlots: List<Int>?, refs: List<ModeRef>): Boolean =
+        legacySlots == null || legacySlots == AppPreferences(tileCycle = refs, modeRefsMigrated = true).legacyTileSlots
 }
