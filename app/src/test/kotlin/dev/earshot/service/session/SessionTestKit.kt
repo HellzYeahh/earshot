@@ -1,5 +1,6 @@
 package dev.earshot.service.session
 
+import dev.earshot.bt.ByteTransport
 import dev.earshot.bt.LinkSource
 import dev.earshot.bt.ManagedLink
 import dev.earshot.core.ConnectionState
@@ -8,10 +9,13 @@ import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import java.io.IOException
 
 /**
  * What `ConnectionManager` looks like to a repository, minus Android: the tests publish a link the
@@ -79,6 +83,20 @@ class FakeLink : ManagedLink {
     override val isOpen: Boolean get() = !closed.isCompleted
     override suspend fun awaitClosed(): Throwable? = closed.await()
     override fun close() { closed.complete(null) }
+}
+
+/** A socket that opens and never says anything: another app holds the channel, or the far end is mute. */
+class SilentTransport : ByteTransport {
+    private val closed = CompletableDeferred<Unit>()
+    val written = mutableListOf<ByteArray>()
+    override val isConnected: Boolean get() = !closed.isCompleted
+    /** Nothing ever arrives; completes normally on [close], as the contract asks. */
+    override val incoming: Flow<ByteArray> = flow { closed.await() }
+    override suspend fun write(bytes: ByteArray) {
+        if (closed.isCompleted) throw IOException("closed")
+        written += bytes
+    }
+    override fun close() { closed.complete(Unit) }
 }
 
 /** Every event [repo] emits from now on (subscribed eagerly, so none is dropped). */
