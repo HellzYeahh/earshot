@@ -40,7 +40,6 @@ class VendorBoundaryTest {
         "extras/HeadphoneLabels.kt",
         "shortcut/ControlDetection.kt",
         "ui/home/HomeViewModel.kt",
-        "ui/tools/LabViewModel.kt",
         "ui/tools/ShortcutsRemapperViewModel.kt",
     )
 
