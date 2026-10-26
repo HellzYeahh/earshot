@@ -123,25 +123,30 @@ class SennheiserHeadphoneRepository(
         connectionManager.chooseDevice(address, name)
     }
 
-    private suspend fun runSession(conn: SennheiserConnection) = coroutineScope {
+    // The session lives until every child below ends; the inner coroutineScope is what makes the
+    // finally wait for them. (0.75 cleared `session` as soon as the poll was launched, so every
+    // command after Connected threw "Headphones not connected".)
+    private suspend fun runSession(conn: SennheiserConnection) {
         val s = SennheiserSession(conn, connectionManager.state.value.deviceName)
         session = s
         try {
-            // Collect pushes before the registration: each one is answered with a state dump.
-            launch { conn.pushes.collect { frame -> s.onPush(frame) } }
-            launch { s.status.collect { publish(s) } }
-            try {
-                commands.withLock { s.start() }
-            } catch (e: HeadphoneCommandException) {
-                SennheiserLog.w("initial read failed: ${e.message}")
-                _events.tryEmit(HeadphoneEvent.Error("Connected, but reading the headphones failed: ${e.message}", e))
-            }
-            _events.tryEmit(HeadphoneEvent.Connected)
-            launch {
-                while (conn.isOpen) {
-                    delay(BATTERY_POLL_MS)
-                    if (!conn.isOpen) break
-                    runCatching { commands.withLock { s.readBattery() } }.onFailure { SennheiserLog.d("battery poll failed: ${it.message}") }
+            coroutineScope {
+                // Collect pushes before the registration: each one is answered with a state dump.
+                launch { conn.pushes.collect { frame -> s.onPush(frame) } }
+                launch { s.status.collect { publish(s) } }
+                try {
+                    commands.withLock { s.start() }
+                } catch (e: HeadphoneCommandException) {
+                    SennheiserLog.w("initial read failed: ${e.message}")
+                    _events.tryEmit(HeadphoneEvent.Error("Connected, but reading the headphones failed: ${e.message}", e))
+                }
+                _events.tryEmit(HeadphoneEvent.Connected)
+                launch {
+                    while (conn.isOpen) {
+                        delay(BATTERY_POLL_MS)
+                        if (!conn.isOpen) break
+                        runCatching { commands.withLock { s.readBattery() } }.onFailure { SennheiserLog.d("battery poll failed: ${it.message}") }
+                    }
                 }
             }
         } finally {

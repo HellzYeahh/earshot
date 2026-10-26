@@ -124,28 +124,33 @@ class SonyHeadphoneRepository(
         connectionManager.chooseDevice(address, name)
     }
 
-    private suspend fun runSession(conn: SonyConnection) = coroutineScope {
+    // The session lives until every child below ends; the inner coroutineScope is what makes the
+    // finally wait for them. (0.75 cleared `session` as soon as the poll was launched, so every
+    // command after Connected threw "Headphones not connected".)
+    private suspend fun runSession(conn: SonyConnection) {
         val s = SonySession(conn)
         session = s
         try {
-            launch {
-                conn.unsolicited.collect { m ->
-                    s.onPush(m)?.let { _events.tryEmit(HeadphoneEvent.Info(it)) }
-                    publish(s.snapshot)
+            coroutineScope {
+                launch {
+                    conn.unsolicited.collect { m ->
+                        s.onPush(m)?.let { _events.tryEmit(HeadphoneEvent.Info(it)) }
+                        publish(s.snapshot)
+                    }
                 }
-            }
-            try {
-                commands.withLock { publish(s.initialize()) }
-            } catch (e: HeadphoneCommandException) {
-                SonyLog.w("init failed: ${e.message}")
-                _events.tryEmit(HeadphoneEvent.Error("Connected, but reading the headphones failed: ${e.message}", e))
-            }
-            _events.tryEmit(HeadphoneEvent.Connected)
-            launch {
-                while (conn.isOpen) {
-                    delay(BATTERY_POLL_MS)
-                    if (!conn.isOpen) break
-                    runCatching { commands.withLock { publish(s.readBattery()) } }.onFailure { SonyLog.d("battery poll failed: ${it.message}") }
+                try {
+                    commands.withLock { publish(s.initialize()) }
+                } catch (e: HeadphoneCommandException) {
+                    SonyLog.w("init failed: ${e.message}")
+                    _events.tryEmit(HeadphoneEvent.Error("Connected, but reading the headphones failed: ${e.message}", e))
+                }
+                _events.tryEmit(HeadphoneEvent.Connected)
+                launch {
+                    while (conn.isOpen) {
+                        delay(BATTERY_POLL_MS)
+                        if (!conn.isOpen) break
+                        runCatching { commands.withLock { publish(s.readBattery()) } }.onFailure { SonyLog.d("battery poll failed: ${it.message}") }
+                    }
                 }
             }
         } finally {
