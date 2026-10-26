@@ -2,7 +2,6 @@ package dev.earshot.arch
 
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -17,9 +16,10 @@ import kotlin.test.assertTrue
  * (the drivers and repositories), or a vendor's `bt` link class. Fine: `bt.DeviceFamily` and the
  * other platform classes (the router registry, DeviceFinder, BtTimeline ...) and `virtual.DemoDevice`.
  *
- * [BASELINE] lists the files that still offend; it may only shrink: a file that no longer
- * offends must leave it, a new offender fails. A text scan, so a typealias or reflection can slip
- * past it, and it runs only with `:app:testDebugUnitTest` (no CI before 0.9).
+ * The six files that offended when this test arrived (the form-factor labels, the Lab export,
+ * the auto-off list, the demo presses, the button names) were moved onto the drivers in 0.8, so
+ * there is no baseline any more: every offender fails. A text scan, so a typealias or reflection
+ * can slip past it, and it runs only with `:app:testDebugUnitTest` (no CI before 0.9).
  */
 class VendorBoundaryTest {
 
@@ -34,9 +34,6 @@ class VendorBoundaryTest {
             """|dev\.earshot\.service\.\w+""" +
             """|dev\.earshot\.bt\.(?:Bmap|Bragi|Soundcore|Sennheiser|Sony|Race|Airoha|AndroidBragi|BoseLinkFactory|LivenessProbe|WriteGuard)\w*""",
     )
-
-    /** Files (relative to [root], `/`-separated) that still reach a vendor stack. Only ever remove entries. */
-    private val BASELINE = emptySet<String>()
 
     private fun isComment(line: String): Boolean = line.trim().let { it.startsWith("*") || it.startsWith("//") || it.startsWith("/*") }
 
@@ -76,15 +73,10 @@ class VendorBoundaryTest {
         )) assertFalse(vendorReference.containsMatchIn(line), line)
     }
 
-    @Test fun `neutral layers reach no vendor stack beyond the baseline`() {
-        val fresh = offenders().filterKeys { it !in BASELINE }
-        assertTrue(fresh.isEmpty(), "Vendor code in a neutral layer; let the driver supply it instead:\n" +
-            fresh.entries.joinToString("\n") { (file, lines) -> "$file\n  " + lines.joinToString("\n  ") })
-    }
-
-    @Test fun `the baseline only shrinks`() {
-        val cleaned = BASELINE - offenders().keys
-        assertEquals(emptySet(), cleaned, "No longer reaching a vendor stack: remove these from BASELINE")
+    @Test fun `neutral layers reach no vendor stack`() {
+        val found = offenders()
+        assertTrue(found.isEmpty(), "Vendor code in a neutral layer; let the driver supply it instead:\n" +
+            found.entries.joinToString("\n") { (file, lines) -> "$file\n  " + lines.joinToString("\n  ") })
     }
 
     /**
