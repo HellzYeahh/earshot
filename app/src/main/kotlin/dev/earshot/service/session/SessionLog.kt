@@ -32,7 +32,9 @@ class AndroidSessionLog(private val tag: String) : SessionLog {
         @Volatile
         var sink: (priority: Int, tag: String, msg: String, t: Throwable?) -> Unit = { p, tag, m, t ->
             try {
-                Log.println(p, tag, if (t != null) "$m\n${Log.getStackTraceString(t)}" else m)
+                // Log.w with the throwable splits a long trace over several entries; one println
+                // entry would be cut at logcat's ~4 KB limit.
+                if (t == null) Log.println(p, tag, m) else Log.w(tag, m, t)
             } catch (_: RuntimeException) {
                 System.err.println("$tag: $m${t?.let { " (${it.message})" } ?: ""}")
             }

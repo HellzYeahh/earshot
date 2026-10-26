@@ -195,6 +195,9 @@ class ServiceHeadphoneRepository internal constructor(
             protocol.printConsole(conn, command)
         } catch (e: BmapException) {
             throw e.toCommandException()
+        } finally {
+            // Pushes parked while the console held the lock (a volume swipe, say).
+            pushes.drain()
         }
     }
 

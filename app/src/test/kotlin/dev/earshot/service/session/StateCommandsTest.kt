@@ -50,6 +50,23 @@ class StateCommandsTest {
         assertEquals(55, r.state.value.batteryPercent, "null from onPush = ignored")
     }
 
+    @Test fun `a push parked under a plain lock holder never overwrites a newer one`() = runTest {
+        val r = Rig()
+        // The Bose Lab console holds the lock outside run().
+        r.mutex.lock()
+        r.commands.push(40)
+        r.mutex.unlock()
+        assertNull(r.state.value.batteryPercent, "still parked")
+        r.commands.push(35)
+        assertEquals(35, r.state.value.batteryPercent, "the older push went first")
+        // And the console drains on its way out.
+        r.mutex.lock()
+        r.commands.push(30)
+        r.commands.drain()
+        r.mutex.unlock()
+        assertEquals(30, r.state.value.batteryPercent)
+    }
+
     @Test fun `a push during a command is merged after its result, not overwritten by it`() = runTest {
         val r = Rig()
         r.commands.push(70)

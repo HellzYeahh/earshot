@@ -42,6 +42,9 @@ class StateCommands<C : Any, P : Any>(
             // The command may have released the mutex between the check and the add.
             if (!mutex.isLocked) drain()
         } else {
+            // Older pushes still parked (a lock holder that doesn't drain) go first, or they would
+            // later overwrite this newer one.
+            drain()
             applyPush(packet)
         }
     }
@@ -92,7 +95,8 @@ class StateCommands<C : Any, P : Any>(
         if (next != null) apply(next)
     }
 
-    private fun drain() {
+    /** Applies the parked pushes in order. For code that holds [mutex] outside [run] (the Bose Lab console). */
+    fun drain() {
         while (true) applyPush(deferred.poll() ?: break)
     }
 }
