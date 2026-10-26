@@ -222,8 +222,8 @@ fun ShortcutsRemapperContent(
                             ShortcutChoice.VOICE_MEMO -> callbacks.onChoose(ShortcutAction.VoiceMemo)
                             // Nothing is saved until an app is picked: cancelling keeps the old choice.
                             ShortcutChoice.LAUNCH_APP -> if ((choice as? ShortcutAction.LaunchApp)?.packageName == null) pickingApp = true
-                            ShortcutChoice.IMMERSIVE_AUDIO -> callbacks.onChoose(ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.wire))
-                            ShortcutChoice.OFF -> callbacks.onChoose(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.wire))
+                            ShortcutChoice.IMMERSIVE_AUDIO -> callbacks.onChoose(ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.storedId))
+                            ShortcutChoice.OFF -> callbacks.onChoose(ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.storedId))
                         }
                     },
                 )

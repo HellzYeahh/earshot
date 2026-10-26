@@ -93,4 +93,26 @@ class VendorBoundaryTest {
         val cleaned = BASELINE - offenders().keys
         assertEquals(emptySet(), cleaned, "No longer reaching a vendor stack: remove these from BASELINE")
     }
+
+    /**
+     * Core types that may still declare `wire` / `fromWire`. Only SpatialAudio: its code is also the
+     * id saved in the automation rules (`spatialAudioWire`), and A7 replaces it with a stored id and
+     * a migration. Remove it from here then; nothing may be added.
+     */
+    private val wireCodesAllowed = setOf("SpatialAudio")
+
+    @Test fun `core declares no wire codes`() {
+        val wire = Regex("""\b(?:val|var)\s+wire\b|\bfun\s+fromWire\b""")
+        // A top-level declaration (no indent) names the type the following lines belong to.
+        val declaration = Regex("""^(?:(?:enum|data|sealed|value|abstract|open|internal|private)\s+)*(?:class|interface|object)\s+(\w+)""")
+        val offenders = kotlinFiles("core").flatMap { file ->
+            var owner: String? = null
+            file.readLines().mapIndexedNotNull { i, line ->
+                declaration.find(line)?.let { owner = it.groupValues[1] }
+                if (isComment(line) || !wire.containsMatchIn(line) || owner in wireCodesAllowed) null
+                else "${file.relativeTo(root).invariantSeparatorsPath}:${i + 1} ($owner): ${line.trim()}"
+            }
+        }
+        assertTrue(offenders.isEmpty(), "Wire codes belong to the driver (map through :protocol in its StateMapping):\n" + offenders.joinToString("\n"))
+    }
 }

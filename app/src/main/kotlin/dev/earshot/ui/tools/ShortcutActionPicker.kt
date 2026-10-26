@@ -65,7 +65,7 @@ internal fun ShortcutAction.choice(): ShortcutChoice = when (this) {
     ShortcutAction.VoiceMemo -> ShortcutChoice.VOICE_MEMO
     is ShortcutAction.LaunchApp -> ShortcutChoice.LAUNCH_APP
     // An unknown stored mode behaves like the assistant (see ShortcutEngine), so it reads as one.
-    is ShortcutAction.HeadphoneButton -> ShortcutChoice.forNative(ButtonAction.fromWire(mode)) ?: ShortcutChoice.PHONE_ASSISTANT
+    is ShortcutAction.HeadphoneButton -> ShortcutChoice.forNative(ButtonAction.fromStoredId(mode)) ?: ShortcutChoice.PHONE_ASSISTANT
 }
 
 @Composable

@@ -20,7 +20,7 @@ object SecondaryButtonPolicy {
 
     /** The mode the saved [choice] asks for, when [button] supports it. */
     fun desiredMode(choice: ButtonChoice?, button: ButtonAssignment): ButtonAction? =
-        choice?.let { ButtonAction.fromWire(it.mode) }?.takeIf { it in MODES && it in button.supportedActions }
+        choice?.let { ButtonAction.fromStoredId(it.mode) }?.takeIf { it in MODES && it in button.supportedActions }
 
     /** The write [choice] needs right now, or null (no choice, unsupported, or already there). */
     fun writeFor(choice: ButtonChoice?, button: ButtonAssignment): ButtonAction? = desiredMode(choice, button)?.takeIf { it != button.action }

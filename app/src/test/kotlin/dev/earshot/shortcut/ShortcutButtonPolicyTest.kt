@@ -7,8 +7,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class ShortcutButtonPolicyTest {
-    private val immersive = ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.wire)
-    private val off = ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.wire)
+    private val immersive = ShortcutAction.HeadphoneButton(ButtonAction.SPATIAL_AUDIO.storedId)
+    private val off = ShortcutAction.HeadphoneButton(ButtonAction.DISABLED.storedId)
     private val earshotChoices = listOf(
         ShortcutAction.OpenAssistant(),
         ShortcutAction.OpenAssistant("a.b/a.b.C", "Bixby"),
@@ -45,7 +45,7 @@ class ShortcutButtonPolicyTest {
 
     @Test
     fun `a stored native mode the remapper doesn't offer is never written`() {
-        val spotify = ShortcutAction.HeadphoneButton(ButtonAction.SPOTIFY_TAP.wire)
+        val spotify = ShortcutAction.HeadphoneButton(ButtonAction.SPOTIFY_TAP.storedId)
         val unknown = ShortcutAction.HeadphoneButton(99)
         for (supported in supportedSets + setOf(ButtonAction.entries.toSet())) {
             assertNull(ShortcutButtonPolicy.desiredMode(spotify, supported))

@@ -137,7 +137,7 @@ class ShortcutsRemapperViewModel(
     /** A secondary Bose button (earbuds: the other bud): saved for that headset, then written. */
     fun chooseSecondary(buttonId: Int, mode: ButtonAction) = launchCatching {
         val headset = state.value.headset?.takeIf { it.viaEarshot } ?: return@launchCatching
-        engine.prefs.update { it.withButtonChoice(headset.address, buttonId, mode.wire) }
+        engine.prefs.update { it.withButtonChoice(headset.address, buttonId, mode.storedId) }
         engine.buttonSync.applySecondary(buttonId, mode)
     }
 

@@ -36,7 +36,7 @@ class HeadsetTriggerTest {
     @Test
     fun `off for headphone modes, which send no voice request`() {
         for (mode in listOf(ButtonAction.SPATIAL_AUDIO, ButtonAction.DISABLED)) {
-            val settings = ShortcutSettings().withChoice(headset, "QC", ShortcutAction.HeadphoneButton(mode.wire))
+            val settings = ShortcutSettings().withChoice(headset, "QC", ShortcutAction.HeadphoneButton(mode.storedId))
             assertFalse(HeadsetTrigger.needed(settings, detecting = false), "$mode")
         }
     }

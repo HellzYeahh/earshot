@@ -38,9 +38,12 @@ enum class SpatialAudio(val wire: Int, val label: String) {
     companion object { fun fromWire(v: Int) = entries.firstOrNull { it.wire == v } ?: OFF }
 }
 
-enum class Sidetone(val wire: Int, val label: String) {
-    OFF(0, "Off"), LOW(3, "Low"), MEDIUM(2, "Medium"), HIGH(1, "High");
-    companion object { fun fromWire(v: Int) = entries.firstOrNull { it.wire == v } ?: OFF }
+/**
+ * How much of your own voice you hear on calls. In the order the UI lists them; each driver maps
+ * them onto its own wire (Bose `[1.11]` counts the other way round: 1 high, 3 low, see StateMapping).
+ */
+enum class Sidetone(val label: String) {
+    OFF("Off"), LOW("Low"), MEDIUM("Medium"), HIGH("High");
 }
 
 /** Live noise-control state, AudioModes [31.10]. */
@@ -301,7 +304,14 @@ data class HeadphoneCapabilities(
     val supportNote: String? = null,
 )
 
-enum class ButtonAction(val wire: Int, val label: String) {
+/**
+ * What a remappable headset button does. [storedId] is the number the shortcut settings save for
+ * a choice (`ShortcutAction.HeadphoneButton.mode`, `ButtonChoice.mode`): it is frozen, since a
+ * changed id would turn saved choices into other actions. The ids were Bose's `[1.9]` codes and
+ * still equal them, but the Bose driver maps through its own table (StateMapping), so another
+ * maker's buttons can use these actions too.
+ */
+enum class ButtonAction(val storedId: Int, val label: String) {
     NOT_CONFIGURED(0, "Not configured"),
     VOICE_ASSISTANT(1, "Voice assistant"),
     ANC_CYCLE(2, "Cycle noise control"),
@@ -325,7 +335,10 @@ enum class ButtonAction(val wire: Int, val label: String) {
     LINKING(21, "Linking"),
     UNKNOWN(-1, "Unknown"),
     ;
-    companion object { fun fromWire(v: Int) = entries.firstOrNull { it.wire == v } ?: UNKNOWN }
+    companion object {
+        /** The action a saved id stands for; an id no action has reads as [UNKNOWN]. */
+        fun fromStoredId(id: Int) = entries.firstOrNull { it.storedId == id } ?: UNKNOWN
+    }
 }
 
 /** Settings [1.9]. On the QC Ultra 2 the only remappable control is the Shortcut button (0x80). */
