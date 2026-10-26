@@ -127,10 +127,19 @@ class AppContainer(private val appContext: Context) {
     /** The QC Ultra 2 command layer (BMAP addresses, payloads and state mapping). */
     private val headphoneProtocol: HeadphoneProtocol by lazy { QcUltra2Protocol() }
 
+    /**
+     * Mirrors `AppPreferences.autoConnectOnBluetooth`; read by every connection manager on each
+     * Bluetooth event. Before the automation store is up (or if it fails) the answer is yes.
+     */
+    private val autoConnect: () -> Boolean = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) }
+
     private val boseHeadphones: ServiceHeadphoneRepository by lazy {
         ServiceHeadphoneRepository(
             appContext, headphoneProtocol, applicationScope, boseDemoTransport,
             demoName = { "Virtual ${runCatching { demoMode.deviceBlocking().displayName }.getOrDefault("QC Ultra")} (demo)" },
+            autoConnect = autoConnect,
+            prefs = devicePrefs,
+            finder = deviceFinder,
         )
     }
 
@@ -138,12 +147,14 @@ class AppContainer(private val appContext: Context) {
     private val crusherHeadphones: CrusherHeadphoneRepository by lazy {
         CrusherHeadphoneRepository(
             appContext, CrusherProtocol(), applicationScope, crusherDemoTransport,
-            autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+            autoConnect = autoConnect,
             demoName = {
                 demoMode.deviceBlocking().let { d ->
                     if (d == DemoDevice.METHOD_360 || d == DemoDevice.METHOD_540) "Virtual ${d.displayName} (demo)" else CrusherHeadphoneRepository.DEMO_NAME
                 }
             },
+            prefs = devicePrefs,
+            finder = deviceFinder,
         )
     }
 
@@ -151,12 +162,14 @@ class AppContainer(private val appContext: Context) {
     private val soundcoreHeadphones: dev.earshot.service.SoundcoreHeadphoneRepository by lazy {
         dev.earshot.service.SoundcoreHeadphoneRepository(
             appContext, applicationScope, soundcoreDemoTransport,
-            autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+            autoConnect = autoConnect,
             demoName = {
                 demoMode.deviceBlocking().let { d ->
                     if (d == DemoDevice.SOUNDCORE_SLEEP_A30) dev.earshot.service.SoundcoreHeadphoneRepository.DEMO_NAME else "Virtual ${d.displayName} (demo)"
                 }
             },
+            prefs = devicePrefs,
+            finder = deviceFinder,
         )
     }
 
@@ -164,7 +177,9 @@ class AppContainer(private val appContext: Context) {
     private val sennheiserHeadphones: dev.earshot.service.SennheiserHeadphoneRepository by lazy {
         dev.earshot.service.SennheiserHeadphoneRepository(
             appContext, applicationScope, sennheiserDemoTransport,
-            autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+            autoConnect = autoConnect,
+            prefs = devicePrefs,
+            finder = deviceFinder,
         )
     }
 
@@ -172,20 +187,22 @@ class AppContainer(private val appContext: Context) {
     private val sonyHeadphones: dev.earshot.service.SonyHeadphoneRepository by lazy {
         dev.earshot.service.SonyHeadphoneRepository(
             appContext, applicationScope, sonyDemoTransport,
-            autoConnect = { runCatching { automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true) },
+            autoConnect = autoConnect,
+            prefs = devicePrefs,
+            finder = deviceFinder,
         )
     }
 
     /**
      * Any other headset (AirPods, Galaxy Buds, no-name earbuds): shown by its own name from what Android
-     * reports, never sent anything. Shares the Bose repository's prefs and finder, so every stack
-     * agrees on which device is picked.
+     * reports, never sent anything. The same prefs and finder as every other stack, so all of them
+     * agree on which device is picked.
      */
     private val genericHeadphones: GenericHeadphoneRepository by lazy {
         GenericHeadphoneRepository(
-            appContext, boseHeadphones.devicePrefs, boseHeadphones.deviceFinder, applicationScope,
+            appContext, devicePrefs, deviceFinder, applicationScope,
             initialBattery = { address ->
-                val device = boseHeadphones.deviceFinder.deviceFor(address)
+                val device = deviceFinder.deviceFor(address)
                 HeadsetBatteryReader.read(privilegedShell, address)
                     ?: device?.let(dev.earshot.bt.DeviceBattery::read)
                     // Standard Battery Service over our own GATT client: LE-capable headsets, no Shizuku.
@@ -199,8 +216,11 @@ class AppContainer(private val appContext: Context) {
     /** Shizuku shell for the few reads Android keeps from apps (dumpsys); optional everywhere. */
     private val privilegedShell: dev.earshot.call.PrivilegedShell by lazy { dev.earshot.call.ShizukuPrivilegedShell(appContext) }
 
-    /** The saved headphones and what Earshot has learned about how to reach them. */
-    val devicePrefs: dev.earshot.bt.DevicePrefs get() = boseHeadphones.devicePrefs
+    /**
+     * The saved headphones and what Earshot has learned about how to reach them. One instance for
+     * every stack, the router, the timeline and the screens (the store is process-wide anyway).
+     */
+    val devicePrefs: dev.earshot.bt.DevicePrefs by lazy { dev.earshot.bt.DevicePrefs(appContext) }
 
     /** What the app talks to: forwards to the Bose, Crusher or generic repository for the headset in use. */
     val headphones: HeadphoneRepository by lazy {
@@ -213,10 +233,10 @@ class AppContainer(private val appContext: Context) {
                 VendorDriver(DeviceFamily.SONY, sonyHeadphones, sonyHeadphones::releaseConnection),
                 VendorDriver(DeviceFamily.GENERIC, genericHeadphones, genericHeadphones::releaseConnection),
             ),
-            prefs = boseHeadphones.devicePrefs,
-            finder = boseHeadphones.deviceFinder,
+            prefs = devicePrefs,
+            finder = deviceFinder,
             scope = applicationScope,
-            audioLink = AudioLinkMonitor(appContext, boseHeadphones.deviceFinder, applicationScope),
+            audioLink = AudioLinkMonitor(appContext, deviceFinder, applicationScope),
             demoFamily = {
                 if (demoMode.isEnabledBlocking()) {
                     val device = demoMode.deviceBlocking()
@@ -242,8 +262,8 @@ class AppContainer(private val appContext: Context) {
     val micCheck: MicCheckRepository by lazy { MicCheckRepositoryImpl(appContext, applicationScope) }
     val automation: AutomationRepository by lazy { AutomationRepositoryImpl(appContext, applicationScope) }
 
-    /** Bonded-device lookup shared with the connection code (the Shortcuts remapper lists headsets with it). */
-    val deviceFinder: DeviceFinder get() = boseHeadphones.deviceFinder
+    /** Bonded-device lookup shared by every stack and the connection code (the Shortcuts remapper lists headsets with it). */
+    val deviceFinder: DeviceFinder by lazy { DeviceFinder(appContext, devicePrefs) }
 
     /** Diagnostics timeline (0.8, item 5): started by [EarshotApp], fed by the manifest receiver too. */
     val timeline: dev.earshot.bt.TimelineRecorder by lazy {
