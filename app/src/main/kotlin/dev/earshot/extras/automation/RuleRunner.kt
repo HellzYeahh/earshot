@@ -5,8 +5,9 @@ import dev.earshot.core.AudioTuningRepository
 import dev.earshot.core.AutomationAction
 import dev.earshot.core.AutomationRepository
 import dev.earshot.core.AutomationRule
+import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneRepository
-import dev.earshot.core.ListeningMode
+import dev.earshot.core.ModeResolver
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.SpatialAudio
 import dev.earshot.core.Trigger
@@ -41,17 +42,32 @@ class RuleRunner(
 
     private suspend fun perform(action: AutomationAction) {
         when (action) {
-            is AutomationAction.SetMode -> headphones.setMode(action.modeIndex)
+            is AutomationAction.SetMode -> headphones.setMode(slotFor(action))
             is AutomationAction.SetNoise -> headphones.setNoise(
                 NoiseSettings(
                     cancellingLevel = action.cancellingLevel.coerceIn(0, 10),
                     ancEnabled = action.ancEnabled,
                     windBlock = action.windBlock,
-                    spatialAudio = SpatialAudio.fromWire(action.spatialAudioWire),
+                    spatialAudio = SpatialAudio.fromStoredId(action.spatialAudioWire),
                 ),
             )
             is AutomationAction.SetEqPreset -> tuning.applyPreset(action.presetId)
         }
+    }
+
+    /**
+     * The slot to switch to on the connected headset. A rule bound to a meaning resolves it there,
+     * so a Bose "Immersion" rule fails on headphones without one instead of picking whatever their
+     * slot 2 is. A 0.75 rule the migration hasn't bound yet still sends its slot, as 0.75 did.
+     */
+    private fun slotFor(action: AutomationAction.SetMode): Int {
+        val ref = action.mode ?: return action.modeIndex
+        val state = headphones.state.value
+        return ModeResolver.slotFor(ref, state)
+            ?: throw HeadphoneCommandException(
+                if (state.modes.none { it.isConfigured }) "The listening modes aren't loaded yet"
+                else "${ModeResolver.label(ref)} isn't a mode of these headphones",
+            )
     }
 
     fun describe(trigger: Trigger): String = when (trigger) {
@@ -62,21 +78,22 @@ class RuleRunner(
     }
 
     fun describe(action: AutomationAction): String = when (action) {
-        is AutomationAction.SetMode -> modeName(action.modeIndex)
+        is AutomationAction.SetMode -> modeName(action)
         is AutomationAction.SetNoise -> buildString {
             append(if (action.ancEnabled) "ANC ${action.cancellingLevel}" else "ANC off")
             if (action.windBlock) append(", wind block")
-            SpatialAudio.fromWire(action.spatialAudioWire).takeIf { it != SpatialAudio.OFF }?.let { append(", ${it.label}") }
+            SpatialAudio.fromStoredId(action.spatialAudioWire).takeIf { it != SpatialAudio.OFF }?.let { append(", ${it.label}") }
         }
         is AutomationAction.SetEqPreset -> action.presetId
             ?.let { id -> tuning.presets.value.firstOrNull { it.id == id }?.name ?: "EQ $id" }
             ?: "EQ flat"
     }
 
-    private fun modeName(index: Int): String =
-        headphones.state.value.modes.firstOrNull { it.index == index }?.name?.takeIf { it.isNotBlank() }
-            ?: ListeningMode.PRESET_NAMES.getOrNull(index)
-            ?: "mode $index"
+    /** The connected headset's name for it, else the saved ref's; never another model's preset names. */
+    private fun modeName(action: AutomationAction.SetMode): String {
+        val state = headphones.state.value
+        return ModeResolver.nameOf(action, state.modes, state.connection.deviceAddress) ?: "mode ${action.modeIndex}"
+    }
 
     private companion object {
         const val TAG = "Earshot/Automation"

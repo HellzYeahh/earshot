@@ -184,6 +184,15 @@ object ModeResolver {
         else -> 0
     }
 
+    /**
+     * A slot number drawn on a surface (widget button, notification action) is only valid on the
+     * headset it was drawn for. True when it was drawn for [connectedAddress], when it carries no
+     * address (drawn by an older build), or when nothing is connected (the command then fails on
+     * its own with the driver's message).
+     */
+    fun slotStillApplies(drawnFor: String?, connectedAddress: String?): Boolean =
+        drawnFor == null || connectedAddress == null || drawnFor.equals(connectedAddress, ignoreCase = true)
+
     /** The meanings offered when no headset is connected to pick from. */
     val GENERIC_CHOICES: List<ModeMeaning> = listOf(ModeMeaning.QUIET, ModeMeaning.AWARE, ModeMeaning.OFF)
 }

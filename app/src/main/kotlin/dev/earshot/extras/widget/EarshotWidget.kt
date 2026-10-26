@@ -14,7 +14,6 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.LocalSize
-import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -58,10 +57,12 @@ class EarshotWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val container = context.appContainer
+        val state = container.headphones.state.value
         val snapshot = Snapshot(
-            state = container.headphones.state.value,
+            state = state,
             eqPresetName = container.tuning.state.value.activePreset?.name,
-            cycle = container.automation.preferences.value.tileCycleModes,
+            // Resolved for the headset connected now: the saved choice is by meaning, not by slot.
+            cycle = TileCycle.order(container.automation.preferences.value, state),
         )
         provideContent {
             GlanceTheme(colors = WidgetColors.providers()) {
@@ -159,16 +160,17 @@ class EarshotWidget : GlanceAppWidget() {
     private fun ModeButtons(state: HeadphoneState, cycle: List<Int>) {
         // Only slots with a real name: a "Mode 5" button (or a QC Ultra preset name on another
         // model) would switch to something the user can't recognise.
-        val slots = TileCycle.order(cycle, state.modes)
+        val slots = cycle
             .mapNotNull { index -> HeadphoneLabels.modeName(state, index)?.let { index to it } }
             .take(3)
+        val address = state.connection.deviceAddress
         Row(modifier = GlanceModifier.fillMaxWidth()) {
             slots.forEachIndexed { i, (index, name) ->
                 if (i > 0) Spacer(GlanceModifier.width(6.dp))
                 val selected = state.currentModeIndex == index
                 Button(
                     text = name,
-                    onClick = actionRunCallback<SetModeAction>(actionParametersOf(SetModeAction.MODE_INDEX to index)),
+                    onClick = actionRunCallback<SetModeAction>(SetModeAction.parameters(index, address)),
                     modifier = GlanceModifier.defaultWeight(),
                     enabled = !state.isBusy,
                     maxLines = 1,

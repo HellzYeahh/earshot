@@ -105,17 +105,7 @@ data class ListeningMode(
      * built-in slot's name (the frozen Bose, Bragi and Sleep A30 stacks), else it is custom.
      */
     val meaning: ModeMeaning? = null,
-) {
-    companion object {
-        const val SLOT_COUNT = 11
-        val PRESET_NAMES = listOf("Quiet", "Aware", "Immersion", "Cinema")
-        const val QUIET = 0
-        const val AWARE = 1
-        const val IMMERSION = 2
-        const val CINEMA = 3
-        val CUSTOM_SLOTS = 4..10
-    }
-}
+)
 
 /** A per-mode setting that `[31.6]` can flag as changeable. */
 enum class ModeSetting { CANCELLING_LEVEL, AUTO_CNC, SPATIAL_AUDIO, WIND_BLOCK, ANC }

@@ -33,6 +33,7 @@ import dev.earshot.R
 import dev.earshot.core.AutomationAction
 import dev.earshot.core.AutomationRule
 import dev.earshot.core.ListeningMode
+import dev.earshot.core.ModeResolver
 import dev.earshot.core.Trigger
 import dev.earshot.dsp.EqPreset
 import dev.earshot.ui.common.EarshotPreview
@@ -52,7 +53,7 @@ fun AutomationsScreen(onBack: () -> Unit, onEdit: (String?) -> Unit) {
     val log by vm.recentLog.collectAsStateWithLifecycle()
     val headphones by vm.headphoneState.collectAsStateWithLifecycle()
     val presets by vm.presets.collectAsStateWithLifecycle()
-    AutomationsContent(rules, log, headphones.modes, presets, onBack, onEdit, vm::setEnabled)
+    AutomationsContent(rules, log, headphones.modes, presets, onBack, onEdit, vm::setEnabled, address = headphones.connection.deviceAddress)
 }
 
 @Composable
@@ -64,6 +65,8 @@ fun AutomationsContent(
     onBack: () -> Unit,
     onEdit: (String?) -> Unit,
     onSetEnabled: (AutomationRule, Boolean) -> Unit,
+    /** The connected headset, whose names [modes] are. */
+    address: String? = null,
 ) {
     // The Snackbar lives in the root Scaffold, so it would cover this nested one's button;
     // lift the button while a message ("Saved …") is showing.
@@ -98,7 +101,7 @@ fun AutomationsContent(
                                 Text(rule.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(describeTrigger(rule.trigger), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(
-                                    rule.actions.map { describeAction(it, modes, presets) }.joinToString(" · "),
+                                    rule.actions.map { describeAction(it, modes, presets, address) }.joinToString(" · "),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -135,8 +138,9 @@ fun describeTrigger(trigger: Trigger): String = when (trigger) {
 }
 
 @Composable
-fun describeAction(action: AutomationAction, modes: List<ListeningMode>, presets: List<EqPreset>): String = when (action) {
-    is AutomationAction.SetMode -> stringResource(R.string.action_set_mode_named, modes.firstOrNull { it.index == action.modeIndex }?.name?.ifBlank { null } ?: "#${action.modeIndex}")
+fun describeAction(action: AutomationAction, modes: List<ListeningMode>, presets: List<EqPreset>, address: String? = null): String = when (action) {
+    // The connected headset's name for the mode the rule means, else the name saved with it.
+    is AutomationAction.SetMode -> stringResource(R.string.action_set_mode_named, ModeResolver.nameOf(action, modes, address) ?: "#${action.modeIndex}")
     is AutomationAction.SetEqPreset -> stringResource(R.string.action_set_eq_named, action.presetId?.let { id -> presets.firstOrNull { it.id == id }?.name ?: id } ?: stringResource(R.string.action_eq_flat))
     is AutomationAction.SetNoise -> stringResource(
         R.string.action_set_noise_named,
