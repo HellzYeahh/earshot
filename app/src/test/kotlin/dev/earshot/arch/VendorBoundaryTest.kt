@@ -39,7 +39,6 @@ class VendorBoundaryTest {
     private val BASELINE = setOf(
         "shortcut/ControlDetection.kt",
         "ui/home/HomeViewModel.kt",
-        "ui/tools/ShortcutsRemapperViewModel.kt",
     )
 
     private fun isComment(line: String): Boolean = line.trim().let { it.startsWith("*") || it.startsWith("//") || it.startsWith("/*") }

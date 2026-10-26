@@ -15,7 +15,6 @@ import dev.earshot.shortcut.PhysicalControl
 import dev.earshot.shortcut.PressStyle
 import dev.earshot.shortcut.SecondaryButtonPolicy
 import dev.earshot.shortcut.SignalOrigin
-import dev.earshot.virtual.VirtualQcUltra2
 import dev.earshot.shortcut.HandlerStatus
 import dev.earshot.shortcut.HfpHeadset
 import dev.earshot.shortcut.ShortcutAction
@@ -24,6 +23,7 @@ import dev.earshot.shortcut.ShortcutEngine
 import dev.earshot.shortcut.ShortcutSettings
 import dev.earshot.ui.common.EarshotViewModel
 import dev.earshot.ui.common.UiMessenger
+import dev.earshot.virtual.DemoPresses
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -142,13 +142,16 @@ class ShortcutsRemapperViewModel(
     }
 
     /**
-     * Demo mode's "press a control": the virtual Bose unit pushes what real headphones would
-     * (`[5.4]`, `[5.5]`, `[2.12]`); the assistant gesture, which can't travel over a virtual HFP
-     * link, and every control of a demo without BMAP (the Crusher) go through the report path,
+     * Demo mode's "press a control": a virtual unit that takes presses ([DemoPresses]) pushes what
+     * real headphones would (the Bose unit: `[5.4]`, `[5.5]`, `[2.12]`). It is used only while the
+     * connected headset has its pushes on, since a press can only reach the app as a push; the
+     * assistant gesture, which can't travel over a virtual HFP link, and every control of a demo
+     * without pushes (the Crusher, Soundcore, Sennheiser, Sony) go through the report path,
      * labelled as a demo.
      */
     fun simulate(press: DemoPress) {
-        val unit = VirtualQcUltra2.current()?.takeIf { headphones.state.value.isConnected && headphones.state.value.crusher == null }
+        val hp = headphones.state.value
+        val unit = DemoPresses.current()?.takeIf { hp.isConnected && hp.livePushEnabled }
         val now = System.currentTimeMillis()
         when (press) {
             DemoPress.ASSISTANT -> engine.simulateAssistantGesture()
@@ -160,7 +163,7 @@ class ShortcutsRemapperViewModel(
                 engine.detector.report(ControlSignal.Volume(demoVolume, demoVolume + 1, SignalOrigin.DEMO, now))
                 demoVolume = (demoVolume + 1) % 15
             }
-            DemoPress.BUTTON -> unit?.pressButton()
+            DemoPress.BUTTON -> unit?.pressMainButton()
         }
     }
 

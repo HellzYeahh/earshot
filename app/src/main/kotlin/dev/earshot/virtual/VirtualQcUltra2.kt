@@ -63,7 +63,7 @@ class VirtualQcUltra2(
     private val pushDelayMs: Long = 150L,
     /** Which product this unit plays. */
     val profile: VirtualProfile = VirtualProfile.QC_ULTRA_2,
-) {
+) : DemoPressTarget {
     // ── Identity (the reference unit, with a made-up tail where it was masked) ───────────
     var firmwareVersion = profile.firmwareVersion
     var serialNumber = "085958T53330200AB"
@@ -325,16 +325,19 @@ class VirtualQcUltra2(
         push(status(QcUltra2.STATUS_BUTTON, record.copyOfRange(0, 3)))
     }
 
+    /** [DemoPressTarget]: the first `[1.9]` record's button, as [pressButton] presses it by default. */
+    override fun pressMainButton() = pressButton()
+
     /** Press play/pause on the headphones: the play state flips and `[5.4]` is pushed (the phone's player would follow over AVRCP). */
     @Synchronized
-    fun pressPlayPause() {
+    override fun pressPlayPause() {
         playback = if (playback == PlaybackStatus.PLAYING) PlaybackStatus.PAUSED else PlaybackStatus.PLAYING
         push(status(QcUltra2.AUDIO_STATUS, byteArrayOf(playback.code.toByte(), 0xFF.toByte(), 0xFF.toByte())))
     }
 
     /** Swipe the touch strip: volume changes and is pushed. */
     @Synchronized
-    fun swipeVolume(delta: Int) {
+    override fun swipeVolume(delta: Int) {
         volume = (volume + delta).coerceIn(0, volumeMax)
         push(status(QcUltra2.VOLUME, volumePayload()))
     }
