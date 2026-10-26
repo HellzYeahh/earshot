@@ -32,8 +32,10 @@ import kotlinx.coroutines.launch
 import dev.earshot.core.AppPreferences
 import dev.earshot.core.Appearance
 import dev.earshot.core.ListeningMode
+import dev.earshot.core.ModeResolver
 import dev.earshot.core.SecureSessionStatus
 import dev.earshot.core.fake.FakeHeadphoneRepository
+import dev.earshot.extras.tile.TileCycle
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.virtual.DemoDevice
 import dev.earshot.ui.common.LightDarkPreview
@@ -59,6 +61,7 @@ fun PreferencesScreen(onBack: () -> Unit) {
     val headphonesRepo = remember(context) { context.appContainer.headphones }
     PreferencesContent(
         prefs, headphones.modes, onBack, vm::setPreferences,
+        address = headphones.connection.deviceAddress,
         canForgetPairing = headphones.secureSession.status != SecureSessionStatus.NOT_REQUIRED,
         onForgetPairing = {
             scope.launch {
@@ -104,6 +107,8 @@ fun PreferencesContent(
     modes: List<ListeningMode>,
     onBack: () -> Unit,
     onChange: (AppPreferences) -> Unit,
+    /** The connected headset, whose modes [modes] are. */
+    address: String? = null,
     canForgetPairing: Boolean = false,
     onForgetPairing: () -> Unit = {},
     familyOverride: String? = null,
@@ -174,20 +179,21 @@ fun PreferencesContent(
             }
             SectionCard(title = stringResource(R.string.prefs_tile)) {
                 Text(stringResource(R.string.prefs_tile_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
+                // The choice is saved by meaning: what is shown here is what it means on this headset.
+                val tileModes = modes.filter { it.isConfigured }
+                val chosen = TileCycle.preferredSlots(prefs, modes, address).filter { slot -> tileModes.any { it.index == slot } }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    modes.filter { it.isPreset || it.isConfigured }.forEach { mode ->
-                        val selected = mode.index in prefs.tileCycleModes
+                    tileModes.forEach { mode ->
                         FilterChip(
-                            selected = selected,
-                            onClick = {
-                                val next = if (selected) prefs.tileCycleModes - mode.index else prefs.tileCycleModes + mode.index
-                                onChange(prefs.copy(tileCycleModes = next.sorted()))
-                            },
+                            selected = mode.index in chosen,
+                            onClick = { onChange(TileCycle.toggle(prefs, mode, modes, address)) },
                             label = { Text(mode.name.ifBlank { stringResource(R.string.mode_slot_number, mode.index) }) },
                         )
                     }
                 }
-                if (prefs.tileCycleModes.isEmpty()) {
+                // With nothing connected there are no chips, and a saved choice is not "none selected".
+                val nothingSaved = if (prefs.modeRefsMigrated) prefs.tileCycle.isEmpty() else prefs.tileCycleModes.isEmpty()
+                if (nothingSaved || (tileModes.isNotEmpty() && chosen.isEmpty())) {
                     Text(stringResource(R.string.prefs_tile_default), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
                 }
             }
@@ -247,5 +253,7 @@ fun PreferencesContent(
 @LightDarkPreview
 @Composable
 private fun PreferencesPreview() {
-    EarshotPreview { PreferencesContent(AppPreferences(tileCycleModes = listOf(0, 1)), FakeHeadphoneRepository.connectedState().modes, {}, {}, demoEnabled = true) }
+    val fake = FakeHeadphoneRepository.connectedState()
+    val prefs = AppPreferences().withTileCycle(fake.modes.take(2).map { ModeResolver.refFor(it, fake.connection.deviceAddress) })
+    EarshotPreview { PreferencesContent(prefs, fake.modes, {}, {}, address = fake.connection.deviceAddress, demoEnabled = true) }
 }

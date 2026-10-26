@@ -9,6 +9,7 @@ import android.os.Process
 import android.provider.Settings
 import android.util.Log
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -35,7 +36,8 @@ private val Context.automationStore: DataStore<Preferences> by preferencesDataSt
 /**
  * DataStore-backed [AutomationRepository]. Rules and the recent log are JSON strings
  * (kotlinx-serialization handles the sealed `Trigger`/`AutomationAction` hierarchies with a
- * `type` discriminator); preferences are individual keys so a future field is a one-line add.
+ * `type` discriminator; the rule format lives in [AutomationJson]); preferences are individual
+ * keys so a future field is a one-line add.
  *
  * The exposed flows are hot (`stateIn(Eagerly)`) so the tile, widget and engine can read
  * `.value` synchronously; the first emission after process start is the default until the
@@ -51,7 +53,7 @@ class AutomationRepositoryImpl(
 
     override val rules: StateFlow<List<AutomationRule>> = store.data
         .catch { e -> Log.w(TAG, "rules read failed", e); emit(emptyPreferences()) }
-        .map { prefs -> decodeRules(prefs[KEY_RULES]) }
+        .map { prefs -> decodeRules(prefs[KEY_RULES]).rules }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     override val preferences: StateFlow<AppPreferences> = store.data
@@ -64,30 +66,45 @@ class AutomationRepositoryImpl(
         .map { prefs -> decodeLog(prefs[KEY_LOG]) }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
-    override suspend fun upsertRule(rule: AutomationRule) {
+    override suspend fun upsertRule(rule: AutomationRule) = editRules(userEdit = true) { current -> current.filterNot { it.id == rule.id } + rule }
+
+    override suspend fun deleteRule(id: String) = editRules(userEdit = true) { current -> current.filterNot { it.id == id } }
+
+    override suspend fun updateRules(transform: (List<AutomationRule>) -> List<AutomationRule>) = editRules(userEdit = false, transform)
+
+    /**
+     * Read-modify-write inside one DataStore edit; rules this build can't read are written back
+     * untouched. Nothing is written when nothing changed, and stored text that isn't a rule list at
+     * all is replaced only by the user's own edit (as in 0.75), never by an automatic rewrite.
+     */
+    private suspend fun editRules(userEdit: Boolean, transform: (List<AutomationRule>) -> List<AutomationRule>) {
         store.edit { prefs ->
             val current = decodeRules(prefs[KEY_RULES])
-            val next = current.filterNot { it.id == rule.id } + rule
-            prefs[KEY_RULES] = json.encodeToString(ListSerializer(AutomationRule.serializer()), next)
-        }
-    }
-
-    override suspend fun deleteRule(id: String) {
-        store.edit { prefs ->
-            val next = decodeRules(prefs[KEY_RULES]).filterNot { it.id == id }
-            prefs[KEY_RULES] = json.encodeToString(ListSerializer(AutomationRule.serializer()), next)
+            if (current.corrupt && !userEdit) return@edit
+            val next = transform(current.rules)
+            if (next == current.rules && !current.corrupt) return@edit
+            prefs[KEY_RULES] = AutomationJson.encodeRules(next, current.unreadable)
         }
     }
 
     override suspend fun setPreferences(preferences: AppPreferences) {
-        store.edit { prefs ->
-            prefs[KEY_LOW_BATTERY_ENABLED] = preferences.lowBatteryThreshold != null
-            preferences.lowBatteryThreshold?.let { prefs[KEY_LOW_BATTERY_THRESHOLD] = it }
-            prefs[KEY_PERSISTENT_NOTIFICATION] = preferences.persistentNotification
-            prefs[KEY_AUTO_CONNECT] = preferences.autoConnectOnBluetooth
-            prefs[KEY_TILE_CYCLE] = preferences.tileCycleModes.joinToString(",")
-            prefs[KEY_APPEARANCE] = preferences.appearance.name
-        }
+        store.edit { prefs -> writePreferences(prefs, preferences) }
+    }
+
+    override suspend fun updatePreferences(transform: (AppPreferences) -> AppPreferences) {
+        store.edit { prefs -> writePreferences(prefs, transform(decodePreferences(prefs))) }
+    }
+
+    private fun writePreferences(prefs: MutablePreferences, preferences: AppPreferences) {
+        prefs[KEY_LOW_BATTERY_ENABLED] = preferences.lowBatteryThreshold != null
+        preferences.lowBatteryThreshold?.let { prefs[KEY_LOW_BATTERY_THRESHOLD] = it }
+        prefs[KEY_PERSISTENT_NOTIFICATION] = preferences.persistentNotification
+        prefs[KEY_AUTO_CONNECT] = preferences.autoConnectOnBluetooth
+        // Still written after the migration (as the refs' slots), so a downgraded build keeps its tile.
+        prefs[KEY_TILE_CYCLE] = AutomationJson.encodeLegacyTileCycle(preferences.legacyTileSlots)
+        prefs[KEY_TILE_CYCLE_REFS] = AutomationJson.encodeTileCycle(preferences.tileCycle)
+        prefs[KEY_MODE_REFS_MIGRATED] = preferences.modeRefsMigrated
+        prefs[KEY_APPEARANCE] = preferences.appearance.name
     }
 
     /** Newest first, capped at [LOG_CAP]. Fire-and-forget: callers are not suspend-friendly. */
@@ -136,11 +153,11 @@ class AutomationRepositoryImpl(
 
     // ---- codecs ----------------------------------------------------------------------------
 
-    private fun decodeRules(raw: String?): List<AutomationRule> {
-        if (raw.isNullOrBlank()) return emptyList()
-        return runCatching { json.decodeFromString(ListSerializer(AutomationRule.serializer()), raw) }
-            .onFailure { Log.w(TAG, "Dropping unreadable rules", it) }
-            .getOrDefault(emptyList())
+    private fun decodeRules(raw: String?): AutomationJson.Rules {
+        val decoded = AutomationJson.decodeRules(raw)
+        if (decoded.corrupt) Log.w(TAG, "Dropping unreadable rules (not a JSON list)")
+        if (decoded.unreadable.isNotEmpty()) Log.w(TAG, "Keeping ${decoded.unreadable.size} rule(s) this version can't read")
+        return decoded
     }
 
     private fun decodeLog(raw: String?): List<String> {
@@ -152,16 +169,18 @@ class AutomationRepositoryImpl(
         val defaults = AppPreferences()
         val lowBatteryEnabled = prefs[KEY_LOW_BATTERY_ENABLED] ?: (defaults.lowBatteryThreshold != null)
         val threshold = prefs[KEY_LOW_BATTERY_THRESHOLD] ?: defaults.lowBatteryThreshold ?: 20
+        val legacyTile = AutomationJson.decodeLegacyTileCycle(prefs[KEY_TILE_CYCLE])
+        val tileCycle = AutomationJson.decodeTileCycle(prefs[KEY_TILE_CYCLE_REFS])
+        val migrated = (prefs[KEY_MODE_REFS_MIGRATED] ?: defaults.modeRefsMigrated) && AutomationJson.tileRefsCurrent(legacyTile, tileCycle)
         return AppPreferences(
             lowBatteryThreshold = if (lowBatteryEnabled) threshold else null,
             persistentNotification = prefs[KEY_PERSISTENT_NOTIFICATION] ?: defaults.persistentNotification,
             autoConnectOnBluetooth = prefs[KEY_AUTO_CONNECT] ?: defaults.autoConnectOnBluetooth,
-            tileCycleModes = prefs[KEY_TILE_CYCLE]
-                ?.split(',')
-                ?.mapNotNull { it.trim().toIntOrNull() }
-                ?: defaults.tileCycleModes,
+            tileCycleModes = legacyTile ?: defaults.tileCycleModes,
             // A name from a newer build that this one doesn't know falls back to the default.
             appearance = prefs[KEY_APPEARANCE]?.let { name -> Appearance.entries.firstOrNull { it.name == name } } ?: defaults.appearance,
+            tileCycle = tileCycle,
+            modeRefsMigrated = migrated,
         )
     }
 
@@ -171,7 +190,7 @@ class AutomationRepositoryImpl(
         private const val TAG = "Earshot/Automation"
         const val LOG_CAP = 50
 
-        private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+        private val json = AutomationJson.json
 
         private val KEY_RULES = stringPreferencesKey("rules_json")
         private val KEY_LOG = stringPreferencesKey("recent_log_json")
@@ -180,6 +199,8 @@ class AutomationRepositoryImpl(
         private val KEY_PERSISTENT_NOTIFICATION = booleanPreferencesKey("persistent_notification")
         private val KEY_AUTO_CONNECT = booleanPreferencesKey("auto_connect_on_bluetooth")
         private val KEY_TILE_CYCLE = stringPreferencesKey("tile_cycle_modes")
+        private val KEY_TILE_CYCLE_REFS = stringPreferencesKey("tile_cycle_refs_json")
+        private val KEY_MODE_REFS_MIGRATED = booleanPreferencesKey("mode_refs_v1")
         private val KEY_APPEARANCE = stringPreferencesKey("appearance")
     }
 }

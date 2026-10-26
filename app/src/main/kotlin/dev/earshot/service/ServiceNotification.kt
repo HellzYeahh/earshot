@@ -12,7 +12,7 @@ import dev.earshot.find.FindSide
 import dev.earshot.R
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneState
-import dev.earshot.core.ListeningMode
+import dev.earshot.core.ModeResolver
 import dev.earshot.extras.HeadphoneLabels
 
 /**
@@ -40,6 +40,10 @@ class ServiceNotification(private val context: Context) {
         val currentModeIndex: Int?,
         val modeNames: Map<Int, String>,
         val favorites: List<Int>,
+        /** The buttons without favourites: this headset's first modes ([ModeResolver.defaultCycle]). */
+        val defaultModes: List<Int> = emptyList(),
+        /** Whose slots these are; the buttons carry it so a stale tap can't switch another headset. */
+        val deviceAddress: String? = null,
         val cancellingLevel: Int?,
         val ancEnabled: Boolean?,
         val windBlock: Boolean?,
@@ -63,6 +67,8 @@ class ServiceNotification(private val context: Context) {
                 modeNames = s.modes.filter { it.isConfigured }
                     .mapNotNull { m -> HeadphoneLabels.modeName(s, m.index)?.let { m.index to it } }.toMap(),
                 favorites = s.favoriteModes.filter { it.isConfigured }.map { it.index },
+                defaultModes = ModeResolver.defaultCycle(s.modes.filter { HeadphoneLabels.modeName(s, it.index) != null }),
+                deviceAddress = s.connection.deviceAddress,
                 cancellingLevel = s.noise?.cancellingLevel,
                 ancEnabled = s.noise?.ancEnabled,
                 windBlock = s.noise?.windBlock,
@@ -120,6 +126,7 @@ class ServiceNotification(private val context: Context) {
                     val label = snapshot.modeNames[index] ?: continue
                     builder.addAction(0, label, serviceIntent(HeadphoneService.ACTION_SET_MODE, requestCode = 100 + index) {
                         putExtra(HeadphoneService.EXTRA_MODE_INDEX, index)
+                        snapshot.deviceAddress?.let { putExtra(HeadphoneService.EXTRA_MODE_ADDRESS, it) }
                     })
                     actions++
                 }
@@ -150,14 +157,12 @@ class ServiceNotification(private val context: Context) {
     }
 
     /**
-     * Favourites (or the first three slots that exist: Quiet/Aware/Immersion on the QC Ultra, a
-     * custom slot 2 on the QC45), minus the active one, at most two when ANC is shown.
+     * Favourites (or the headset's first three named modes: Quiet/Aware/Immersion on the QC Ultra,
+     * its own first modes anywhere else), minus the active one, at most two when ANC is shown.
      */
     private fun modeButtons(s: Snapshot): List<Int> {
         if (!s.listeningModes) return emptyList()
-        val pool = s.favorites.ifEmpty {
-            listOf(ListeningMode.QUIET, ListeningMode.AWARE, ListeningMode.IMMERSION).filter { it in s.modeNames }
-        }
+        val pool = s.favorites.ifEmpty { s.defaultModes.filter { it in s.modeNames } }
         val max = if (s.ancEnabled != null && s.ancToggle) 2 else 3
         return pool.filter { it != s.currentModeIndex }.take(max)
     }

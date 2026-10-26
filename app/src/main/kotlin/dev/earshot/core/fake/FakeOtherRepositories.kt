@@ -153,6 +153,8 @@ class FakeAutomationRepository : AutomationRepository {
     override suspend fun upsertRule(rule: AutomationRule) = _rules.update { list -> list.filterNot { it.id == rule.id } + rule }
     override suspend fun deleteRule(id: String) = _rules.update { list -> list.filterNot { it.id == id } }
     override suspend fun setPreferences(preferences: AppPreferences) { _preferences.value = preferences }
+    override suspend fun updateRules(transform: (List<AutomationRule>) -> List<AutomationRule>) = _rules.update(transform)
+    override suspend fun updatePreferences(transform: (AppPreferences) -> AppPreferences) = _preferences.update(transform)
     override fun hasUsageAccess(): Boolean = false
     override fun openUsageAccessSettings() = Unit
 }

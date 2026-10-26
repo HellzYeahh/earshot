@@ -10,6 +10,7 @@ import android.service.quicksettings.TileService
 import android.util.Log
 import dev.earshot.MainActivity
 import dev.earshot.appContainer
+import dev.earshot.core.AppPreferences
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneState
 import dev.earshot.extras.ExtrasInitializer
@@ -39,8 +40,8 @@ class ModeTileService : TileService() {
         ExtrasInitializer.start(applicationContext, container) // in case the tile is the first thing to wake the process
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).also { listening = it }
         scope.launch {
-            combine(container.headphones.state, container.automation.preferences) { s, p -> s to p.tileCycleModes }
-                .collect { (state, cycle) -> render(state, cycle) }
+            combine(container.headphones.state, container.automation.preferences) { s, p -> s to p }
+                .collect { (state, prefs) -> render(state, cycleOrder(prefs, state)) }
         }
     }
 
@@ -66,8 +67,7 @@ class ModeTileService : TileService() {
             openApp()
             return
         }
-        val order = TileCycle.order(container.automation.preferences.value.tileCycleModes, state.modes)
-            .filter { state.modes.isEmpty() || HeadphoneLabels.modeName(state, it) != null }
+        val order = cycleOrder(container.automation.preferences.value, state)
         val next = TileCycle.next(state.currentModeIndex, order) ?: return
         // The listening scope dies with the shade; use a detached one so the command completes.
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
@@ -92,6 +92,10 @@ class ModeTileService : TileService() {
         }.onFailure { Log.w(TAG, "Tile could not open the app: ${it.message}") }
     }
 
+    /** The slots a tap cycles through: only ones with a real name, so the tile never lands on "Mode 5". */
+    private fun cycleOrder(prefs: AppPreferences, state: HeadphoneState): List<Int> =
+        TileCycle.order(prefs, state).filter { HeadphoneLabels.modeName(state, it) != null }
+
     private fun render(state: HeadphoneState, cycle: List<Int>) {
         val tile = qsTile ?: return
         val connected = state.isConnected
@@ -109,7 +113,9 @@ class ModeTileService : TileService() {
             state.connection.status == ConnectionStatus.NO_PERMISSION -> { label = "Connect"; subtitle = "Open Earshot" }
             else -> { label = "Connect"; subtitle = name }
         }
-        val canCycle = connected && state.capabilities.listeningModes && cycle.size > 1
+        // From the resolved order, not the saved list: with nothing chosen the favourites or the
+        // first modes still cycle, and a choice made on another headset may resolve to nothing here.
+        val canCycle = connected && state.capabilities.listeningModes && cycle.any { it != state.currentModeIndex }
         tile.state = when {
             connected -> Tile.STATE_ACTIVE
             state.connection.status == ConnectionStatus.NO_PAIRED_DEVICE -> Tile.STATE_UNAVAILABLE

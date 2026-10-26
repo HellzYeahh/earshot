@@ -30,12 +30,37 @@ sealed interface ConnectionProblem {
     data class ChannelHeld(val appName: String) : ConnectionProblem
 }
 
+/**
+ * Spatial audio. [wire] is the Bose `[31.10]` code and belongs to the Bose stack only (it moves to
+ * `:protocol` with the module split); saved rules use [storedId], Earshot's own frozen code.
+ */
 enum class SpatialAudio(val wire: Int, val label: String) {
     OFF(0, "Off"),
     ROOM(1, "Still"),   // fixed to room (Bose calls it "Still")
     HEAD(2, "Motion"),  // fixed to head (Bose calls it "Motion")
     ;
-    companion object { fun fromWire(v: Int) = entries.firstOrNull { it.wire == v } ?: OFF }
+
+    /**
+     * The code saved in rules (`AutomationAction.SetNoise.spatialAudioWire`): 0 off, 1 still,
+     * 2 motion. Frozen: it equals the Bose wire only because 0.75 saved the wire code, and it must
+     * not follow any headset's wire if that changes.
+     */
+    val storedId: Int get() = when (this) {
+        OFF -> 0
+        ROOM -> 1
+        HEAD -> 2
+    }
+
+    companion object {
+        fun fromWire(v: Int) = entries.firstOrNull { it.wire == v } ?: OFF
+
+        /** [storedId] → value; an unknown code is off, as 0.75 read it. */
+        fun fromStoredId(v: Int): SpatialAudio = when (v) {
+            1 -> ROOM
+            2 -> HEAD
+            else -> OFF
+        }
+    }
 }
 
 enum class Sidetone(val wire: Int, val label: String) {
@@ -54,7 +79,11 @@ data class NoiseSettings(
     init { require(cancellingLevel in 0..10) { "cancellingLevel must be 0..10" } }
 }
 
-/** One of the 11 listening-mode slots (0-3 presets, 4-10 custom). */
+/**
+ * One listening-mode slot. [index] is the headset's own slot number and means nothing across
+ * makers (Bose: 0-3 presets, 4-10 custom; others: their own layout); a saved choice keeps a
+ * [ModeRef] instead.
+ */
 data class ListeningMode(
     val index: Int,
     val name: String,
@@ -71,17 +100,12 @@ data class ListeningMode(
      * only seen through a write echo, or the dump was not read): treat as "all".
      */
     val changeableSettings: Set<ModeSetting>? = null,
-) {
-    companion object {
-        const val SLOT_COUNT = 11
-        val PRESET_NAMES = listOf("Quiet", "Aware", "Immersion", "Cinema")
-        const val QUIET = 0
-        const val AWARE = 1
-        const val IMMERSION = 2
-        const val CINEMA = 3
-        val CUSTOM_SLOTS = 4..10
-    }
-}
+    /**
+     * What the mode does, set by drivers that know it. Null: [ModeResolver] infers it from a
+     * built-in slot's name (the frozen Bose, Bragi and Sleep A30 stacks), else it is custom.
+     */
+    val meaning: ModeMeaning? = null,
+)
 
 /** A per-mode setting that `[31.6]` can flag as changeable. */
 enum class ModeSetting { CANCELLING_LEVEL, AUTO_CNC, SPATIAL_AUDIO, WIND_BLOCK, ANC }

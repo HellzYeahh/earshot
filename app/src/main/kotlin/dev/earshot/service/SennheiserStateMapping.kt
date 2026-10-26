@@ -8,6 +8,7 @@ import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.ListeningMode
+import dev.earshot.core.ModeMeaning
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.VendorControl
 import dev.earshot.protocol.sennheiser.SennheiserCommands
@@ -60,10 +61,11 @@ object SennheiserStateMapping {
     /** A headset whose model isn't known (the user set "Headphone type: Sennheiser" on something else): only the settings every model has. */
     private val FALLBACK_SETTINGS = setOf(SennheiserSetting.PAUSE_IN_TRANSPARENCY, SennheiserSetting.AUTO_OFF)
 
+    // Explicit meanings: saved rules and the tile resolve by them, not by these English names.
     val MODES = listOf(
-        ListeningMode(MODE_ANC, "Noise cancelling", isPreset = true, isEditable = false, isConfigured = true),
-        ListeningMode(MODE_TRANSPARENCY, "Transparency", isPreset = true, isEditable = false, isConfigured = true),
-        ListeningMode(MODE_OFF, "Off", isPreset = true, isEditable = false, isConfigured = true),
+        ListeningMode(MODE_ANC, "Noise cancelling", isPreset = true, isEditable = false, isConfigured = true, meaning = ModeMeaning.QUIET),
+        ListeningMode(MODE_TRANSPARENCY, "Transparency", isPreset = true, isEditable = false, isConfigured = true, meaning = ModeMeaning.AWARE),
+        ListeningMode(MODE_OFF, "Off", isPreset = true, isEditable = false, isConfigured = true, meaning = ModeMeaning.OFF),
     )
 
     fun family(model: SennheiserModel?): SennheiserNoiseFamily = model?.noise ?: SennheiserNoiseFamily.TOGGLES

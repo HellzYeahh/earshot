@@ -2,6 +2,7 @@ package dev.earshot.extras.automation
 
 import android.content.Context
 import android.util.Log
+import dev.earshot.appContainer
 import dev.earshot.core.AudioTuningRepository
 import dev.earshot.core.AutomationRepository
 import dev.earshot.core.AutomationRule
@@ -83,6 +84,9 @@ class AutomationEngine(
 
         // Alarms follow the rule list regardless of connection; the receiver checks connection at fire time.
         scope.launch { automation.rules.collect { alarms.sync(it) } }
+
+        // 0.75 saved bare slot numbers; bind them to meanings on the first real headset that shows its modes.
+        ModeRefMigration(headphones, automation, appContext.appContainer.demoMode.isEnabled).start(scope)
     }
 
     @Synchronized

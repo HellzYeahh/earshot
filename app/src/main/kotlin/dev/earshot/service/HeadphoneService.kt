@@ -14,7 +14,7 @@ import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.HeadphoneState
-import dev.earshot.core.ListeningMode
+import dev.earshot.core.ModeResolver
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.conflate
@@ -83,7 +83,12 @@ class HeadphoneService : LifecycleService() {
             ACTION_START -> Unit // repository.connect() already drove the manager; we only needed to come up
             ACTION_CONNECT -> repository.connect()
             ACTION_SET_MODE -> intent.getIntExtra(EXTRA_MODE_INDEX, -1).takeIf { it >= 0 }?.let { index ->
-                runCommand("set mode") { setMode(index) }
+                // The slot is the headset's the button was drawn for; another one's slot means something else.
+                if (ModeResolver.slotStillApplies(intent.getStringExtra(EXTRA_MODE_ADDRESS), repository.state.value.connection.deviceAddress)) {
+                    runCommand("set mode") { setMode(index) }
+                } else {
+                    Log.i(TAG, "set mode from a notification for another headset ignored")
+                }
             }
             ACTION_TOGGLE_ANC -> runCommand("toggle ANC") {
                 val noise = state.value.noise ?: throw HeadphoneCommandException("Noise settings not loaded yet")
@@ -189,6 +194,8 @@ class HeadphoneService : LifecycleService() {
         const val ACTION_POWER_OFF = "$PKG.POWER_OFF"
         const val ACTION_STOP = "$PKG.STOP"
         const val EXTRA_MODE_INDEX = "mode_index"
+        /** Optional: the headset [EXTRA_MODE_INDEX] belongs to. */
+        const val EXTRA_MODE_ADDRESS = "mode_address"
 
         const val IDLE_STOP_MS = 2 * 60 * 1000L
         private const val NOTIFICATION_THROTTLE_MS = 500L
@@ -210,17 +217,13 @@ class HeadphoneService : LifecycleService() {
 
         /**
          * Which mode a "cycle" tap should go to: the next favourite after the current one, or the
-         * next of Quiet/Aware/Immersion when nothing is marked favourite. Null when the modes have
-         * not been read yet.
+         * next of the headset's first three modes when nothing is marked favourite (Quiet/Aware/
+         * Immersion on the QC Ultra; never Bose slot numbers on another make). Null when the modes
+         * have not been read yet.
          */
         fun nextModeIndex(state: HeadphoneState): Int? {
-            val configured = state.modes.filter { it.isConfigured }.map { it.index }.toSet()
             val pool = state.favoriteModes.filter { it.isConfigured }.map { it.index }
-                .ifEmpty {
-                    // Slot 2 is Immersion on the QC Ultra but a custom (maybe empty) slot on the QC45.
-                    listOf(ListeningMode.QUIET, ListeningMode.AWARE, ListeningMode.IMMERSION)
-                        .filter { state.modes.isEmpty() || it in configured }
-                }
+                .ifEmpty { ModeResolver.defaultCycle(state.modes) }
             if (pool.isEmpty()) return null
             val at = pool.indexOf(state.currentModeIndex)
             return pool[(at + 1) % pool.size]

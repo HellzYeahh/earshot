@@ -7,6 +7,7 @@ import dev.earshot.core.FormFactor
 import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.ListeningMode
+import dev.earshot.core.ModeMeaning
 import dev.earshot.core.VendorControl
 import dev.earshot.protocol.soundcore.AmbientMode
 import dev.earshot.protocol.soundcore.SoundcoreModel
@@ -31,10 +32,11 @@ object SoundcoreModelMapping {
     const val MODE_TRANSPARENCY = 1
     const val MODE_NORMAL = 2
 
+    // Explicit meanings: saved rules and the tile resolve by them ("Normal" is Off, not a custom mode).
     val MODES = listOf(
-        ListeningMode(MODE_NC, "Noise cancelling", isPreset = true, isEditable = false, isConfigured = true),
-        ListeningMode(MODE_TRANSPARENCY, "Transparency", isPreset = true, isEditable = false, isConfigured = true),
-        ListeningMode(MODE_NORMAL, "Normal", isPreset = true, isEditable = false, isConfigured = true),
+        ListeningMode(MODE_NC, "Noise cancelling", isPreset = true, isEditable = false, isConfigured = true, meaning = ModeMeaning.QUIET),
+        ListeningMode(MODE_TRANSPARENCY, "Transparency", isPreset = true, isEditable = false, isConfigured = true, meaning = ModeMeaning.AWARE),
+        ListeningMode(MODE_NORMAL, "Normal", isPreset = true, isEditable = false, isConfigured = true, meaning = ModeMeaning.OFF),
     )
 
     const val EXPERIMENTAL = "Experimental: built from protocol notes and not yet tested on this model."

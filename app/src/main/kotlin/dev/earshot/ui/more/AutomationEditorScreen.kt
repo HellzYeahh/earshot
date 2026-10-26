@@ -89,6 +89,7 @@ fun AutomationEditorScreen(ruleId: String?, onBack: () -> Unit) {
     AutomationEditorContent(
         existing = existing,
         modes = headphones.modes,
+        address = headphones.connection.deviceAddress,
         presets = presets,
         installedApps = installedApps,
         hasUsageAccess = vm::hasUsageAccess,
@@ -110,10 +111,12 @@ fun AutomationEditorContent(
     onBack: () -> Unit,
     onSave: (AutomationRule) -> Unit,
     onDelete: (String) -> Unit,
+    /** The connected headset: a mode picked from [modes] is saved as picked on it. */
+    address: String? = null,
 ) {
     var name by rememberSaveable(existing) { mutableStateOf(existing?.name.orEmpty()) }
     var trigger by remember(existing) { mutableStateOf(existing?.trigger ?: Trigger.OnConnect) }
-    var actions by remember(existing) { mutableStateOf(existing?.actions ?: listOf(AutomationAction.SetMode(ListeningMode.QUIET))) }
+    var actions by remember(existing) { mutableStateOf(existing?.actions ?: listOf(AutomationModeChoices.default(modes, address))) }
     var showDelete by rememberSaveable { mutableStateOf(false) }
     val canSave = name.isNotBlank() && actions.isNotEmpty() && triggerIsComplete(trigger)
 
@@ -141,12 +144,13 @@ fun AutomationEditorContent(
                     ActionEditor(
                         action = action,
                         modes = modes,
+                        address = address,
                         presets = presets,
                         onChange = { updated -> actions = actions.toMutableList().also { it[index] = updated } },
                         onRemove = { actions = actions.toMutableList().also { it.removeAt(index) } },
                     )
                 }
-                AddActionButtons(existing = actions) { actions = actions + it }
+                AddActionButtons(existing = actions, newMode = { AutomationModeChoices.default(modes, address) }) { actions = actions + it }
             }
 
             Button(shape = MaterialTheme.shapes.medium, onClick = {
@@ -295,6 +299,7 @@ private fun ScheduleEditor(trigger: Trigger.Schedule, onChange: (Trigger) -> Uni
 private fun ActionEditor(
     action: AutomationAction,
     modes: List<ListeningMode>,
+    address: String?,
     presets: List<EqPreset>,
     onChange: (AutomationAction) -> Unit,
     onRemove: () -> Unit,
@@ -316,13 +321,18 @@ private fun ActionEditor(
         }
         when (action) {
             is AutomationAction.SetMode -> {
-                val options = modes.filter { it.isPreset || it.isConfigured }
+                val choices = AutomationModeChoices.choices(modes, address)
+                val shown = AutomationModeChoices.shown(action, choices, modes, address)
+                // A saved mode this headset lacks stays visible (and selected) instead of a blank field.
+                val options = if (shown in choices) choices else choices + shown
+                val labels = options.associateWith { AutomationModeChoices.label(it, modes, address) ?: stringResource(R.string.mode_slot_number, it.modeIndex) }
                 DropdownField(
                     label = stringResource(R.string.automation_mode),
                     options = options,
-                    selected = options.firstOrNull { it.index == action.modeIndex },
-                    onSelect = { onChange(AutomationAction.SetMode(it.index)) },
-                    optionLabel = { it.name },
+                    selected = shown,
+                    // Picking writes a fresh ref for this headset (no 0.75 slot fallback any more).
+                    onSelect = { onChange(it) },
+                    optionLabel = { labels[it].orEmpty() },
                 )
             }
             is AutomationAction.SetEqPreset -> {
@@ -338,9 +348,9 @@ private fun ActionEditor(
             }
             is AutomationAction.SetNoise -> {
                 NoiseControls(
-                    settings = NoiseSettings(action.cancellingLevel, action.ancEnabled, action.windBlock, SpatialAudio.fromWire(action.spatialAudioWire)),
+                    settings = NoiseSettings(action.cancellingLevel, action.ancEnabled, action.windBlock, SpatialAudio.fromStoredId(action.spatialAudioWire)),
                     enabled = true,
-                    onChange = { onChange(AutomationAction.SetNoise(it.cancellingLevel, it.ancEnabled, it.windBlock, it.spatialAudio.wire)) },
+                    onChange = { onChange(AutomationAction.SetNoise(it.cancellingLevel, it.ancEnabled, it.windBlock, it.spatialAudio.storedId)) },
                     compact = true,
                 )
             }
@@ -349,7 +359,7 @@ private fun ActionEditor(
 }
 
 @Composable
-private fun AddActionButtons(existing: List<AutomationAction>, onAdd: (AutomationAction) -> Unit) {
+private fun AddActionButtons(existing: List<AutomationAction>, newMode: () -> AutomationAction.SetMode, onAdd: (AutomationAction) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ActionKind.entries.forEach { kind ->
             val present = existing.any {
@@ -364,7 +374,7 @@ private fun AddActionButtons(existing: List<AutomationAction>, onAdd: (Automatio
                     onClick = {
                         onAdd(
                             when (kind) {
-                                ActionKind.MODE -> AutomationAction.SetMode(ListeningMode.QUIET)
+                                ActionKind.MODE -> newMode()
                                 ActionKind.EQ -> AutomationAction.SetEqPreset(null)
                                 ActionKind.NOISE -> AutomationAction.SetNoise(10, true, false, 0)
                             },
@@ -393,9 +403,11 @@ private fun AddActionButtons(existing: List<AutomationAction>, onAdd: (Automatio
 @Composable
 private fun AutomationEditorPreview() {
     EarshotPreview {
+        val fake = dev.earshot.core.fake.FakeHeadphoneRepository.connectedState()
         AutomationEditorContent(
             existing = AutomationRule("1", "Commute", true, Trigger.Schedule(8, 15, setOf(1, 2, 3, 4, 5)), listOf(AutomationAction.SetMode(0), AutomationAction.SetNoise(6, true, false, 0))),
-            modes = dev.earshot.core.fake.FakeHeadphoneRepository.connectedState().modes,
+            modes = fake.modes,
+            address = fake.connection.deviceAddress,
             presets = emptyList(),
             installedApps = emptyList(),
             hasUsageAccess = { false }, onOpenUsageAccess = {}, onBack = {}, onSave = {}, onDelete = {},
