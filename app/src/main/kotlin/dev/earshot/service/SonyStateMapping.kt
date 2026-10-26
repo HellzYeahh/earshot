@@ -7,6 +7,7 @@ import dev.earshot.core.FormFactor
 import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.ListeningMode
+import dev.earshot.core.ModeMeaning
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.VendorControl
 import dev.earshot.protocol.sony.AudioType
@@ -202,12 +203,14 @@ object SonyStateMapping {
 
     fun modes(s: SonySnapshot): List<ListeningMode> {
         val nc = s.ncAsm ?: return emptyList()
-        fun mode(index: Int, name: String, settings: NoiseSettings) =
-            ListeningMode(index, name, isPreset = true, isEditable = false, isConfigured = true, settings = settings)
+        // Explicit meanings: saved rules and the tile resolve by them, by slot index (a model
+        // without noise cancelling or ambient sound skips that slot but keeps the numbers).
+        fun mode(index: Int, name: String, settings: NoiseSettings, meaning: ModeMeaning) =
+            ListeningMode(index, name, isPreset = true, isEditable = false, isConfigured = true, settings = settings, meaning = meaning)
         return buildList {
-            if (nc.hasNoiseCancelling) add(mode(MODE_NC, "Noise cancelling", NoiseSettings(10, ancEnabled = true)))
-            if (nc.hasAmbient) add(mode(MODE_AMBIENT, "Ambient sound", NoiseSettings(ambientAsCancelling(s), ancEnabled = true)))
-            add(mode(MODE_OFF, "Off", NoiseSettings(0, ancEnabled = false)))
+            if (nc.hasNoiseCancelling) add(mode(MODE_NC, "Noise cancelling", NoiseSettings(10, ancEnabled = true), ModeMeaning.QUIET))
+            if (nc.hasAmbient) add(mode(MODE_AMBIENT, "Ambient sound", NoiseSettings(ambientAsCancelling(s), ancEnabled = true), ModeMeaning.AWARE))
+            add(mode(MODE_OFF, "Off", NoiseSettings(0, ancEnabled = false), ModeMeaning.OFF))
         }
     }
 
