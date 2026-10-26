@@ -1,7 +1,6 @@
 package dev.earshot.service
 
 import android.content.Context
-import android.util.Log
 import dev.earshot.bt.AndroidBragiTrustStore
 import dev.earshot.bt.BragiConnection
 import dev.earshot.bt.BragiLinkFactory
@@ -12,48 +11,36 @@ import dev.earshot.bt.ConnectionManager
 import dev.earshot.bt.DeviceCandidate
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
-import dev.earshot.core.ButtonAction
-import dev.earshot.core.ConnectionStatus
-import dev.earshot.core.HeadphoneCandidate
+import dev.earshot.bt.LinkSource
 import dev.earshot.core.HeadphoneCommandException
-import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneRepository
-import dev.earshot.core.HeadphoneState
 import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.NoiseSettings
 import dev.earshot.core.PairingRequest
 import dev.earshot.core.RawFrame
 import dev.earshot.core.Sidetone
-import dev.earshot.core.VoicePrompts
 import dev.earshot.protocol.bragi.BosRpcPacket
 import dev.earshot.protocol.bragi.BragiReads
 import dev.earshot.protocol.bragi.BragiServices
 import dev.earshot.service.lab.BragiLab
-import kotlinx.coroutines.CancellationException
+import dev.earshot.service.session.AndroidForegroundHost
+import dev.earshot.service.session.AndroidSessionLog
+import dev.earshot.service.session.ForegroundHost
+import dev.earshot.service.session.SessionLog
+import dev.earshot.service.session.SessionRepository
+import dev.earshot.service.session.StateCommands
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -61,48 +48,60 @@ import java.util.concurrent.atomic.AtomicReference
  * [ServiceHeadphoneRepository]; the two share a contract, not a wire format, so everything above
  * (Home, widget, tile, notification, automations) works unchanged against either.
  *
- * It owns a [ConnectionManager] of [BragiConnection]s, so reconnects, Bluetooth on/off handling and
- * the busy-connection message are the same policy the Bose path uses, and runs the typed
+ * It runs on a [ConnectionManager] of [BragiConnection]s, so reconnects, Bluetooth on/off handling
+ * and the busy-connection message are the same policy the Bose path uses, and the typed
  * [CrusherProtocol] over it: connect, subscribe, refresh, commands one at a time, pushes merged on
- * top. Battery has no push in the headphones' protocol, so it is polled once a minute.
+ * top ([StateCommands]). Battery has no push in the headphones' protocol, so it is polled once a
+ * minute without the busy flag. The shared part is [SessionRepository].
  *
  * Features the Crusher does not have (custom modes, device EQ and the Bose-only toggles) throw
  * [HeadphoneCommandException] with a readable message, which the UI already shows.
  */
-class CrusherHeadphoneRepository(
-    context: Context,
-    private val protocol: CrusherProtocol = CrusherProtocol(),
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-    demoTransport: () -> (() -> ByteTransport)? = { null },
-    autoConnect: () -> Boolean = { true },
+class CrusherHeadphoneRepository internal constructor(
+    private val protocol: CrusherProtocol,
+    link: LinkSource<BragiConnection>,
+    candidates: suspend () -> List<DeviceCandidate>,
+    foreground: ForegroundHost,
+    scope: CoroutineScope,
     /** Keys for the secure session some Crusher firmware asks for; see [BragiSession]. */
-    private val trust: BragiTrustStore = AndroidBragiTrustStore(context),
-    /** The name shown for the demo device ("Virtual Crusher 1080 (demo)" unless the demo is another Bragi product). */
-    demoName: () -> String = { DEMO_NAME },
-) : HeadphoneRepository {
+    private val trust: BragiTrustStore,
+    /** The saved device's address (`DevicePrefs.savedDevice`), for [forgetPairing]. */
+    private val savedAddress: suspend () -> String?,
+    log: SessionLog = AndroidSessionLog(TAG),
+) : SessionRepository<BragiConnection>(link, candidates, foreground, scope, log) {
 
-    private val appContext = context.applicationContext
-
-    val devicePrefs = DevicePrefs(appContext)
-    val deviceFinder = DeviceFinder(appContext, devicePrefs)
-    val connectionManager = ConnectionManager(
-        appContext, deviceFinder, devicePrefs, scope, BragiLinkFactory(),
-        autoConnect = autoConnect,
-        demoTransport = demoTransport,
-        demoName = demoName,
+    constructor(
+        context: Context,
+        protocol: CrusherProtocol = CrusherProtocol(),
+        scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+        demoTransport: () -> (() -> ByteTransport)? = { null },
+        autoConnect: () -> Boolean = { true },
+        trust: BragiTrustStore = AndroidBragiTrustStore(context),
+        /** The name shown for the demo device ("Virtual Crusher 1080 (demo)" unless the demo is another Bragi product). */
+        demoName: () -> String = { DEMO_NAME },
+        /** Shared with the other stacks (`AppContainer`); one store per process either way. */
+        prefs: DevicePrefs = DevicePrefs(context),
+        finder: DeviceFinder = DeviceFinder(context.applicationContext, prefs),
+    ) : this(
+        protocol = protocol,
+        link = ConnectionManager(
+            context.applicationContext, finder, prefs, scope, BragiLinkFactory(),
+            autoConnect = autoConnect,
+            demoTransport = demoTransport,
+            demoName = demoName,
+        ),
+        candidates = finder::candidates,
+        foreground = AndroidForegroundHost(context, finder),
+        scope = scope,
+        trust = trust,
+        savedAddress = { prefs.savedDevice()?.address },
     )
 
-    private val _state = MutableStateFlow(HeadphoneState())
-    override val state: StateFlow<HeadphoneState> = _state.asStateFlow()
-
-    private val _events = MutableSharedFlow<HeadphoneEvent>(extraBufferCapacity = 16)
-    override val events: SharedFlow<HeadphoneEvent> = _events.asSharedFlow()
-
-    /** Serialises typed commands so a multi-call command never interleaves with another. */
-    private val commands = Mutex()
-
-    /** Pushes that arrived while a command held [commands]; merged on top of its result. */
-    private val deferredPushes = ConcurrentLinkedQueue<BosRpcPacket>()
+    /** Typed commands one at a time; pushes that arrive under one are merged on top of its result. */
+    private val pushes = StateCommands<BragiConnection, BosRpcPacket>(
+        mutableState, commands, { requireConnection() }, log,
+        onPush = { packet, s -> protocol.onUnsolicited(packet, s) },
+    )
 
     /** The pairing prompt waiting for the user's answer (see [answerPairing]). */
     private val pendingPairing = AtomicReference<CompletableDeferred<Boolean>?>(null)
@@ -110,89 +109,31 @@ class CrusherHeadphoneRepository(
     private val session = BragiSession(trust, prompt = { passcode, digits -> askUser(passcode, digits) })
 
     init {
-        scope.launch {
-            var wasConnected = false
-            connectionManager.state.collect { cs ->
-                val connected = cs.status == ConnectionStatus.CONNECTED
-                _state.update { s ->
-                    // Drop stale headphone data when the link goes.
-                    if (connected || !wasConnected) s.copy(connection = cs) else HeadphoneState(connection = cs)
-                }
-                if (wasConnected && !connected) _events.tryEmit(HeadphoneEvent.Disconnected)
-                wasConnected = connected
-            }
-        }
-        scope.launch {
-            connectionManager.connection.collectLatest { conn -> if (conn != null) runSession(conn) }
-        }
+        start() // last: runSession reads the fields above
     }
 
-    // ---- Connection ------------------------------------------------------------------------
-
-    override fun connect() {
-        if (deviceFinder.hasConnectPermission()) HeadphoneService.start(appContext)
-        connectionManager.connect()
-    }
-
-    override fun disconnect() {
-        connectionManager.disconnect()
-        HeadphoneService.stop(appContext)
-    }
-
-    /** Drop the connection without stopping the foreground service: another repository is taking over. */
-    fun releaseConnection() = connectionManager.disconnect()
-
-    override suspend fun deviceCandidates(): List<HeadphoneCandidate> =
-        deviceFinder.candidates().map { it.toCandidate() }
-
-    private fun DeviceCandidate.toCandidate() =
-        HeadphoneCandidate(address = address, name = name, looksLikeBose = looksLikeBose, isAudioDevice = isAudioDevice)
-
-    override suspend fun chooseDevice(address: String, name: String?) {
-        HeadphoneService.start(appContext)
-        connectionManager.chooseDevice(address, name)
-    }
-
-    /** True when [address] is the saved (or, before any choice, a Skullcandy-looking) device. */
-    suspend fun isOurDevice(address: String): Boolean = connectionManager.isOurDevice(address)
-
-    private suspend fun runSession(conn: BragiConnection) = coroutineScope {
-        deferredPushes.clear()
+    override suspend fun CoroutineScope.runSession(conn: BragiConnection) {
+        pushes.reset()
         launch {
-            conn.unsolicited.collect { packet ->
-                if (commands.isLocked) {
-                    deferredPushes += packet
-                    if (!commands.isLocked) drainPushes()
-                } else {
-                    applyPush(packet)
-                }
-            }
+            conn.unsolicited.collect { packet -> pushes.push(packet) }
         }
-        val address = connectionManager.state.value.deviceAddress ?: DEMO_ADDRESS
+        val address = link.state.value.deviceAddress ?: DEMO_ADDRESS
         try {
-            command("onConnected") { c, s ->
+            pushes.run("onConnected") { c, s ->
                 protocol.onConnected(c, s, secure = { session.establish(c, address) { cipher -> c.installCipher(cipher) } })
             }
         } catch (e: HeadphoneCommandException) {
-            Log.w(TAG, "initial read failed: ${e.message}")
+            log.w("initial read failed: ${e.message}")
             if (e.message == BragiConnection.MESSAGE_STOPPED_ANSWERING || !conn.isOpen) {
                 conn.closeUnresponsive()
-                return@coroutineScope
+                return
             }
-            _events.tryEmit(HeadphoneEvent.Error("Connected, but reading settings failed: ${e.message}", e))
+            mutableEvents.tryEmit(HeadphoneEvent.Error("Connected, but reading settings failed: ${e.message}", e))
         }
-        _events.tryEmit(HeadphoneEvent.Connected)
-        // No battery push in the headphones' protocol: poll.
-        launch {
-            while (conn.isOpen) {
-                delay(BATTERY_POLL_MS)
-                if (!conn.isOpen) break
-                try {
-                    command("pollBattery", showBusy = false) { c, s -> protocol.pollBattery(c, s) }
-                } catch (e: HeadphoneCommandException) {
-                    Log.d(TAG, "battery poll failed: ${e.message}")
-                }
-            }
+        mutableEvents.tryEmit(HeadphoneEvent.Connected)
+        // No battery push in the headphones' protocol: poll, without greying out the controls.
+        pollWhileOpen(conn, BATTERY_POLL_MS) {
+            pushes.run("pollBattery", showBusy = false) { c, s -> protocol.pollBattery(c, s) }
         }
     }
 
@@ -202,12 +143,12 @@ class CrusherHeadphoneRepository(
     private suspend fun askUser(passcode: Int?, digits: Int): Boolean {
         val answer = CompletableDeferred<Boolean>()
         pendingPairing.set(answer)
-        _state.update { it.copy(pairing = PairingRequest(passcode, digits)) }
+        mutableState.update { it.copy(pairing = PairingRequest(passcode, digits)) }
         return try {
             withTimeoutOrNull(PAIRING_TIMEOUT_MS) { answer.await() } ?: false
         } finally {
             pendingPairing.set(null)
-            _state.update { it.copy(pairing = null) }
+            mutableState.update { it.copy(pairing = null) }
         }
     }
 
@@ -216,45 +157,33 @@ class CrusherHeadphoneRepository(
     }
 
     override suspend fun forgetPairing() {
-        val address = devicePrefs.savedDevice()?.address ?: connectionManager.state.value.deviceAddress
+        val address = savedAddress() ?: link.state.value.deviceAddress
             ?: throw HeadphoneCommandException("No headphones are saved yet")
         trust.forget(address)
     }
 
     // ---- Commands --------------------------------------------------------------------------
 
-    override suspend fun refresh() = command("refresh") { c, s -> protocol.refresh(c, s) }
+    override suspend fun refresh() = pushes.run("refresh") { c, s -> protocol.refresh(c, s) }
 
-    override suspend fun setMode(index: Int) = command("setMode") { c, s -> protocol.setMode(c, s, index) }
+    override suspend fun setMode(index: Int) = pushes.run("setMode") { c, s -> protocol.setMode(c, s, index) }
 
-    override suspend fun saveCustomMode(index: Int, name: String, settings: NoiseSettings) = unsupported("Custom modes")
-
-    override suspend fun setFavorites(indices: Set<Int>) = unsupported("Favourite modes")
-
-    override suspend fun setNoise(settings: NoiseSettings) = command("setNoise") { c, s -> protocol.setNoise(c, s, settings) }
-
-    override suspend fun setEq(eq: HeadphoneEq) = unsupported("The headphones' own equaliser")
+    override suspend fun setNoise(settings: NoiseSettings) = pushes.run("setNoise") { c, s -> protocol.setNoise(c, s, settings) }
 
     override suspend fun setSidetone(level: Sidetone, persistent: Boolean) =
-        command("setSidetone") { c, s -> protocol.setSidetone(c, s, level) }
+        pushes.run("setSidetone") { c, s -> protocol.setSidetone(c, s, level) }
 
     override suspend fun setCrusherBass(active: Boolean?, intensity: Int?, mode: Int?) =
-        command("setCrusherBass") { c, s -> protocol.setCrusherBass(c, s, active, intensity, mode) }
+        pushes.run("setCrusherBass") { c, s -> protocol.setCrusherBass(c, s, active, intensity, mode) }
 
-    override suspend fun setAutoPlayPause(enabled: Boolean) = unsupported("Auto play/pause")
-    override suspend fun setAutoAnswer(enabled: Boolean) = unsupported("Auto answer")
-    override suspend fun setMultipoint(enabled: Boolean) = unsupported("Multipoint")
-    override suspend fun setVoicePrompts(prompts: VoicePrompts) = unsupported("Voice prompts")
-    override suspend fun setShortcutButton(action: ButtonAction) = unsupported("The shortcut button")
-    override suspend fun setDeviceName(name: String) = unsupported("Renaming")
-    override suspend fun switchToDevice(address: String) = unsupported("Switching devices")
-    override suspend fun enterPairingMode() = unsupported("Pairing mode")
-    override suspend fun powerOff() = unsupported("Power off")
+    // Custom modes, favourites, the headphones' own equaliser, the Bose toggles, renaming,
+    // switching devices, pairing mode and power off: the base says "<feature> isn't available on
+    // these headphones", the Crusher's wording.
 
     // ---- Lab (read-only, see BragiLab) -----------------------------------------------------
 
     override fun labProfile(): LabProfile? =
-        if (connectionManager.connection.value?.isOpen == true) BragiLab.profile(protocol.currentModel) else null
+        if (openConnection() != null) BragiLab.profile(protocol.currentModel) else null
 
     override fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> = flow {
         emitAll(BragiLab.scan(requireConnection(), protocol.currentModel, groupIds, deep))
@@ -268,54 +197,6 @@ class CrusherHeadphoneRepository(
         val read = BragiReads.find(BragiServices.Address(block, function))
             ?: throw HeadphoneCommandException("Only read-only calls are available in the Lab")
         return listOf(BragiLab.readOne(requireConnection(), read))
-    }
-
-    // ---- helpers ---------------------------------------------------------------------------
-
-    private fun unsupported(what: String): Nothing =
-        throw HeadphoneCommandException("$what isn't available on these headphones")
-
-    private fun requireConnection(): BragiConnection =
-        connectionManager.connection.value?.takeIf { it.isOpen }
-            ?: throw HeadphoneCommandException("Headphones not connected")
-
-    /** [showBusy] false for background reads (the battery poll) so they do not grey out the controls every minute. */
-    private suspend fun command(name: String, showBusy: Boolean = true, block: suspend (BragiConnection, HeadphoneState) -> HeadphoneState) {
-        commands.withLock {
-            val conn = requireConnection()
-            if (showBusy) _state.update { it.copy(isBusy = true) }
-            try {
-                apply(block(conn, _state.value))
-            } catch (e: HeadphoneCommandException) {
-                throw e
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "$name failed", e)
-                throw HeadphoneCommandException(e.message ?: "Command failed", e)
-            } finally {
-                drainPushes()
-                if (showBusy) _state.update { it.copy(isBusy = false) }
-            }
-        }
-    }
-
-    private fun apply(next: HeadphoneState) {
-        _state.update { cur -> next.copy(connection = cur.connection, isBusy = cur.isBusy, lastUpdatedMillis = System.currentTimeMillis()) }
-    }
-
-    private fun applyPush(packet: BosRpcPacket) {
-        val next = try {
-            protocol.onUnsolicited(packet, _state.value)
-        } catch (e: Exception) {
-            Log.w(TAG, "onUnsolicited failed for $packet: ${e.message}")
-            null
-        }
-        if (next != null) apply(next)
-    }
-
-    private fun drainPushes() {
-        while (true) applyPush(deferredPushes.poll() ?: break)
     }
 
     companion object {
