@@ -129,7 +129,10 @@ remote (Companion Device Manager), the Field theme and the "Strike" icon.
    `RECEIVE_BOOT_COMPLETED`, an upload key, CI, a licences screen, a separate `.foss` application ID.
    `setStreamVolume` from a background-started service needs while-in-use status at target 37, so
    the call boost has to be checked.
-8. **Module split** (`:vendor-*`), with A6 and A7 first, and the shared conformance suite (F2).
+8. **Done (2026-10-25).** **Module split** (`:vendor-*`), with A6 and A7 first, and the shared conformance suite (F2).
+   The split is option 2: `arch/VendorBoundaryTest` keeps vendor stacks out of the neutral packages with an
+   empty baseline, and the Sidetone and ButtonAction wire codes moved to the Bose stack; real `:vendor-*`
+   Gradle modules wait until a vendor needs to ship on its own.
 9. **Promoting drivers:** owner reports and captures move Soundcore, Sennheiser and Sony from
    Experimental to Tested; then Soundcore Space 2 and EQ writes, Sony v1 (WH-1000XM4), Sennheiser BLE.
 10. **More drivers by demand:** Pixel Buds Pro (MIT pbpctrl) ahead of Galaxy Buds. **Dropped from 0.8**
@@ -146,7 +149,7 @@ Release 0.8.0 once these are done; no partial release.
 3. **Item 7, Play hygiene and target 37: moved to 0.9** (user decision 2026-10-25: no Google Play
    preparation before 0.9). It stays as listed under "Next: 0.8" item 7; the OFL notices for the
    bundled fonts and the dependencies' licences belong in the licences screen it adds.
-4. **Item 8, A6 + A7 + F2, then the module split**, before any new driver, as this roadmap
+4. **Done (2026-10-25).** **Item 8, A6 + A7 + F2, then the module split**, before any new driver, as this roadmap
    already says. Gate: the Bose end-to-end tests stay green and a manual pass on the QC Ultra 2.
 5. **Drivers on the new platform:** JBL H-AA over GATT (jbl-control, MIT), Experimental: no
    hardware here. Item 10's Pixel Buds Pro driver is dropped from 0.8 (user decision 2026-10-25):
@@ -277,8 +280,8 @@ deep control for Bose and AirPods.* (In 0.75 the AirPods part became battery onl
 | A3 | **Done.** **Audio link separate from control link.** `ConnectionState.audioLinked` (A2DP/HFP/LE profiles) next to the control status. Automations, the tile, EQ presets and call audio key on the audio link, so they work for headsets without a driver. | `AutomationEngine.kt:57-117` gates every rule on the control link today. | M |
 | A4 | **Done.** **Typed connection problems.** `ConnectionProblem.ChannelHeldBy(appName)` and friends instead of matching "Close the Bose app" strings; the UI stops using `state.crusher == null` to detect the vendor. | `ConnectionManager.kt:351`, `DisconnectedCard.kt:59-63`, `ConnectionScreen.kt:123`. | S |
 | A5 | **Done** (as capability flags per feature, with "Tools never hide a setting"). **Capability flags for every optional feature** (EQ bands, sidetone, auto play/pause, multipoint, prompts, buttons, rename, power off, auto-off, LE Audio, latency, volume, noise steps), or "null = absent" made explicit. | `HeadphoneCapabilities` (`HeadphoneModels.kt:233-275`) covers noise and modes only. | M |
-| A6 | **Not done, overdue → 0.8.** **Shared session base.** Pull the ~200 lines duplicated between `ServiceHeadphoneRepository` and `CrusherHeadphoneRepository` into one `SessionRepository<Link, Protocol>`. One `DevicePrefs`/`DeviceFinder`, with per-vendor link hints under namespaced keys. Bose behaviour unchanged (end-to-end tests are the gate). | Audit §1. Needed before vendor #3, or AirPods becomes a third copy. | M |
-| A7 | **Not done, overdue → 0.8.** **Modes stored by meaning, not slot number.** Rules, the tile and shortcuts store QUIET / AWARE / OFF / ADAPTIVE / custom + device address, with a one-time migration of saved rules and shortcut prefs. Remove the Quiet/Aware/Immersion fallbacks. | `RuleRunner.kt:78`, `TileCycle.kt:7`, `ShortcutAction.kt:48`, `AutomationAction.SetNoise.spatialAudioWire`. AirPods have Off/ANC/Transparency/Adaptive. | M |
+| A6 | **Done (0.8, 2026-10-25).** `service/session/SessionRepository` over a `LinkSource`, `StateCommands` for the replace-state stacks (Bose, Crusher), one `DevicePrefs`/`DeviceFinder` in AppContainer, `hint_*` link-hint keys next to the legacy ones; Bose checked by a characterization test of the old class. **Shared session base.** Pull the ~200 lines duplicated between `ServiceHeadphoneRepository` and `CrusherHeadphoneRepository` into one `SessionRepository<Link, Protocol>`. One `DevicePrefs`/`DeviceFinder`, with per-vendor link hints under namespaced keys. Bose behaviour unchanged (end-to-end tests are the gate). | Audit §1. Needed before vendor #3, or AirPods becomes a third copy. | M |
+| A7 | **Done (0.8, 2026-10-25).** `core/ModeMeaning` (`ModeMeaning`, `ModeRef`, `ModeResolver`); `ModeRefMigration` binds 0.75 slots on the first headset with modes and keeps them as `legacySlot`, never landing on Off. Shortcuts store Bose button codes, not modes, so they needed no migration. **Modes stored by meaning, not slot number.** Rules, the tile and shortcuts store QUIET / AWARE / OFF / ADAPTIVE / custom + device address, with a one-time migration of saved rules and shortcut prefs. Remove the Quiet/Aware/Immersion fallbacks. | `RuleRunner.kt:78`, `TileCycle.kt:7`, `ShortcutAction.kt:48`, `AutomationAction.SetNoise.spatialAudioWire`. AirPods have Off/ANC/Transparency/Adaptive. | M |
 
 ### B. "Any headset" features
 
@@ -345,7 +348,7 @@ Added by the brand research and shipped in 0.75 (not in the original table):
 | # | Item | Notes | Size |
 |---|---|---|---|
 | F1 | **Done.** **Vendor extras without core changes:** a generic `VendorControl` list (toggle / slider / choice) rendered by one card, replacing `setCrusherBass` / `HeadphoneState.crusher`. A per-vendor `LabAdapter` for `readRaw`/scan/console. | Audit §6.5. Each new driver otherwise adds fields to core. | M |
-| F2 | **Not done** (each driver has its own end-to-end test). **Driver conformance suite:** one shared test class every driver's virtual device must pass (connect, refresh, modes, battery push, write refused by its WriteGuard, reconnect). Router tests. | No shared suite today. | M |
+| F2 | **Done (0.8, 2026-10-25), session level.** `conformance/DriverConformanceTest`: 17 demo devices × checks C1–C7 (+C4b); repository-level rigs over A6's `FakeLinkSource` are the next step. **Driver conformance suite:** one shared test class every driver's virtual device must pass (connect, refresh, modes, battery push, write refused by its WriteGuard, reconnect). Router tests. | No shared suite today. | M |
 | F3 | **Partly.** **Device report:** Lab exports an anonymised report (identifier result, SDP UUIDs, GATT services, a short protocol trace) through the share sheet. Owners of untested headsets can then help without us owning them. | Addresses masked like `captures-galaxy/`. No network. | S |
 | F4 | **Partly** (the universal remote is in; presence and codec switching are not). **Companion Device Manager:** associate the headset during onboarding. Use presence events and the background-start exemption instead of the boot/ACL receiver. Codec switching without Shizuku if D4 says yes. | Play-sanctioned path for what `BluetoothConnectionReceiver` does. | M |
 | F5 | **Not done → 0.8.** **Play hygiene (no release yet):** drop `QUERY_ALL_PACKAGES` (use a `<queries>` launcher intent), drop `RECEIVE_BOOT_COMPLETED`, a release upload key with Play App Signing, a privacy policy, an open-source licences screen, lint on, GitHub Actions running the unit tests. | Audit "Play risk list". The licence notice for the bosectl captures in `protocol/src/test/resources/captures/`. | M |
@@ -366,6 +369,8 @@ See "Next: 0.8" above for the order. The longer outline:
 - **Module split:** `:vendor-bose`, `:vendor-apple`, `:vendor-jieli` … with a lint/Gradle rule that
   `ui`, `extras`, `shortcut` and `call` never import a vendor's protocol package. Move Bose wire
   codes still in core (`SpatialAudio.wire`, `Sidetone.wire`, `ButtonAction`) into `:protocol`.
+  **0.8:** the rule is `VendorBoundaryTest` (nine neutral packages); Sidetone and ButtonAction moved,
+  `SpatialAudio.wire` stays until StateMapping maps the `[31.10]` byte itself.
 - **Distribution:** one Play build that works without Shizuku and keeps it optional (with a
   disclosure), or a separate "full" flavour for GitHub/F-Droid. Decide after D4 and F4.
   Reproducible builds for F-Droid. Developer-verification registration (global in 2027).

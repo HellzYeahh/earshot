@@ -2,7 +2,7 @@
 
 ## 0.8 (in progress)
 
-Roadmap 0.8, items 1–6 so far (item 7, Google Play preparation, moved to 0.9; the Pixel Buds
+Roadmap 0.8, items 1–6 and 8 so far (item 7, Google Play preparation, moved to 0.9; the Pixel Buds
 Pro driver dropped): the platform pieces for the next drivers, Find my earbuds and a Bluetooth
 history. The companion-device
 pieces were tested on a Galaxy Z Fold7 (One UI 9, Android 17) with the QC Ultra 2; the GATT link
@@ -46,6 +46,38 @@ and RACE have no driver on top yet and have not met real hardware.
   only that vendor's list (Airoha standard ids for both; JBL's Harman settings for JBL). The
   find-me tone needs the user's own tap. RACE is opened on the Airoha SPP record or the Airoha
   GATT service, never by channel number, and **never on Sony, Bose or Bragi headsets**.
+
+### Changed
+- **Listening modes are saved by what they do, not by slot number.** Automation rules, the Quick
+  Settings tile and the widget remember a mode as noise cancelling, aware, off or a named custom
+  mode, plus the headset it was picked on, and find the matching mode on whichever headset is
+  connected. Rules and the tile choice from 0.75 are converted about 3 seconds after the first
+  headset shows its modes, reading each slot number on that headset, so they do the same as before
+  there. On other headsets a noise-cancelling or aware rule finds that mode, and any other rule
+  keeps its old slot unless that slot would switch the noise control off. A rule for a mode the
+  connected headset doesn't have now fails with "… isn't a mode of these headphones" instead of
+  running whatever sits in that slot. Downgrading to 0.75 keeps every rule and the tile.
+- With nothing chosen and no favourites, the tile and widget cycle the headset's own first three
+  modes (still Quiet, Aware and Immersion on a QC Ultra).
+- Widget and notification mode buttons drawn for one headset are ignored on another until they
+  redraw.
+- Every driver now runs on one shared connection base, with one store for saved devices. Bose
+  behaviour is unchanged: its end-to-end tests and a test of the old repository pass as before.
+- For contributors: one conformance suite now runs every virtual device through the same checks
+  (connect, refresh, modes, battery, write guard, link loss, reconnect), and a test keeps vendor
+  code out of the screens, automations and core models.
+
+### Fixed
+- A rule for Bose Immersion (slot 2) no longer switches the noise control off on a Skullcandy
+  Crusher, a Sennheiser or a Sony headset, where slot 2 is Off, and a Bose Aware rule no longer
+  turns the Sleep A30's noise cancelling off.
+- A saved rule this version can't read (written by a newer version, before a downgrade) no longer
+  empties the whole list: it is kept and written back unchanged.
+- Sony and Sennheiser (experimental): commands no longer report "not connected" on a live
+  connection; the session was dropped right after it started. A Sony refresh on a link that
+  dropped halfway now says so instead of showing the old values as fresh.
+- A headset update (a volume swipe, say) that arrived while the Lab console was busy could later
+  overwrite a newer value.
 
 ## 0.75.0 — 2026-10-21
 
