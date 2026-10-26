@@ -11,7 +11,6 @@ import android.content.IntentFilter
 import android.util.Log
 import androidx.core.content.ContextCompat
 import dev.earshot.bt.AppleAdvertScanner
-import dev.earshot.bt.DeviceCandidate
 import dev.earshot.bt.DeviceFamily
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
@@ -35,6 +34,7 @@ import dev.earshot.core.Sidetone
 import dev.earshot.core.VoicePrompts
 import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.protocol.apple.ContinuityAdvert
+import dev.earshot.service.session.toHeadphoneCandidate
 import dev.earshot.virtual.DemoHeadset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -144,10 +144,7 @@ class GenericHeadphoneRepository(
     }
 
     override suspend fun deviceCandidates(): List<HeadphoneCandidate> =
-        finder.candidates().map { it.toCandidate() }
-
-    private fun DeviceCandidate.toCandidate() =
-        HeadphoneCandidate(address = address, name = name, looksLikeBose = looksLikeBose, isAudioDevice = isAudioDevice)
+        finder.candidates().map { it.toHeadphoneCandidate() }
 
     override suspend fun chooseDevice(address: String, name: String?) {
         prefs.save(address, name)
