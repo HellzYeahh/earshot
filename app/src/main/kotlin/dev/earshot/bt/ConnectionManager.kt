@@ -23,6 +23,28 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
+ * What a repository needs from the connection policy: the state to show, the open session to
+ * drive, and the user's three verbs. [ConnectionManager] is the real one; the seam exists so the
+ * shared session base (`service.session.SessionRepository`) and every vendor repository built on
+ * it run in plain JVM tests over a fake, without Android receivers, DataStore or Bluetooth.
+ */
+interface LinkSource<C : ManagedLink> {
+    val state: StateFlow<ConnectionState>
+
+    /** The open session, or null. Consumers must not close it themselves. */
+    val connection: StateFlow<C?>
+
+    /** True while the session is the in-process virtual headset (demo mode). */
+    val isDemoSession: Boolean
+
+    fun connect()
+    fun disconnect()
+
+    /** Remember [address] as the headset and (re)connect to it. */
+    suspend fun chooseDevice(address: String, name: String?)
+}
+
+/**
  * Owns the lifecycle of the one session ([C]: a [BmapConnection] for Bose, a [BragiConnection] for
  * the Skullcandy Crusher) to the headphones. How a session is opened is the [factory]'s business;
  * the policy below is the same for every family.
@@ -66,13 +88,13 @@ class ConnectionManager<C : ManagedLink>(
     private val demoTransport: () -> (() -> ByteTransport)? = { null },
     /** Shown while the virtual headphones are connected (demo mode); read per demo session, so it follows the chosen demo device. */
     private val demoName: () -> String = { DEMO_NAME },
-) {
+) : LinkSource<C> {
     private val _state = MutableStateFlow(ConnectionState())
-    val state: StateFlow<ConnectionState> = _state.asStateFlow()
+    override val state: StateFlow<ConnectionState> = _state.asStateFlow()
 
     private val _connection = MutableStateFlow<C?>(null)
     /** The open session, or null. Consumers must not close it themselves. */
-    val connection: StateFlow<C?> = _connection.asStateFlow()
+    override val connection: StateFlow<C?> = _connection.asStateFlow()
 
     @Volatile
     private var loop: Job? = null
@@ -88,7 +110,7 @@ class ConnectionManager<C : ManagedLink>(
 
     /** True while the loop talks to the in-process virtual headphones (demo mode). */
     @Volatile
-    var isDemoSession: Boolean = false
+    override var isDemoSession: Boolean = false
         private set
 
     private val receiver = object : BroadcastReceiver() {
@@ -111,7 +133,7 @@ class ConnectionManager<C : ManagedLink>(
      * from any thread: a second call while the loop runs only cuts a backoff wait short.
      */
     @Synchronized
-    fun connect() {
+    override fun connect() {
         userStopped = false
         if (loop?.isActive == true) {
             retryNow.trySend(Unit) // a tap during the backoff wait should not sit out the timer
@@ -122,14 +144,14 @@ class ConnectionManager<C : ManagedLink>(
 
     /** User-initiated stop: closes the session and parks until the next ACL_CONNECTED. */
     @Synchronized
-    fun disconnect() {
+    override fun disconnect() {
         userStopped = true
         stopLoop()
         _state.update { it.copy(status = ConnectionStatus.DISCONNECTED, message = null) }
     }
 
     /** Remember [address] as the headphones and (re)connect to it. For the device picker. */
-    suspend fun chooseDevice(address: String, name: String?) {
+    override suspend fun chooseDevice(address: String, name: String?) {
         prefs.save(address, name)
         restart()
     }
