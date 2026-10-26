@@ -10,8 +10,6 @@ import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
 import dev.earshot.bt.LinkSource
 import dev.earshot.core.ButtonAction
-import dev.earshot.core.ConnectionStatus
-import dev.earshot.core.HeadphoneCandidate
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
@@ -31,36 +29,26 @@ import dev.earshot.service.session.AndroidForegroundHost
 import dev.earshot.service.session.AndroidSessionLog
 import dev.earshot.service.session.ForegroundHost
 import dev.earshot.service.session.SessionLog
-import dev.earshot.service.session.toHeadphoneCandidate
-import kotlinx.coroutines.CancellationException
+import dev.earshot.service.session.SessionRepository
+import dev.earshot.service.session.StateCommands
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * The real [HeadphoneRepository]: one per process, created by `AppContainer` as
- * `ServiceHeadphoneRepository(context, protocol)`.
+ * The Bose [HeadphoneRepository]: one per process, created by `AppContainer` as
+ * `ServiceHeadphoneRepository(context, protocol, …)`.
  *
- * It owns the Bluetooth stack ([ConnectionManager] → [BmapConnection]) and routes every typed
+ * It runs on the Bluetooth stack ([ConnectionManager] → [BmapConnection]) and routes every typed
  * command through [HeadphoneProtocol]. [HeadphoneService] is only a lifecycle shell that keeps
- * the process alive and shows the notification; it reads this repository like everyone else.
+ * the process alive and shows the notification; it reads this repository like everyone else. The
+ * parts every stack shares (state and events, connect, one session per link, the guards) are
+ * [SessionRepository]; commands and the pushes merged under them are [StateCommands].
  *
  * Connect sequence: `connect()` → foreground service up → manager opens the socket → this
  * class subscribes to unsolicited frames, runs `protocol.refresh`, emits
@@ -73,13 +61,13 @@ import java.util.concurrent.ConcurrentLinkedQueue
 class ServiceHeadphoneRepository internal constructor(
     private val protocol: HeadphoneProtocol,
     /** The connection policy ([ConnectionManager] of [BmapConnection]s); a fake in JVM tests. */
-    private val connectionManager: LinkSource<BmapConnection>,
+    link: LinkSource<BmapConnection>,
     /** Bonded devices that might be the headphones (`DeviceFinder.candidates`). */
-    private val candidates: suspend () -> List<DeviceCandidate>,
-    private val foreground: ForegroundHost,
-    private val scope: CoroutineScope,
-    private val log: SessionLog = AndroidSessionLog(TAG),
-) : HeadphoneRepository {
+    candidates: suspend () -> List<DeviceCandidate>,
+    foreground: ForegroundHost,
+    scope: CoroutineScope,
+    log: SessionLog = AndroidSessionLog(TAG),
+) : SessionRepository<BmapConnection>(link, candidates, foreground, scope, log) {
 
     constructor(
         context: Context,
@@ -96,7 +84,7 @@ class ServiceHeadphoneRepository internal constructor(
         finder: DeviceFinder = DeviceFinder(context.applicationContext, prefs),
     ) : this(
         protocol = protocol,
-        connectionManager = ConnectionManager(
+        link = ConnectionManager(
             context.applicationContext, finder, prefs, scope, BoseLinkFactory(context.applicationContext, finder),
             autoConnect = autoConnect,
             demoTransport = demoTransport,
@@ -107,84 +95,26 @@ class ServiceHeadphoneRepository internal constructor(
         scope = scope,
     )
 
-    private val _state = MutableStateFlow(HeadphoneState())
-    override val state: StateFlow<HeadphoneState> = _state.asStateFlow()
-
-    private val _events = MutableSharedFlow<HeadphoneEvent>(extraBufferCapacity = 16)
-    override val events: SharedFlow<HeadphoneEvent> = _events.asSharedFlow()
-
-    /** Serialises typed commands so a multi-request command never interleaves with another. */
-    private val commands = Mutex()
-
     /**
-     * Pushes that arrived while a command held [commands]. [apply] replaces the whole state with
-     * the command's result, which was computed from a snapshot taken before the push, so applying
-     * the push straight away would only have it overwritten; [command] merges these on top of
-     * its result instead.
+     * Typed commands one at a time. Each returns a whole new state computed from a snapshot, so a
+     * push that arrives under one is parked and merged on top of its result. A device ERROR
+     * becomes the user-facing [HeadphoneCommandException] ([toCommandException]).
      */
-    private val deferredPushes = ConcurrentLinkedQueue<BmapPacket>()
+    private val pushes = StateCommands<BmapConnection, BmapPacket>(
+        mutableState, commands, { requireConnection() }, log,
+        onPush = { frame, s -> protocol.onUnsolicited(frame, s) },
+        mapError = { e -> (e as? BmapException)?.toCommandException() },
+    )
 
     init {
-        scope.launch {
-            var wasConnected = false
-            connectionManager.state.collect { cs ->
-                val connected = cs.status == ConnectionStatus.CONNECTED
-                _state.update { s ->
-                    // Drop stale headphone data when the link goes; the notification and UI
-                    // should not show yesterday's battery.
-                    if (connected || !wasConnected) s.copy(connection = cs) else HeadphoneState(connection = cs)
-                }
-                if (wasConnected && !connected) _events.tryEmit(HeadphoneEvent.Disconnected)
-                wasConnected = connected
-            }
-        }
-        scope.launch {
-            // collectLatest cancels the previous session's handlers when the socket changes.
-            connectionManager.connection.collectLatest { conn -> if (conn != null) runSession(conn) }
-        }
+        start() // last: runSession reads the fields above
     }
 
-    // ---- Connection ------------------------------------------------------------------------
-
-    override fun connect() {
-        // The foreground service keeps the process alive; connectedDevice type needs the
-        // runtime BLUETOOTH_CONNECT grant, so skip it when that is missing (the manager will
-        // report NO_PERMISSION and the UI asks for it).
-        if (foreground.canStart()) foreground.start()
-        connectionManager.connect()
-    }
-
-    override fun disconnect() {
-        connectionManager.disconnect()
-        foreground.stop()
-    }
-
-    /** Drop the connection without stopping the foreground service: another repository is taking over. */
-    fun releaseConnection() = connectionManager.disconnect()
-
-    /** Bonded devices that might be the headphones, for a picker when auto-detection is ambiguous. */
-    override suspend fun deviceCandidates(): List<HeadphoneCandidate> =
-        candidates().map { it.toHeadphoneCandidate() }
-
-    /** Remember [address] as the headphones and connect to it. */
-    override suspend fun chooseDevice(address: String, name: String?) {
-        foreground.start()
-        connectionManager.chooseDevice(address, name)
-    }
-
-    private suspend fun runSession(conn: BmapConnection) = coroutineScope {
-        deferredPushes.clear() // anything left from the previous session describes a dead link
+    override suspend fun CoroutineScope.runSession(conn: BmapConnection) {
+        pushes.reset() // anything left from the previous session describes a dead link
         // Subscribe before refresh so a push that races the first reads is not lost.
         launch {
-            conn.unsolicited.collect { frame ->
-                if (commands.isLocked) {
-                    deferredPushes += frame
-                    // The command may have released the mutex between the check and the add.
-                    if (!commands.isLocked) drainPushes()
-                } else {
-                    applyPush(frame)
-                }
-            }
+            conn.unsolicited.collect { frame -> pushes.push(frame) }
         }
         // Subscribe to the headphones' own pushes ([9.2]) before the first refresh, as the Bose app
         // does; never fatal. Without it the state only changes on refresh, so poll the battery.
@@ -194,7 +124,7 @@ class ServiceHeadphoneRepository internal constructor(
             log.w("push subscription failed: ${e.message}")
             if (e.message == BmapConnection.MESSAGE_STOPPED_ANSWERING || !conn.isOpen) {
                 conn.closeUnresponsive() // same as a silent refresh below: another app holds channel 2
-                return@coroutineScope
+                return
             }
         }
         try {
@@ -207,23 +137,16 @@ class ServiceHeadphoneRepository internal constructor(
                 // manager report the busy channel and retry on its backoff. The connection's own
                 // watchdog normally got here first; this covers a protocol that gave up sooner.
                 conn.closeUnresponsive()
-                return@coroutineScope
+                return
             }
-            _events.tryEmit(HeadphoneEvent.Error("Connected, but reading settings failed: ${e.message}", e))
+            mutableEvents.tryEmit(HeadphoneEvent.Error("Connected, but reading settings failed: ${e.message}", e))
         }
-        _events.tryEmit(HeadphoneEvent.Connected)
-        if (!_state.value.livePushEnabled) {
+        mutableEvents.tryEmit(HeadphoneEvent.Connected)
+        if (!mutableState.value.livePushEnabled) {
             // Fallback only: with [9.2] on, battery changes arrive as pushes and nothing is polled.
-            launch {
-                while (conn.isOpen) {
-                    delay(QcUltra2Protocol.BATTERY_POLL_MS)
-                    if (!conn.isOpen || _state.value.livePushEnabled) break
-                    try {
-                        command("pollBattery") { c, s -> protocol.pollBattery(c, s) }
-                    } catch (e: HeadphoneCommandException) {
-                        log.d("battery poll failed: ${e.message}")
-                    }
-                }
+            // Through command(), so the busy flag shows during the read, as it always did.
+            pollWhileOpen(conn, QcUltra2Protocol.BATTERY_POLL_MS, stopWhen = { mutableState.value.livePushEnabled }) {
+                command("pollBattery") { c, s -> protocol.pollBattery(c, s) }
             }
         }
     }
@@ -277,7 +200,7 @@ class ServiceHeadphoneRepository internal constructor(
 
     override suspend fun enterPairingMode() {
         command("enterPairingMode") { c, s -> protocol.enterPairingMode(c, s) }
-        _events.tryEmit(HeadphoneEvent.Info("Pairing mode on"))
+        mutableEvents.tryEmit(HeadphoneEvent.Info("Pairing mode on"))
     }
 
     override suspend fun powerOff() {
@@ -285,13 +208,13 @@ class ServiceHeadphoneRepository internal constructor(
         // The headphones are going away; do not fight it with reconnect attempts. The next
         // ACL_CONNECTED (power on) re-arms auto-connect. The virtual unit has no ACL event:
         // its transport drops the link and the demo loop "finds it switched back on" by itself.
-        if (!connectionManager.isDemoSession) disconnect()
+        if (!link.isDemoSession) disconnect()
     }
 
     // ---- Lab (GET only, see BmapLab) ---------------------------------------------------------
 
     override fun labProfile(): LabProfile? =
-        if (connectionManager.connection.value?.isOpen == true) BmapLab.profile() else null
+        if (openConnection() != null) BmapLab.profile() else null
 
     override fun scanLab(groupIds: List<Int>, deep: Boolean): Flow<LabReading> = flow {
         emitAll(BmapLab.scan(requireConnection(), groupIds, deep))
@@ -304,54 +227,8 @@ class ServiceHeadphoneRepository internal constructor(
 
     // ---- helpers ---------------------------------------------------------------------------
 
-    private fun requireConnection(): BmapConnection =
-        connectionManager.connection.value?.takeIf { it.isOpen }
-            ?: throw HeadphoneCommandException("Headphones not connected")
-
-    private suspend fun command(name: String, block: suspend (BmapConnection, HeadphoneState) -> HeadphoneState) {
-        commands.withLock {
-            val conn = requireConnection()
-            _state.update { it.copy(isBusy = true) }
-            try {
-                apply(block(conn, _state.value))
-            } catch (e: HeadphoneCommandException) {
-                throw e
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: BmapException) {
-                throw e.toCommandException()
-            } catch (e: Exception) {
-                log.w("$name failed", e)
-                throw HeadphoneCommandException("${e.message ?: "Command failed"}", e)
-            } finally {
-                // Pushes parked while we held the mutex are real whether or not the command
-                // succeeded; merge them on top of whatever the state is now.
-                drainPushes()
-                _state.update { it.copy(isBusy = false) }
-            }
-        }
-    }
-
-    /** Merge a protocol result into the state, keeping the fields the repository owns. */
-    private fun apply(next: HeadphoneState) {
-        _state.update { cur ->
-            next.copy(connection = cur.connection, isBusy = cur.isBusy, lastUpdatedMillis = System.currentTimeMillis())
-        }
-    }
-
-    private fun applyPush(frame: BmapPacket) {
-        val next = try {
-            protocol.onUnsolicited(frame, _state.value)
-        } catch (e: Exception) {
-            log.w("onUnsolicited failed for $frame: ${e.message}")
-            null
-        }
-        if (next != null) apply(next)
-    }
-
-    private fun drainPushes() {
-        while (true) applyPush(deferredPushes.poll() ?: break)
-    }
+    private suspend fun command(name: String, block: suspend (BmapConnection, HeadphoneState) -> HeadphoneState) =
+        pushes.run(name, block = block)
 
     private companion object {
         const val TAG = "Earshot/Repo"
