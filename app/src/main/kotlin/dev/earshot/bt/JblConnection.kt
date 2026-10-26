@@ -194,7 +194,10 @@ class JblConnection(
         if (!isOpen) return
         isOpen = false
         runCatching { transport.close() }
-        waiters.forEach { it.frame.cancel() }
+        // Not cancel(): a waiting caller is still alive and must hear "not connected", not a bare
+        // CancellationException (ConnectionManager would treat that as its own cancellation and
+        // end the connect attempt without a message or a retry).
+        waiters.forEach { it.frame.completeExceptionally(HeadphoneCommandException(NOT_CONNECTED)) }
         closed.complete(cause)
         scope.cancel()
     }
