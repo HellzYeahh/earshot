@@ -74,9 +74,7 @@ class DriverConformanceTest(private val device: DemoDevice) {
     /** Build the rig, skip [check] where the stack cannot have it (with the rig's reason), then run [body] in virtual time. */
     private fun conformance(check: Check?, body: suspend TestScope.(ConformanceRig) -> Unit) {
         val scope = TestScope()
-        val rig = rigFor(device, scope)
-        assumeTrue("$device: its rig is not written yet", rig != null)
-        rig!!
+        val rig = assertNotNull(rigFor(device, scope), "$device has no conformance rig")
         check?.let { c -> rig.notApplicable[c]?.let { reason -> assumeTrue("$device: $c not applicable: $reason", false) } }
         scope.runTest { body(rig) }
     }

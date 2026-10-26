@@ -1,5 +1,6 @@
 package dev.earshot.conformance
 
+import dev.earshot.protocol.soundcore.SoundcoreModel
 import dev.earshot.virtual.DemoDevice
 import dev.earshot.virtual.VirtualCrusher
 import dev.earshot.virtual.virtualProfile
@@ -21,8 +22,9 @@ fun rigFor(d: DemoDevice, test: TestScope): ConformanceRig? = when (d) {
     DemoDevice.METHOD_360 -> BragiRig(test, d, VirtualCrusher.method360(), "Skullcandy Method 360 ANC")
     DemoDevice.METHOD_540 -> BragiRig(test, d, VirtualCrusher.method540(), "Skullcandy Method 540 ANC")
 
-    // The Soundcore rows follow in the next step.
-    DemoDevice.SOUNDCORE_SLEEP_A30, DemoDevice.SOUNDCORE_LIBERTY_4_NC, DemoDevice.SOUNDCORE_SPACE_ONE_PRO -> null
+    DemoDevice.SOUNDCORE_SLEEP_A30 -> SleepA30Rig(test, d)
+    DemoDevice.SOUNDCORE_LIBERTY_4_NC -> SoundcoreModelRig(test, d, SoundcoreModel.LIBERTY_4_NC)
+    DemoDevice.SOUNDCORE_SPACE_ONE_PRO -> SoundcoreModelRig(test, d, SoundcoreModel.SPACE_ONE_PRO)
 
     DemoDevice.SENNHEISER_MOMENTUM_4 -> SennheiserRig(test, d)
     DemoDevice.SONY_WH1000XM5 -> SonyRig(test, d)
