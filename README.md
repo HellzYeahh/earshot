@@ -15,7 +15,7 @@ analytics, no internet permission.
 - **Any headset:** battery, a Pro EQ with a preset per headset (AutoEq import, volume boost), a
   codec panel, louder calls, a mic check, button remapping, automations, a Quick Settings tile, a
   widget, and a universal remote to connect, disconnect, rename and forget it.
-- **Sleep** (coming in 0.9): a 15 min to 6 h sleep timer with real rain, ocean and fire recordings,
+- **Sleep** (new in 0.9): a 15 min to 6 h sleep timer with real rain, ocean and fire recordings,
   noise or your own sounds; noise cancelling off for the night; and wake-up alarms in the earbuds,
   on the phone or both, with the phone as a safety net.
 - **Supported headsets** also get their own controls: noise modes, the headset's EQ, buttons and

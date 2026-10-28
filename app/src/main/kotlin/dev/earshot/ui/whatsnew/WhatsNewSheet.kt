@@ -18,14 +18,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Battery5Bar
-import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.Earbuds
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.SettingsRemote
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,7 +43,10 @@ import dev.earshot.R
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
 
-/** The 0.75 highlights, once after updating. Dismissing (button, swipe or back) marks them seen. */
+/**
+ * The 0.9 highlights, once after updating; 0.8 shipped without its own sheet, so its main
+ * features are here too. Dismissing (button, swipe or back) marks them seen.
+ */
 @Composable
 fun WhatsNewSheet(onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -56,13 +58,12 @@ fun WhatsNewSheet(onDismiss: () -> Unit) {
 private data class Highlight(val icon: ImageVector, val text: Int)
 
 private val HIGHLIGHTS = listOf(
-    Highlight(Icons.Default.Headphones, R.string.whats_new_any_headset),
-    Highlight(Icons.Default.Earbuds, R.string.whats_new_drivers),
-    Highlight(Icons.Default.SettingsRemote, R.string.whats_new_remote),
-    Highlight(Icons.Default.Palette, R.string.whats_new_look),
-    Highlight(Icons.Default.Battery5Bar, R.string.whats_new_airpods),
-    Highlight(Icons.Default.Science, R.string.whats_new_lab),
-    Highlight(Icons.Default.Call, R.string.whats_new_calls),
+    Highlight(Icons.Default.Bedtime, R.string.whats_new_sleep),
+    Highlight(Icons.Default.Alarm, R.string.whats_new_alarm),
+    Highlight(Icons.Default.NotificationsActive, R.string.whats_new_find),
+    Highlight(Icons.Default.Earbuds, R.string.whats_new_jbl),
+    Highlight(Icons.Default.History, R.string.whats_new_history),
+    Highlight(Icons.Default.Link, R.string.whats_new_linked),
 )
 
 @Composable

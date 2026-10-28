@@ -22,6 +22,8 @@ class UiLogicTest {
         // 0.3.x never stored anything: an update from it shows the sheet.
         assertEquals(WhatsNew.Decision.SHOW, WhatsNew.decide(lastSeen = null, freshInstall = false))
         assertEquals(WhatsNew.Decision.SHOW, WhatsNew.decide(lastSeen = "0.3.9", freshInstall = false))
+        // 0.75 and 0.8 both stored "0.75.0" (0.8 shipped without its own sheet).
+        assertEquals(WhatsNew.Decision.SHOW, WhatsNew.decide(lastSeen = "0.75.0", freshInstall = false))
         assertEquals(WhatsNew.Decision.NOTHING, WhatsNew.decide(lastSeen = WhatsNew.RELEASE, freshInstall = false))
         assertEquals(WhatsNew.Decision.NOTHING, WhatsNew.decide(lastSeen = WhatsNew.RELEASE, freshInstall = true))
     }

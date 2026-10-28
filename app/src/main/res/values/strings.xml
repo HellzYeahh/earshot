@@ -623,16 +623,15 @@
     <string name="modes_no_custom_buds">These earbuds have no custom modes. Switch between the built-in ones here, on Home, or with a touch and hold on the earbuds.</string>
     <string name="modes_not_editable">Earshot can\'t edit custom modes on this model yet. You can still switch to them.</string>
 
-    <!-- 0.75: what's new sheet -->
-    <string name="whats_new_title">What\'s new in Earshot 0.75</string>
-    <string name="whats_new_subtitle">One app for any Bluetooth headset.</string>
-    <string name="whats_new_any_headset">Any headset works: shown by its own name with battery, Pro EQ, codec, calls and Controls</string>
-    <string name="whats_new_drivers">New experimental drivers: Sennheiser, Sony, 35 Soundcore models and Skullcandy Method 360/540</string>
-    <string name="whats_new_remote">Universal remote in Controls: connect, disconnect, rename and forget any headset</string>
-    <string name="whats_new_look">A new look and icon: the Field theme and “Strike”</string>
-    <string name="whats_new_airpods">AirPods and Beats: left, right and case battery</string>
-    <string name="whats_new_lab">Lab scans every supported headset, read-only</string>
-    <string name="whats_new_calls">Fixed: the call boost now reaches the headset</string>
+    <!-- What's new sheet (0.9.0; also carries 0.8, which shipped without a sheet) -->
+    <string name="whats_new_title">What\'s new in Earshot 0.9</string>
+    <string name="whats_new_subtitle">A Sleep tab, plus what came in 0.8.</string>
+    <string name="whats_new_sleep">New Sleep tab: a sleep timer with rain, ocean, fire or your own sounds, and noise cancelling off for the night</string>
+    <string name="whats_new_alarm">Wake-up alarms in the earbuds, on the phone or both, with the phone as a safety net</string>
+    <string name="whats_new_find">Find my earbuds: a chirp that gets louder in the earbud you lost</string>
+    <string name="whats_new_jbl">JBL earbuds and headphones from 2021–24 (experimental, over Bluetooth LE)</string>
+    <string name="whats_new_history">Bluetooth history in the Lab: when your headsets connected and why they dropped</string>
+    <string name="whats_new_linked">Linked headsets: codec switching without Shizuku, and Earshot starts when they connect</string>
     <string name="whats_new_done">Got it</string>
 
     <!-- 0.75: universal remote (Companion Device Manager link, any headset) -->

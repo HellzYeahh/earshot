@@ -27,6 +27,9 @@ The user's plan for the last two versions:
 
 ## 0.9 plan: tie it together
 
+**0.9.0 shipped on 2026-10-27 with the Sleep tab (C9) and a new What's New sheet.** The rest of
+this plan follows in 0.9.x updates.
+
 Drafted 2026-10-26 from three inputs, all in [research/plan-0.9](research/plan-0.9):
 - a code audit of every screen for rough edges ([ux-audit.md](research/plan-0.9/ux-audit.md), ~50 findings);
 - a scan of competitors, community requests and Android 13–17 APIs, which gave 39 ideas
@@ -42,8 +45,8 @@ done when a new user with any headset finds every feature without help, every sc
 same language, and the standout set below ships.
 
 ### A. Housekeeping first (small, ship in the first week)
-- **What's New is stale:** `WhatsNew.RELEASE` still says 0.75.0, so 0.8.0 users saw no sheet. Write
-  the sheet for 0.9 (covering 0.8 and 0.9) and add a release-checklist step so it can't be missed again.
+- **What's New:** done in 0.9.0 (the sheet carries 0.9 and 0.8, which shipped without one). Still to
+  do: a release-checklist step so a stale sheet can't be missed again.
 - **Mark the Sleep A30 as Tested** (it is `verified = false` with "hasn't been tested" text, but it
   is tested on our own pair).
 - **Demo mode works without the Bluetooth permission** (today `gated` blocks it, so a reviewer

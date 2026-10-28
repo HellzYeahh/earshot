@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.9.0 — unreleased
+## 0.9.0 — 2026-10-27
+
+The first part of roadmap 0.9: the Sleep tab. The rest of the 0.9 plan ("tie it together") follows
+in 0.9.x updates before 1.0.
 
 ### New
 - **Sleep tab** (a fifth tab; design in `docs/sleep-mode.md`). For any headset: a sleep timer from
@@ -19,7 +22,12 @@
   phone speaker. "Start sleep" is also in the launcher's long-press menu. New permissions: media
   playback foreground service, exact alarms ("Alarms & reminders", asked for on the tab), the
   full-screen alarm, vibration and, only if you turn Do Not Disturb on, notification-policy
-  access. Not tested on a phone yet.
+  access. Checked on the Fold7 for layout and on the emulator; a full night on real headsets is
+  still to be tested.
+
+### Changed
+- The **What's New** sheet is back: it shows the highlights of 0.9 and 0.8 once after updating
+  (0.8 shipped without one).
 
 ## 0.8.0 — 2026-10-26
 
