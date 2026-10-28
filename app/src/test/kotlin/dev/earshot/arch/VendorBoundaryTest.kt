@@ -27,7 +27,7 @@ class VendorBoundaryTest {
     // Gradle runs unit tests with the module directory as the working directory.
     private val root = File("src/main/kotlin/dev/earshot")
 
-    private val neutral = listOf("ui", "extras", "shortcut", "call", "core", "audio", "mic", "codec", "find")
+    private val neutral = listOf("ui", "extras", "shortcut", "call", "core", "audio", "mic", "codec", "find", "sleep")
 
     private val vendorReference = Regex(
         """dev\.earshot\.protocol\.(?:(?:qcultra2|bragi|soundcore|sennheiser|sony|gaia|airoha|apple|jbl)\b|Bmap\w*|FunctionAddress\b|DecodeResult\b)""" +

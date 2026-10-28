@@ -9,12 +9,14 @@ import dev.earshot.core.CallAudioRepository
 import dev.earshot.core.CodecRepository
 import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.MicCheckRepository
+import dev.earshot.core.SleepRepository
 import dev.earshot.core.fake.FakeAudioTuningRepository
 import dev.earshot.core.fake.FakeAutomationRepository
 import dev.earshot.core.fake.FakeCallAudioRepository
 import dev.earshot.core.fake.FakeCodecRepository
 import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.core.fake.FakeMicCheckRepository
+import dev.earshot.core.fake.FakeSleepRepository
 import dev.earshot.ui.common.UiMessenger
 
 /**
@@ -31,13 +33,15 @@ class UiDependencies(
     val messenger: UiMessenger = UiMessenger(),
     /** Per-headset Pro EQ memory; null in previews and tests. */
     val headsetEq: dev.earshot.audio.HeadsetEqMemory? = null,
+    /** The Sleep tab; the in-memory fake in previews and tests. */
+    val sleep: SleepRepository = FakeSleepRepository(),
 ) {
     companion object {
         fun from(context: Context): UiDependencies {
             val c = context.appContainer
             // Process-wide messenger: ViewModels keep the instance they were built with across
             // configuration changes, so the root must collect from that same one.
-            return UiDependencies(c.headphones, c.tuning, c.codec, c.micCheck, c.automation, c.callAudio, UiMessenger.shared, c.headsetEq)
+            return UiDependencies(c.headphones, c.tuning, c.codec, c.micCheck, c.automation, c.callAudio, UiMessenger.shared, c.headsetEq, c.sleep)
         }
     }
 }

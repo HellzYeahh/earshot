@@ -1,4 +1,4 @@
-# Earshot roadmap: 0.75 shipped the 0.6 and 0.7 plan, 0.8 and 1.0 next
+# Earshot roadmap: 0.8 shipped, 0.9 ties it together, 1.0 optimises and ships to the stores
 
 Written 2026-10-20, after 0.5.0 (Controls). Updated 2026-10-21 for release 0.75. Research behind
 it: [headset landscape](research/headset-landscape-2026-10.md) and the reports in
@@ -8,6 +8,124 @@ it: [headset landscape](research/headset-landscape-2026-10.md) and the reports i
 release: what shipped is the "0.75.0" section of [CHANGELOG.md](../CHANGELOG.md). The original 0.6
 and 0.7 plan stays below as the record, with every item marked **Done**, **Partly**, **Not done**
 or **Dropped**.
+
+## After 0.8.0: the road to 1.0 (set 2026-10-26)
+
+0.8.0 shipped on 2026-10-26: the JBL driver on Bluetooth LE, Find my earbuds, the Bluetooth
+history, codec switching through the companion link, presence wake-up, modes saved by meaning, one
+shared session base for every driver and the driver conformance suite ([CHANGELOG](../CHANGELOG.md)).
+
+The user's plan for the last two versions:
+
+- **0.9, "Tie it together":** make everything smooth and coherent across brands and screens, and
+  add the ideas that make Earshot stand out and feel special. The plan is under
+  [0.9 plan](#09-plan-tie-it-together) below.
+- **1.0, the final release:** optimise the app, its code and its performance, then the store
+  work. Google Play preparation (the old item 7: target 37, `QUERY_ALL_PACKAGES` and
+  `RECEIVE_BOOT_COMPLETED`, an upload key, CI, a licences screen, the `.foss` application ID),
+  F-Droid / IzzyOnDroid, localisation and the per-vendor write-path security review all move here.
+
+## 0.9 plan: tie it together
+
+Drafted 2026-10-26 from three inputs, all in [research/plan-0.9](research/plan-0.9):
+- a code audit of every screen for rough edges ([ux-audit.md](research/plan-0.9/ux-audit.md), ~50 findings);
+- a scan of competitors, community requests and Android 13–17 APIs, which gave 39 ideas
+  ([ideas.md](research/plan-0.9/ideas.md));
+- Jev's scores for each idea's rarity, everyday value and offline fit
+  ([idea-scores.md](research/plan-0.9/idea-scores.md)).
+
+The picks below are Claude's calls on top of those scores.
+
+**What 0.9 is:** no new protocol drivers. Everything Earshot already does should feel like one
+app, the same for every brand, and a few features should make it the app people recommend. 0.9 is
+done when a new user with any headset finds every feature without help, every screen speaks the
+same language, and the standout set below ships.
+
+### A. Housekeeping first (small, ship in the first week)
+- **What's New is stale:** `WhatsNew.RELEASE` still says 0.75.0, so 0.8.0 users saw no sheet. Write
+  the sheet for 0.9 (covering 0.8 and 0.9) and add a release-checklist step so it can't be missed again.
+- **Mark the Sleep A30 as Tested** (it is `verified = false` with "hasn't been tested" text, but it
+  is tested on our own pair).
+- **Demo mode works without the Bluetooth permission** (today `gated` blocks it, so a reviewer
+  without a headset sees nothing).
+- **Codec banner:** offer "Link this headset" (the no-Shizuku path) next to the Shizuku hint.
+- Unused strings, the history clear button without a confirm, the 24-hour-only time format, preset
+  chips without selected semantics (ux-audit "quick wins").
+
+### B. Tie it together (the audit's themes)
+1. **One Headset page per device.** Identity, Headphone type, rename / power off, the universal
+   remote, EQ memory, button shortcuts, its Bluetooth history and "what works here" in one place,
+   reachable from Home. Today they are spread over six screens.
+2. **One status language.** "Connected" means three things today (control link, audio link,
+   companion link). Name them once and use the same words on Home, the tile, the widget and the
+   notification. Home stops saying "not connected" while music plays.
+3. **Tier as a component.** Tested / Experimental / Battery only / Any headset, shown where it
+   matters with a one-line "what works", the same component for every brand.
+4. **Errors that carry a remedy.** Typed causes with an action button ("Close the JBL app", "Use as
+   any headset", "Open Headphone type") instead of 4-second snackbars. Move the service-layer English
+   into `strings.xml` on the way (it also prepares 1.0's localisation).
+5. **"Link once" as the setup step.** It unlocks connect / disconnect, auto-start and codec switching
+   without Shizuku; say so in onboarding and on the Headset page.
+6. **Discoverability:** Find my earbuds and the Bluetooth history get their own entries (history is
+   hidden in the Lab today), Tools is regrouped, and the app offers the tile and the widget.
+7. **One mode shortlist** that feeds the notification, the tile and the widget (today favourites
+   and the tile choice are separate).
+8. **A report loop for Experimental headsets:** share sheet instead of copy-only, and a guided
+   checklist ("test pilot") that turns owners into verifiers; it is how drivers move to Tested.
+
+### C. Standout features
+Picked for 0.9, in this order:
+1. **Headset profiles + "My headsets".** Per-headset EQ, start volume and ceiling, default mode,
+   codec and the rules bound to it, with a home for every headset showing last battery, last seen
+   and its profile, even when none is connected. It builds on B1 and on the per-headset memory and
+   A7's per-address refs, and the ideas below hang off it.
+2. **Tuned on arrival (AutoEq by name).** Earshot recognises the headset by name and offers its
+   correction curve in one tap. It ships first with a user-imported AutoEq folder, because the
+   measurement data's licence is unsettled (ideas §1 and §6); bundling waits for that answer.
+3. **EQ follows what you hear:** separate curves for music, video, calls / voice, per app and per
+   listening mode (`eq-follows`, the top score).
+4. **Volume guard:** start volume per headset, a hard ceiling, a quieter floor for headsets whose
+   lowest step is too loud.
+5. **Battery health and smart alerts:** life per charge over time, one bud draining faster, case low,
+   buds left out of the case.
+6. **Private listening log:** weekly hours, time at high volume, codec and mode per headset, on the
+   phone only, with nudges you control (an honest estimate: Android has no app API for its sound dose).
+7. **Automations upgrade:** ready-made recipes (Commute, Gym, Sleep, Work call…), a rule explainer
+   ("why didn't it fire?"), and more triggers (battery, charging, mode change, call, another Bluetooth
+   device such as the car).
+8. **Everyday shortcuts:** launcher shortcuts, Live Updates while Find or a sleep timer runs,
+   optional earcons for mode and EQ changes on headsets that stay silent.
+9. **Sleep tab** (the user's request, 2026-10-26; grows the old "sleep kit" idea): a fifth tab with
+   a 15 min – 6 h sleep timer, recorded and generated sounds plus the user's own files, noise
+   cancelling off during the night, an end action (stop, disconnect or power off) and an alarm
+   that rings in the earbuds, on the phone or both, with the phone as a safety net. Any headset;
+   the Sleep A30's own timer and alarm come last. Design and build order:
+   [sleep-mode.md](sleep-mode.md).
+
+If time allows: Android's **Device controls** panel, a **switch headset** tap, **last
+seen** on Find, a **connection doctor** on top of the Bluetooth history, read-back **confirmed
+badges**, a **privacy receipt** screen (it shares work with 1.0's licences screen) and a
+**codec explainer** on the Codec screen: why a codec such as aptX Adaptive isn't offered, with the
+LE Audio, USB-C and dongle routes ([research/aptx-adaptive-samsung.md](research/aptx-adaptive-samsung.md)).
+
+Parked: personal hearing EQ (needs careful non-medical framing), blind A/B tests, latency lab,
+head-tracking lab, AppFunctions and a Tasker API, dictation, read-aloud, the phone as remote mic,
+Auracast status, fold-adaptive layouts (with 1.0's performance work), settings backup files.
+
+### D. Decisions for the user
+- Does the Headset page (B1) replace Tools → Controls, or sit next to it?
+- The tier names users see (keep Tested / Experimental / Battery only / Any headset?).
+- "Tools never hide settings" vs rows that can never work on a headset: the audit suggests keeping
+  them visible but opening an explanation instead of sending a command that is sure to fail.
+- AutoEq: ask the measurement sources about bundling, or stay import-only?
+
+### E. Order and gate
+1. A (housekeeping), then B2–B4 (status language, tier component, remedies): they touch every screen.
+2. B1 + C1 (Headset page and profiles) together: the structural change.
+3. C2–C4 (sound), then C5–C6 (battery and log), then C7–C8 (automations, shortcuts) and the rest of B.
+   C9 (Sleep tab) runs alongside: its sound engine and screen touch no shared files (sleep-mode.md §8).
+4. Gate for 0.9.0: the full test suite, a manual pass on the QC Ultra 2 and the Sleep A30, demo mode
+   for every driver, and the What's New sheet.
 
 ## Status after 0.75
 
@@ -125,7 +243,7 @@ remote (Companion Device Manager), the Field theme and the "Strike" icon.
    fingerprint worth checking for that issue. D7 so far: the QC Ultra 2's LE record shows BAS,
    VCS, LE Audio and BASS, no MICS. Open: D1 (needs the generic buds), D3 (needs the AirPods),
    D5 (Fast Pair stream; ask before opening it, GMS holds it).
-7. **Moved to 0.9 (2026-10-25).** **Play hygiene** (F5) and the target-37 checklist: drop `QUERY_ALL_PACKAGES` and
+7. **Moved to 1.0 (2026-10-26; before that to 0.9).** **Play hygiene** (F5) and the target-37 checklist: drop `QUERY_ALL_PACKAGES` and
    `RECEIVE_BOOT_COMPLETED`, an upload key, CI, a licences screen, a separate `.foss` application ID.
    `setStreamVolume` from a background-started service needs while-in-use status at target 37, so
    the call boost has to be checked.
@@ -146,8 +264,8 @@ Release 0.8.0 once these are done; no partial release.
    testable on the Fold7 with the QC Ultra 2.
 2. **Item 6, the spikes** that need no other device (write up D4, D6, D7); D1 and D3 when the
    generic buds and the AirPods are at hand; D5 only after an explicit yes.
-3. **Item 7, Play hygiene and target 37: moved to 0.9** (user decision 2026-10-25: no Google Play
-   preparation before 0.9). It stays as listed under "Next: 0.8" item 7; the OFL notices for the
+3. **Item 7, Play hygiene and target 37: moved to 1.0** (user decisions 2026-10-25 and 2026-10-26: no
+   Google Play preparation before 1.0). It stays as listed under "Next: 0.8" item 7; the OFL notices for the
    bundled fonts and the dependencies' licences belong in the licences screen it adds.
 4. **Done (2026-10-25).** **Item 8, A6 + A7 + F2, then the module split**, before any new driver, as this roadmap
    already says. Gate: the Bose end-to-end tests stay green and a manual pass on the QC Ultra 2.
@@ -165,8 +283,8 @@ app. Open source on GitHub, on Google Play, and on F-Droid/IzzyOnDroid. Earshot 
 fast, account-free, no internet permission. Bose stays its deepest integration.
 
 Versions: **0.75** (done: the 0.6 and 0.7 plan below) added features and drivers and did the
-research. **0.8** collects the big changes listed under "Next: 0.8" and at the end, and the
-release after it is **1.0**.
+research. **0.8** (done, 2026-10-26) collected the big platform changes. **0.9** ties everything
+together and adds what makes Earshot special; **1.0** optimises the app and ships it to the stores.
 
 ## Rules for getting there
 

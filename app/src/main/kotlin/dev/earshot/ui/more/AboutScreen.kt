@@ -66,6 +66,16 @@ fun AboutContent(version: String, onBack: () -> Unit) {
                 Text(stringResource(R.string.about_fonts_credit), style = MaterialTheme.typography.bodyMedium)
                 CreditLine("Barlow, Barlow Condensed", "github.com/jpt/barlow", "OFL 1.1")
                 CreditLine("JetBrains Mono", "github.com/JetBrains/JetBrainsMono", "OFL 1.1")
+                Spacer(Modifier.height(8.dp))
+                // tools/sleep-sounds/sources.json is the full list (titles, files, how each loop was cut).
+                Text(stringResource(R.string.about_sleep_sounds_credit), style = MaterialTheme.typography.bodyMedium)
+                CreditLine("Rain: Duane Null", "archive.org/details/aporee_66172_76498", PUBLIC_DOMAIN)
+                CreditLine("Heavy rain: alas23/sala", "archive.org/details/aporee_61123_70270", PUBLIC_DOMAIN)
+                CreditLine("Ocean: melissapons", "archive.org/details/aporee_33898_38993", PUBLIC_DOMAIN)
+                CreditLine("Stream: Piotrek Zyla", "archive.org/details/aporee_55335_63233", PUBLIC_DOMAIN)
+                CreditLine("Wind: john grzinich", "archive.org/details/aporee_37592_43037", PUBLIC_DOMAIN)
+                CreditLine("Fire: Hoerma", "archive.org/details/aporee_51595_58876", PUBLIC_DOMAIN)
+                CreditLine("Birdsong alarm: kaoss012", "archive.org/details/aporee_72287_84415", PUBLIC_DOMAIN)
             }
             SectionCard(title = stringResource(R.string.about_licence)) {
                 Text(stringResource(R.string.about_licence_body), style = MaterialTheme.typography.bodyMedium)
@@ -79,6 +89,8 @@ fun AboutContent(version: String, onBack: () -> Unit) {
         }
     }
 }
+
+private const val PUBLIC_DOMAIN = "public domain"
 
 @Composable
 private fun CreditLine(name: String, url: String, licence: String) {

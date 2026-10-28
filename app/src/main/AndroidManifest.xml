@@ -25,6 +25,16 @@
     <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
     <uses-permission android:name="android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND" />
 
+    <!-- Sleep tab (sleep/): sounds through the night from a foreground service, exact night steps
+         and wake alarms ("Alarms & reminders", user-granted), the alarm over the lock screen,
+         phone vibration, and the optional Do Not Disturb for the night (user-granted access). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
     <!-- Sound engine and mic check -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -198,6 +208,40 @@
             android:name=".shortcut.VoiceMemoService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!-- Sleep tab (sleep/): keeps the night's sounds and the ringing alarm in the foreground.
+             The three Sleep alarm components are direct-boot aware, so an alarm still rings after an
+             overnight restart before the phone is unlocked (sleep/LockedAlarms). -->
+        <service
+            android:name=".sleep.SleepService"
+            android:directBootAware="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Sleep tab: the night's AlarmManager steps and wake alarms; clock changes re-arm them -->
+        <receiver
+            android:name=".sleep.SleepAlarmReceiver"
+            android:directBootAware="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Sleep tab: the ringing alarm over the lock screen (full-screen notification) -->
+        <activity
+            android:name=".sleep.AlarmActivity"
+            android:directBootAware="true"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:taskAffinity="dev.earshot.alarm"
+            android:theme="@style/Theme.Earshot"
+            android:turnScreenOn="true" />
 
         <!-- Shizuku -->
         <provider

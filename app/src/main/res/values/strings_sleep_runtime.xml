@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Sleep tab's runtime (dev.earshot.sleep): notifications, tonight's log, reasons a step
+     can't run. The screens' own strings are in strings_sleep.xml. No sleep-quality or medical
+     claims anywhere. -->
+<resources>
+    <!-- Notification channels -->
+    <string name="sleep_rt_channel_night">Sleep timer</string>
+    <string name="sleep_rt_channel_night_description">Shown while a sleep timer runs, with time left, +15 min and Stop.</string>
+    <string name="sleep_rt_channel_alarm">Sleep alarms</string>
+    <string name="sleep_rt_channel_alarm_description">Wake-up alarms from the Sleep tab. Keep this on so alarms can show over the lock screen.</string>
+
+    <!-- Notifications -->
+    <string name="sleep_rt_notif_title">Sleep timer</string>
+    <string name="sleep_rt_notif_playing">Sounds until %1$s</string>
+    <string name="sleep_rt_notif_fading">Fading out, ends at %1$s</string>
+    <string name="sleep_rt_notif_timer_only">Timer ends at %1$s</string>
+    <string name="sleep_rt_action_extend">+15 min</string>
+    <string name="sleep_rt_action_stop">Stop</string>
+    <string name="sleep_rt_alarm_title">Alarm</string>
+    <string name="sleep_rt_action_stop_alarm">Stop alarm</string>
+    <string name="sleep_rt_action_snooze">Snooze</string>
+
+    <!-- Why the phone rings too -->
+    <string name="sleep_rt_fallback_not_connected">The earbuds weren\'t connected, so the phone is ringing.</string>
+    <string name="sleep_rt_fallback_not_stopped">Nobody stopped it in the earbuds, so the phone is ringing too.</string>
+    <string name="sleep_rt_fallback_routed">Android sent the alarm somewhere else, so the phone is ringing too.</string>
+    <string name="sleep_rt_fallback_failed">The earbuds stopped playing the alarm, so the phone is ringing too.</string>
+    <string name="sleep_rt_fallback_locked">The phone restarted overnight, so the alarm rings on the phone.</string>
+
+    <!-- Errors shown by the screens -->
+    <string name="sleep_rt_error_running">A sleep timer is already running.</string>
+    <string name="sleep_rt_error_ringing">Stop the alarm first.</string>
+    <string name="sleep_rt_error_alarm_time">That isn\'t a valid alarm time.</string>
+    <string name="sleep_rt_error_no_snooze">Snooze is off for this alarm.</string>
+    <string name="sleep_rt_error_mix_name">Give the mix a name.</string>
+    <string name="sleep_rt_error_mix_empty">Pick at least one sound for the mix.</string>
+    <string name="sleep_rt_error_custom_name">Give the sound a name.</string>
+    <plurals name="sleep_rt_error_custom_file">
+        <item quantity="one">That file can\'t be played as a sound. Pick an audio file at least %1$d second long.</item>
+        <item quantity="other">That file can\'t be played as a sound. Pick an audio file at least %1$d seconds long.</item>
+    </plurals>
+
+    <!-- What a headset can't do tonight (shown on its row) -->
+    <string name="sleep_rt_note_no_driver">Earshot can only play sounds on this headset. It can\'t change its settings.</string>
+    <string name="sleep_rt_note_controls_offline">Earshot isn\'t connected to this headset\'s controls right now.</string>
+    <string name="sleep_rt_note_no_headset">No headset yet.</string>
+    <string name="sleep_rt_note_disconnect_android17">Disconnecting a headset needs Android 17.</string>
+    <string name="sleep_rt_note_disconnect_link">Link this headset once (Tools, Controls, Universal remote) so Earshot can disconnect it.</string>
+    <string name="sleep_rt_note_power_off_none">Earshot can\'t switch this headset off.</string>
+    <string name="sleep_rt_note_power_off_fallback">If the headset won\'t switch off, Earshot disconnects it instead.</string>
+    <string name="sleep_rt_note_noise_none">This headset has no way for Earshot to switch noise cancelling off.</string>
+    <string name="sleep_rt_note_touch_none">Earshot can\'t change this headset\'s touch controls.</string>
+    <string name="sleep_rt_note_prompts_none">Earshot can\'t change this headset\'s voice prompts.</string>
+
+    <!-- Tonight's log -->
+    <string name="sleep_rt_log_started">Started: %1$s</string>
+    <string name="sleep_rt_log_extended">Added %1$d min</string>
+    <string name="sleep_rt_log_stopped">Stopped</string>
+    <string name="sleep_rt_log_ended">Timer ended</string>
+    <string name="sleep_rt_log_end_skipped">Earshot was closed when the timer ended, so the headset was left as it was.</string>
+    <string name="sleep_rt_log_killed">Android closed Earshot in the night, so the sounds stopped.</string>
+    <string name="sleep_rt_log_service_refused">Android didn\'t let the sleep timer run in the background.</string>
+    <string name="sleep_rt_log_headset_gone">The headset disconnected, so the sounds stopped instead of playing from the phone speaker.</string>
+    <string name="sleep_rt_log_output_failed">The sounds stopped: the audio output closed.</string>
+    <string name="sleep_rt_log_noise_off">Noise cancelling off</string>
+    <string name="sleep_rt_log_noise_already_off">Noise cancelling was already off</string>
+    <string name="sleep_rt_log_noise_failed">Couldn\'t switch noise cancelling off</string>
+    <string name="sleep_rt_log_touch_locked">Touch controls locked for the night</string>
+    <string name="sleep_rt_log_touch_failed">Couldn\'t lock the touch controls</string>
+    <string name="sleep_rt_log_prompts_off">Voice prompts muted for the night</string>
+    <string name="sleep_rt_log_prompts_failed">Couldn\'t mute every voice prompt</string>
+    <string name="sleep_rt_log_dnd_on">Do Not Disturb on</string>
+    <string name="sleep_rt_log_dnd_no_access">Do Not Disturb needs access first (Sleep tab, Do Not Disturb).</string>
+    <string name="sleep_rt_log_dnd_failed">Couldn\'t turn Do Not Disturb on</string>
+    <string name="sleep_rt_log_volume_capped">Media volume held at %1$d%% or lower</string>
+    <string name="sleep_rt_log_paused_other">Asked other apps to pause</string>
+    <string name="sleep_rt_log_disconnected">Headset disconnected</string>
+    <string name="sleep_rt_log_disconnect_failed">Couldn\'t disconnect the headset: %1$s</string>
+    <string name="sleep_rt_log_powered_off">Headset switched off</string>
+    <string name="sleep_rt_log_power_off_refused">The headset didn\'t switch off</string>
+    <string name="sleep_rt_log_alarm_on_phone_power">The headset switches off at the end, so the alarm will ring on the phone.</string>
+    <string name="sleep_rt_log_wake_window">Wake-up window started</string>
+    <string name="sleep_rt_log_alarm_rang">Alarm rang</string>
+    <string name="sleep_rt_log_alarm_ended_night">The alarm ended the sleep timer</string>
+    <string name="sleep_rt_log_alarm_stopped">Alarm stopped</string>
+    <string name="sleep_rt_log_alarm_timed_out">The alarm stopped after 15 minutes</string>
+    <string name="sleep_rt_log_snoozed">Snoozed until %1$s</string>
+    <string name="sleep_rt_log_restored">Headset settings put back</string>
+    <string name="sleep_rt_log_phone_restored">Phone settings put back</string>
+
+    <!-- Launcher shortcut -->
+    <string name="sleep_rt_shortcut_short">Sleep</string>
+    <string name="sleep_rt_shortcut_long">Start sleep timer</string>
+
+    <plurals name="sleep_rt_hours">
+        <item quantity="one">%d hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <plurals name="sleep_rt_minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+</resources>

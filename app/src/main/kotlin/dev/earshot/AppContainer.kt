@@ -300,6 +300,16 @@ class AppContainer(private val appContext: Context) {
     /** Find my earbuds (0.8, item 4): a tone into the shown headset, any brand. */
     val find: dev.earshot.find.FindPlayer by lazy { dev.earshot.find.FindPlayer(appContext, headphones, deviceFinder, applicationScope) }
 
+    /**
+     * The Sleep tab (0.9, docs/sleep-mode.md): timer, sounds, night steps and wake alarms, any
+     * headset. Created by [EarshotApp] at process start so the alarms are re-armed after a reboot
+     * and a night in progress is picked up again after Android killed the process.
+     */
+    val sleepRuntime: dev.earshot.sleep.SleepRepositoryImpl by lazy {
+        dev.earshot.sleep.SleepRepositoryImpl(appContext, headphones, deviceFinder, dev.earshot.bt.CompanionRemote(appContext), applicationScope)
+    }
+    val sleep: dev.earshot.core.SleepRepository get() = sleepRuntime
+
     /** Shortcuts remapper: what a headset's press-and-hold does, and the code that does it. */
     val shortcuts: ShortcutEngine by lazy {
         ShortcutEngine(appContext, ShortcutPrefs(appContext), tuning, headphones, devicePrefs, applicationScope)

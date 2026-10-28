@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Sleep tab (0.9, docs/sleep-mode.md). No medical or sleep-quality claims anywhere. -->
+<resources>
+    <string name="tab_sleep">Sleep</string>
+    <!-- About screen, above the list of recordings -->
+    <string name="about_sleep_sounds_credit">Sleep sounds: field recordings their recordists released into the public domain on radio aporee ::: maps (archive.org). Thank you.</string>
+
+    <!-- Units -->
+    <plurals name="sleep_hours_short">
+        <item quantity="one">%1$d h</item>
+        <item quantity="other">%1$d h</item>
+    </plurals>
+    <plurals name="sleep_minutes_short">
+        <item quantity="one">%1$d min</item>
+        <item quantity="other">%1$d min</item>
+    </plurals>
+    <plurals name="sleep_seconds_short">
+        <item quantity="one">%1$d s</item>
+        <item quantity="other">%1$d s</item>
+    </plurals>
+    <string name="sleep_hours_minutes">%1$s %2$s</string>
+    <string name="sleep_percent">%1$d%%</string>
+    <string name="sleep_off">Off</string>
+
+    <!-- Headset header and the bedtime battery check -->
+    <string name="sleep_no_headset">No headset</string>
+    <string name="sleep_status_none">Sounds play on the phone</string>
+    <string name="sleep_status_not_playing">Not connected for audio</string>
+    <string name="sleep_lasts_about">Lasts about %1$s</string>
+    <string name="sleep_time_left">%1$s left</string>
+    <string name="sleep_status_battery_only">No battery time estimate</string>
+    <string name="sleep_status_battery_unknown">Battery unknown</string>
+    <string name="sleep_no_headset_hint">No headset is playing audio right now. Sounds play on whatever the phone plays through, and an alarm set to ring in the earbuds rings on the phone.</string>
+    <string name="sleep_battery_timer">About %1$s of battery left, so the %2$s timer will outlast it. Pick a shorter timer or charge the headset first.</string>
+    <string name="sleep_battery_use_timer">Use %1$s</string>
+    <string name="sleep_battery_alarm">About %1$s of battery left, and the alarm rings in %2$s. Charge the headset, or let the alarm ring on the phone.</string>
+    <string name="sleep_battery_ring_phone">Ring on the phone</string>
+
+    <!-- Special accesses -->
+    <string name="sleep_perm_exact">“Alarms &amp; reminders” is off for Earshot, so the alarm and the night\'s timed steps can run late.</string>
+    <string name="sleep_perm_exact_action">Allow alarms</string>
+    <string name="sleep_perm_full_screen">Earshot can\'t show the alarm over the lock screen, so it\'ll only appear as a notification.</string>
+    <string name="sleep_perm_full_screen_action">Allow full-screen alarms</string>
+    <string name="sleep_perm_notifications">Notifications are off, so the night\'s controls and the alarm\'s notification won\'t show.</string>
+    <string name="sleep_perm_notifications_action">Turn on notifications</string>
+
+    <!-- Tonight -->
+    <string name="sleep_tonight_title">Tonight</string>
+    <string name="sleep_timer_heading">Sleep timer</string>
+    <string name="sleep_timer_custom">Custom</string>
+    <string name="sleep_timer_custom_value">Custom: %1$s</string>
+    <string name="sleep_timer_custom_title">Custom timer</string>
+    <string name="sleep_timer_custom_set">Set timer</string>
+    <string name="sleep_ends_at">Ends at %1$s</string>
+    <string name="sleep_start">Start sleep</string>
+    <string name="sleep_noise_heading">Noise cancelling</string>
+    <!-- The "what happens when" lines above the two timers; times are as if the night started now. -->
+    <string name="sleep_word_earbuds">earbuds</string>
+    <string name="sleep_word_headphones">headphones</string>
+    <string name="sleep_when_disconnect">Your %1$s disconnect at %2$s</string>
+    <string name="sleep_when_switch_off">Your %1$s switch off at %2$s</string>
+    <string name="sleep_when_sounds_stop">Sounds stop at %1$s</string>
+    <string name="sleep_when_timer_ends">The timer ends at %1$s</string>
+    <string name="sleep_when_fade">The sounds fade out over the last %1$s.</string>
+    <string name="sleep_when_disconnect_detail">Once disconnected, they can go to sleep or switch themselves off.</string>
+    <string name="sleep_when_switch_off_detail">If they won\'t switch off, Earshot disconnects them instead.</string>
+    <string name="sleep_when_stays_detail">Your %1$s stay connected.</string>
+    <string name="sleep_when_stays_cant_detail">Your %1$s stay connected: Earshot can\'t disconnect or switch them off (see below).</string>
+    <string name="sleep_noise_when_untouched">Noise cancelling stays as it is</string>
+    <string name="sleep_noise_when_untouched_detail">Earshot leaves it alone tonight.</string>
+    <string name="sleep_noise_when_start">Noise cancelling goes off when you start</string>
+    <string name="sleep_noise_when_at">Noise cancelling goes off at %1$s</string>
+    <string name="sleep_noise_when_after_detail">%1$s after you start. %2$s</string>
+    <string name="sleep_noise_when_end_detail">When the timer ends. %1$s</string>
+    <string name="sleep_noise_when_end_later_detail">The timer ends first, so it goes off then. %1$s</string>
+    <string name="sleep_noise_when_back">It comes back on in the morning.</string>
+    <string name="sleep_noise_tile_keep">Keep as is</string>
+    <string name="sleep_noise_tile_start">From the start</string>
+    <string name="sleep_noise_tile_after">After %1$s</string>
+    <string name="sleep_noise_tile_end">When timer ends</string>
+    <string name="sleep_end_heading">When the timer ends</string>
+    <string name="sleep_end_stop">Stop the sounds</string>
+    <string name="sleep_end_disconnect">Disconnect the headset</string>
+    <string name="sleep_end_power_off">Switch the headset off</string>
+    <string name="sleep_end_power_off_alarm">A headset that\'s switched off can\'t ring tomorrow\'s alarm, so it\'ll ring on the phone.</string>
+    <string name="sleep_not_on_this_headset">Not on this headset</string>
+    <string name="sleep_extras_heading">For the night</string>
+    <string name="sleep_extra_touch_lock">Lock touch controls</string>
+    <string name="sleep_extra_touch_lock_hint">So a pillow can\'t pause, skip or change the mode. They come back in the morning.</string>
+    <string name="sleep_extra_prompts_off">Mute voice prompts</string>
+    <string name="sleep_extra_prompts_off_hint">So a “battery low” prompt can\'t wake you. They come back in the morning.</string>
+    <string name="sleep_extra_dnd">Do Not Disturb</string>
+    <string name="sleep_extra_dnd_hint">Silences notifications for the night, with your usual Do Not Disturb exceptions.</string>
+    <string name="sleep_extra_dnd_access">Earshot needs Do Not Disturb access to switch it on for the night.</string>
+    <string name="sleep_extra_dnd_access_action">Allow access</string>
+    <string name="sleep_extra_volume_cap">Volume cap</string>
+    <string name="sleep_extra_volume_cap_hint">Keeps the media volume at or below a level you pick, so nothing plays louder than that.</string>
+    <string name="sleep_extra_volume_cap_level">Highest volume</string>
+    <string name="sleep_pause_other">Also pause other apps at the end</string>
+    <string name="sleep_pause_other_hint">Fades out and pauses music or a podcast from another app. A few players ignore it.</string>
+
+    <!-- Sounds -->
+    <string name="sleep_sounds_title">Sounds</string>
+    <!-- The user's own sounds -->
+    <string name="sleep_group_yours">Yours</string>
+    <string name="sleep_custom_add">Your own sound</string>
+    <string name="sleep_custom_adding">Adding…</string>
+    <string name="sleep_custom_add_confirm">Add sound</string>
+    <plurals name="sleep_custom_hint">
+        <item quantity="one">Pick any audio file. Earshot keeps its own copy, uses up to %1$d second of it and blends the end into the start so it loops smoothly. Long-press one of your sounds to delete it.</item>
+        <item quantity="other">Pick any audio file. Earshot keeps its own copy, uses up to %1$d seconds of it and blends the end into the start so it loops smoothly. Long-press one of your sounds to delete it.</item>
+    </plurals>
+    <string name="sleep_custom_name_title">Name this sound</string>
+    <plurals name="sleep_custom_name_hint">
+        <item quantity="one">Earshot uses up to %1$d second of the file and makes it loop smoothly.</item>
+        <item quantity="other">Earshot uses up to %1$d seconds of the file and makes it loop smoothly.</item>
+    </plurals>
+    <string name="sleep_custom_name_label">Name</string>
+    <string name="sleep_custom_added">Added %1$s</string>
+    <string name="sleep_custom_delete_title">Delete this sound?</string>
+    <string name="sleep_custom_delete_text">%1$s is removed from Earshot and from your mixes. The original file stays where it is.</string>
+    <string name="sleep_custom_delete_action">Delete sound</string>
+    <string name="sleep_custom_missing">Deleted sound</string>
+    <string name="sleep_group_all">All</string>
+    <string name="sleep_group_noise">Noise</string>
+    <string name="sleep_group_water">Water</string>
+    <string name="sleep_group_nature">Nature</string>
+    <string name="sleep_group_home">Home</string>
+    <string name="sleep_sound_white">White noise</string>
+    <string name="sleep_sound_pink">Pink noise</string>
+    <string name="sleep_sound_brown">Brown noise</string>
+    <string name="sleep_sound_rain">Rain</string>
+    <string name="sleep_sound_heavy_rain">Heavy rain</string>
+    <string name="sleep_sound_ocean">Ocean</string>
+    <string name="sleep_sound_stream">Stream</string>
+    <string name="sleep_sound_wind">Wind</string>
+    <string name="sleep_sound_fire">Fire</string>
+    <string name="sleep_sound_fan">Fan</string>
+    <string name="sleep_timer_only">No sound, timer only</string>
+    <string name="sleep_timer_only_hint">Timer only. Play a podcast or music from another app, and switch on “Also pause other apps at the end” to stop it when the timer ends.</string>
+    <string name="sleep_mix_heading">Your mix (%1$d of %2$d)</string>
+    <plurals name="sleep_sounds_limit">
+        <item quantity="one">A mix holds up to %1$d sound. Remove one to add another.</item>
+        <item quantity="other">A mix holds up to %1$d sounds. Remove one to add another.</item>
+    </plurals>
+    <string name="sleep_layer_remove">Remove %1$s</string>
+    <string name="sleep_preview_play">Play preview</string>
+    <string name="sleep_preview_stop">Stop preview</string>
+    <string name="sleep_mix_save">Save mix</string>
+    <string name="sleep_mix_save_title">Save this mix</string>
+    <string name="sleep_mix_name">Name</string>
+    <string name="sleep_mix_saved">Saved “%1$s”</string>
+    <string name="sleep_mixes_heading">Saved mixes</string>
+    <string name="sleep_mixes_empty">No saved mixes yet. Build a mix above and save it for next time.</string>
+    <string name="sleep_mixes_hint">Touch and hold a mix to delete it.</string>
+    <string name="sleep_mix_load">Use mix</string>
+    <string name="sleep_mix_delete">Delete mix</string>
+    <string name="sleep_mix_delete_title">Delete this mix?</string>
+    <string name="sleep_mix_delete_text">“%1$s” is removed from your saved mixes. Tonight\'s sounds stay as they are.</string>
+    <string name="sleep_side_heading">Where sounds play</string>
+    <string name="sleep_side_both">Both</string>
+    <string name="sleep_side_mono">Mono</string>
+    <string name="sleep_side_left">Left</string>
+    <string name="sleep_side_right">Right</string>
+    <string name="sleep_side_both_hint">Stereo, in both ears.</string>
+    <string name="sleep_side_mono_hint">The same sound in both ears, so nothing\'s missing if one earbud comes out.</string>
+    <string name="sleep_side_one_hint">One ear only, for sleeping on your side with just one earbud in.</string>
+    <string name="sleep_volume">Sound volume</string>
+    <string name="sleep_volume_hint">The sounds\' own level, on top of the phone\'s media volume.</string>
+
+    <!-- Alarms -->
+    <string name="sleep_alarms_title">Alarms</string>
+    <string name="sleep_next_alarm">Next alarm at %1$s · %2$s</string>
+    <string name="sleep_rings_in">Rings in %1$s</string>
+    <string name="sleep_alarms_empty">No alarms yet. An alarm can ring in the earbuds, on the phone or both.</string>
+    <string name="sleep_alarm_add">Add alarm</string>
+    <string name="sleep_alarm_switch">%1$s alarm</string>
+    <string name="sleep_repeat_once">Once</string>
+    <string name="sleep_repeat_every_day">Every day</string>
+    <string name="sleep_repeat_weekdays">Weekdays</string>
+    <string name="sleep_repeat_weekends">Weekends</string>
+    <string name="sleep_summary_earbuds">Earbuds, phone after %1$d s</string>
+    <string name="sleep_summary_phone">Phone</string>
+    <string name="sleep_summary_both">Earbuds and phone</string>
+    <string name="sleep_summary_wake">Gentle wake %1$s</string>
+    <string name="sleep_output_earbuds">Earbuds</string>
+    <string name="sleep_output_phone">Phone</string>
+    <string name="sleep_output_both">Both</string>
+
+    <!-- Alarm editor -->
+    <string name="sleep_alarm_new">New alarm</string>
+    <string name="sleep_alarm_edit">Edit alarm</string>
+    <string name="sleep_alarm_change_time">Change the time</string>
+    <string name="sleep_repeat_once_hint">Once: rings at the next %1$s, then switches itself off. Pick days to repeat it.</string>
+    <string name="sleep_alarm_rings_in">Where it rings</string>
+    <string name="sleep_alarm_earbuds_hint">If the earbuds are off or no one stops it within %1$d s, the phone rings too.</string>
+    <string name="sleep_alarm_phone_hint">Rings on the phone\'s speaker, like a regular alarm.</string>
+    <string name="sleep_alarm_both_hint">Rings in the earbuds and on the phone at the same time.</string>
+    <string name="sleep_alarm_sound">Sound</string>
+    <string name="sleep_alarm_preview_play">Play this sound</string>
+    <string name="sleep_alarm_preview_stop">Stop the sound</string>
+    <string name="sleep_alarm_wake_window">Gentle wake</string>
+    <string name="sleep_alarm_wake_window_hint">A quiet version starts this long before the alarm and slowly gets louder.</string>
+    <string name="sleep_alarm_fade_in">Fade in</string>
+    <string name="sleep_alarm_fade_in_hint">How long the alarm takes to reach full volume.</string>
+    <string name="sleep_alarm_snooze">Snooze</string>
+    <string name="sleep_alarm_vibrate">Vibrate the phone</string>
+    <string name="sleep_alarm_vibrate_hint">Only when it rings on the phone.</string>
+    <string name="sleep_alarm_label">Label (optional)</string>
+    <string name="sleep_alarm_save">Save alarm</string>
+    <string name="sleep_alarm_saved">Alarm set for %1$s, %2$s from now</string>
+    <string name="sleep_alarm_delete_title">Delete this alarm?</string>
+    <string name="sleep_alarm_delete_text">The %1$s alarm is removed.</string>
+    <string name="sleep_tone_chime">Chime</string>
+    <string name="sleep_tone_birds">Birds</string>
+    <string name="sleep_tone_classic">Classic</string>
+    <string name="sleep_tone_system">The phone\'s alarm sound</string>
+
+    <!-- Night view, snooze and the ringing alarm -->
+    <string name="sleep_night_title">Sleep timer</string>
+    <string name="sleep_phase_fading_in">Fading in</string>
+    <string name="sleep_phase_playing">Playing</string>
+    <string name="sleep_phase_fading_out">Fading out</string>
+    <string name="sleep_phase_timer_only">Timer only</string>
+    <string name="sleep_night_noise_off">Noise cancelling is off</string>
+    <string name="sleep_night_noise_kept">Noise cancelling stays as it is</string>
+    <string name="sleep_night_noise_going_off">Noise cancelling is going off</string>
+    <string name="sleep_night_noise_off_at">Noise cancelling goes off at %1$s</string>
+    <string name="sleep_night_end_stop">At the end, the sounds stop</string>
+    <string name="sleep_night_end_disconnect">At the end, the sounds stop and the headset disconnects</string>
+    <string name="sleep_night_end_power_off">At the end, the sounds stop and the headset switches off</string>
+    <string name="sleep_night_no_alarm">No alarm set</string>
+    <string name="sleep_extend">+%1$d min</string>
+    <string name="sleep_log_heading">Tonight</string>
+    <string name="sleep_log_problem">Didn\'t work</string>
+    <string name="sleep_snoozed_title">Snoozed</string>
+    <string name="sleep_snoozed_rings_at">Rings again at %1$s</string>
+    <string name="sleep_alarm_stop">Stop alarm</string>
+    <string name="sleep_ringing_title">Alarm</string>
+    <string name="sleep_ringing_stop">Stop</string>
+    <string name="sleep_ringing_snooze">Snooze</string>
+    <string name="sleep_ringing_snooze_minutes">Snooze %1$d min</string>
+</resources>

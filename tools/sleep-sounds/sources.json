@@ -1,0 +1,82 @@
+{
+  "about": "The Sleep tab's bundled recordings. Each loop in app/src/main/assets/sleep/<id>.ogg is cut from the original below by make_loops.py (start/length/crossfade in seconds, high-pass in Hz, level as RMS dBFS). All are field recordings released by their recordists into the public domain (Creative Commons Public Domain Mark 1.0 on radio aporee ::: maps, mirrored on archive.org): no credit is required, but each is credited in the app's About screen. Chosen 2026-10-26 by measurement and spectrogram; listen before changing a start point. White, pink and brown noise and the fan stay synthesised (no clean, freely licensed airborne fan recording was found).",
+  "recordings": [
+    {
+      "id": "rain",
+      "title": "Halls Gap VIC, Australia - Rain on a tin roof of old shed",
+      "author": "Duane Null",
+      "page": "https://archive.org/details/aporee_66172_76498",
+      "url": "https://archive.org/download/aporee_66172_76498/ZOOM0003LRA.wav",
+      "file": "ZOOM0003LRA.wav",
+      "license": "Public Domain Mark 1.0",
+      "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "start_s": 327, "length_s": 60, "crossfade_s": 4, "highpass_hz": 80, "target_rms_db": -20
+    },
+    {
+      "id": "heavy_rain",
+      "title": "Šmiti, Latvia, balcony, heavy rain",
+      "author": "alas23/sala",
+      "page": "https://archive.org/details/aporee_61123_70270",
+      "url": "https://archive.org/download/aporee_61123_70270/smitirainbalcony.wav",
+      "file": "smitirainbalcony.wav",
+      "license": "Public Domain Mark 1.0",
+      "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "start_s": 123, "length_s": 60, "crossfade_s": 4, "highpass_hz": 60, "target_rms_db": -19
+    },
+    {
+      "id": "ocean",
+      "title": "Gotska Sandön, Sweden - Waves breaking",
+      "author": "melissapons",
+      "page": "https://archive.org/details/aporee_33898_38993",
+      "url": "https://archive.org/download/aporee_33898_38993/GotskaSandon161020beachshore.wav",
+      "file": "GotskaSandon161020beachshore.wav",
+      "license": "Public Domain Mark 1.0",
+      "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "start_s": 30, "length_s": 75, "crossfade_s": 8, "highpass_hz": 40, "target_rms_db": -21
+    },
+    {
+      "id": "stream",
+      "title": "Targoszów, Poland - (878) Mountain brook",
+      "author": "Piotrek Zyla",
+      "page": "https://archive.org/details/aporee_55335_63233",
+      "url": "https://archive.org/download/aporee_55335_63233/878eTARGOSZOWmountainbrookinthewinterDPATascam2112280521.wav",
+      "file": "878eTARGOSZOWmountainbrookinthewinterDPATascam2112280521.wav",
+      "license": "Public Domain Mark 1.0",
+      "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "start_s": 30, "length_s": 60, "crossfade_s": 4, "highpass_hz": 60, "target_rms_db": -20
+    },
+    {
+      "id": "wind",
+      "title": "Jindřichovice pod Smrkem, Czechia - wind in the forest trees",
+      "author": "john grzinich",
+      "page": "https://archive.org/details/aporee_37592_43037",
+      "url": "https://archive.org/download/aporee_37592_43037/170806JindrichoviceAldertreeswind02.mp3",
+      "file": "170806JindrichoviceAldertreeswind02.mp3",
+      "license": "Public Domain Mark 1.0",
+      "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "start_s": 21, "length_s": 60, "crossfade_s": 4, "highpass_hz": 50, "target_rms_db": -21
+    },
+    {
+      "id": "fire",
+      "title": "Spadelsberg, 72639 Neuffen, Deutschland - fireplace (Knistern)",
+      "author": "Hoerma",
+      "page": "https://archive.org/details/aporee_51595_58876",
+      "url": "https://archive.org/download/aporee_51595_58876/Knistern20201204215349.wav",
+      "file": "Knistern20201204215349.wav",
+      "license": "Public Domain Mark 1.0",
+      "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "start_s": 130, "length_s": 60, "crossfade_s": 4, "highpass_hz": 80, "target_rms_db": -22
+    },
+    {
+      "id": "alarm_birds",
+      "title": "Burlats, Occitanie, France - birdsong in the woods 02",
+      "author": "kaoss012",
+      "page": "https://archive.org/details/aporee_72287_84415",
+      "url": "https://archive.org/download/aporee_72287_84415/birdsonginthewoodSidobre02.wav",
+      "file": "birdsonginthewoodSidobre02.wav",
+      "license": "Public Domain Mark 1.0",
+      "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "start_s": 24, "length_s": 60, "crossfade_s": 4, "highpass_hz": 150, "target_rms_db": -20
+    }
+  ]
+}

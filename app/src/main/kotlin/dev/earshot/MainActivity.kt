@@ -5,12 +5,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
 import dev.earshot.find.FindSide
+import dev.earshot.sleep.SleepShortcut
 import dev.earshot.ui.EarshotApp
 import dev.earshot.ui.nav.NavRequest
 import dev.earshot.ui.nav.Routes
 import dev.earshot.ui.nav.Tab
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Single activity hosting the Compose UI. `singleTask` in the manifest, so the notification,
@@ -30,6 +33,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // The Sleep tab's runtime needs to know: a visible app may set volumes on Android 17.
+    override fun onStart() {
+        super.onStart()
+        appContainer.sleepRuntime.setAppVisible(true)
+    }
+
+    override fun onStop() {
+        appContainer.sleepRuntime.setAppVisible(false)
+        super.onStop()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -47,6 +61,13 @@ class MainActivity : ComponentActivity() {
             FindSide.entries.firstOrNull { it.name.equals(side, ignoreCase = true) }?.let { appContainer.find.start(it) }
             tabRequests.value = NavRequest(Tab.TOOLS, Routes.FIND)
             intent.removeExtra(EXTRA_FIND) // a configuration change must not ring again
+        }
+        // The launcher's "Start sleep" shortcut: start tonight's plan while this activity is visible
+        // (Android 17 audio rules), then show the Sleep tab. Never replayed from Recents.
+        if (intent?.action == SleepShortcut.ACTION_START && !fromHistory) {
+            lifecycleScope.launch { runCatching { appContainer.sleep.start() } }
+            Tab.fromExtra("sleep")?.let { tabRequests.value = NavRequest(it) }
+            intent.action = Intent.ACTION_MAIN
         }
     }
 

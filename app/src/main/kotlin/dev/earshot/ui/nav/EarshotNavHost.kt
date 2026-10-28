@@ -25,6 +25,8 @@ import dev.earshot.ui.more.AutomationsScreen
 import dev.earshot.ui.more.DevicesScreen
 import dev.earshot.ui.more.MoreScreen
 import dev.earshot.ui.more.PreferencesScreen
+import dev.earshot.ui.sleep.AlarmEditorScreen
+import dev.earshot.ui.sleep.SleepScreen
 import dev.earshot.ui.sound.SoundScreen
 import dev.earshot.ui.tools.CallAudioScreen
 import dev.earshot.ui.tools.CodecScreen
@@ -76,6 +78,16 @@ fun EarshotNavHost(
             composable(Routes.MODES) { ModesScreen(onBack = navController::popBackStack) }
 
             composable(Routes.SOUND) { SoundScreen(contentPadding = tabPadding) }
+
+            composable(Routes.SLEEP) {
+                SleepScreen(contentPadding = tabPadding, onOpenAlarm = { id -> navController.navigate(Routes.sleepAlarm(id)) })
+            }
+            composable(
+                Routes.SLEEP_ALARM,
+                arguments = listOf(navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null }),
+            ) { entry ->
+                AlarmEditorScreen(alarmId = entry.arguments?.getString("id"), onBack = navController::popBackStack)
+            }
 
             composable(Routes.TOOLS) {
                 ToolsScreen(

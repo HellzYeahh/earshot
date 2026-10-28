@@ -70,6 +70,27 @@ Tick what works; note anything odd (wrong value, delay, voice prompt, disconnect
 - [ ] Codec: switch SBC ↔ AAC; "Best quality"/"Most stable".
 - [ ] Lab → Print console: `output 3` returns something or a clean error.
 
+## 5c. Sleep tab (0.9, built 2026-10-26, never run on a phone yet)
+Design: `docs/sleep-mode.md`. Try with the QC Ultra 2, the Sleep A30 and one headset without a driver.
+Log tag: `Earshot/Sleep` and `Earshot/Alarm`.
+- [ ] Permissions banner: "Alarms & reminders", full-screen alarm and notifications each open the right Settings page; the banner goes away on return.
+- [ ] Each sound (rain, heavy rain, ocean, stream, wind, fire, fan, white, pink, brown) previews in the headset; up to 3 mixed; sliders change levels without clicks.
+- [ ] Start a 15 min night with rain, screen off: sounds keep playing (One UI "sleeping apps" must not stop it), notification counts down, +15 min and Stop work from the shade.
+- [ ] Noise cancelling "Off after 15 min": QC Ultra 2 ANC switches off (the [31.10] ANC byte); Sleep A30 goes to its Off mode. Both come back in the morning (after the alarm, or Stop).
+- [ ] Lock touch controls / mute voice prompts: tapping the buds does nothing for the night; restored after.
+- [ ] End action Disconnect (Android 17, linked headset): it disconnects; Switch off on the QC Ultra 2: it powers off; on the A30 it falls back to disconnect.
+- [ ] Take the buds out of the ears / switch them off mid-night: sounds stop instead of playing from the phone speaker; the log says so.
+- [ ] "Also pause other apps": a podcast app fades and pauses at the end; the media volume comes back.
+- [ ] Do Not Disturb and the volume cap go on at Start and back off in the morning.
+- [ ] Alarm in the earbuds with the phone locked: rings in the buds only (check it doesn't also play on the speaker), the full-screen alarm shows, Stop and Snooze work from it and from the notification.
+- [ ] Alarm in the earbuds with the buds in their case: the phone rings at once and says why.
+- [ ] Earbuds alarm not stopped for 60 s: the phone joins in and vibrates.
+- [ ] Alarm on the phone / both: speaker (and buds); vibration; alarm volume, not media volume.
+- [ ] Wake-up window 10 min: a quiet sound starts 10 min early and rises; the alarm time brings it to full volume.
+- [ ] The phone's own alarm sound as the tone; a sleep sound as the tone.
+- [ ] Kill Earshot (swipe away) mid-night: the END step still fires and the log shows the night ended; reboot: alarms still ring.
+- [ ] With `adb shell cmd audio set-enable-hardening enable` (Android 17 target-37 rules): sounds and the alarm still play.
+
 ## 6. Robustness
 - [ ] Rotate / fold-unfold the phone on each tab: no crash, state kept, snackbars still appear.
 - [ ] Revoke Nearby devices permission while connected → app asks again, no crash.

@@ -2,10 +2,12 @@ package dev.earshot.ui.nav
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Handyman
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Handyman
@@ -23,10 +25,13 @@ data class NavRequest(val tab: Tab, val route: String? = null)
 object Routes {
     const val HOME = "home"
     const val SOUND = "sound"
+    const val SLEEP = "sleep"
     const val TOOLS = "tools"
     const val MORE = "more"
 
     const val MODES = "home/modes"
+
+    const val SLEEP_ALARM = "sleep/alarm?id={id}"
 
     const val CONNECTION = "tools/connection"
     const val CODEC = "tools/codec"
@@ -44,6 +49,7 @@ object Routes {
     const val ABOUT = "more/about"
 
     fun automationEdit(id: String?): String = if (id == null) "more/automations/edit" else "more/automations/edit?id=$id"
+    fun sleepAlarm(id: String?): String = if (id == null) "sleep/alarm" else "sleep/alarm?id=$id"
 }
 
 enum class Tab(
@@ -54,12 +60,13 @@ enum class Tab(
 ) {
     HOME(Routes.HOME, R.string.tab_home, Icons.Outlined.Headphones, Icons.Filled.Headphones),
     SOUND(Routes.SOUND, R.string.tab_sound, Icons.Outlined.GraphicEq, Icons.Filled.GraphicEq),
+    SLEEP(Routes.SLEEP, R.string.tab_sleep, Icons.Outlined.Bedtime, Icons.Filled.Bedtime),
     TOOLS(Routes.TOOLS, R.string.tab_tools, Icons.Outlined.Handyman, Icons.Filled.Handyman),
     MORE(Routes.MORE, R.string.tab_more, Icons.Outlined.MoreHoriz, Icons.Filled.MoreHoriz),
     ;
 
     companion object {
-        /** Maps the `dev.earshot.EXTRA_OPEN_TAB` intent extra (home/sound/tools/more) to a tab. */
+        /** Maps the `dev.earshot.EXTRA_OPEN_TAB` intent extra (home/sound/sleep/tools/more) to a tab. */
         fun fromExtra(value: String?): Tab? = entries.firstOrNull { it.route.equals(value, ignoreCase = true) }
         fun forRoute(route: String?): Tab? = entries.firstOrNull { route == it.route || route?.startsWith(it.route + "/") == true }
     }

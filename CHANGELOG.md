@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.0 — unreleased
+
+### New
+- **Sleep tab** (a fifth tab; design in `docs/sleep-mode.md`). For any headset: a sleep timer from
+  15 minutes to 6 hours with sounds (real field recordings of rain, heavy rain, ocean, a stream,
+  wind and a fire, released into the public domain by their recordists and credited in About;
+  fan, white, pink and brown noise made on the phone; up to three mixed, saved mixes, one ear
+  only for side sleepers, and your own sounds from any audio file, which Earshot turns into a
+  smooth loop) that fade in and slowly fade out; noise cancelling switched off at a chosen time;
+  at the end the sounds stop and, if you like, the headset disconnects (Android 17, linked
+  headset) or switches off where its driver can. Night extras: lock the touch controls, mute
+  voice prompts, Do Not Disturb, a media volume cap, and pausing a podcast or music app at the
+  end. Everything the night changed is put back in the morning. Wake alarms ring in the
+  earbuds, on the phone or both, with a wake-up window, fade-in, snooze and repeat days (sounds include real birdsong); an
+  earbud alarm always moves to the phone when the earbuds are gone or nobody stops it within
+  60 seconds. If the headset disconnects in the night the sounds stop rather than play from the
+  phone speaker. "Start sleep" is also in the launcher's long-press menu. New permissions: media
+  playback foreground service, exact alarms ("Alarms & reminders", asked for on the tab), the
+  full-screen alarm, vibration and, only if you turn Do Not Disturb on, notification-policy
+  access. Not tested on a phone yet.
+
 ## 0.8.0 — 2026-10-26
 
 Roadmap 0.8, items 1–6 and 8 and the JBL driver (item 7, Google Play preparation, moved to 0.9;

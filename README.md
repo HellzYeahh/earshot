@@ -4,9 +4,10 @@
 analytics, no internet permission.
 
 <p align="center">
-  <img src="docs/screenshots/01-home.png" width="30%" alt="Home: battery dial, listening modes and noise control">
-  <img src="docs/screenshots/02-sound.png" width="30%" alt="Sound: the Pro EQ">
-  <img src="docs/screenshots/03-tools.png" width="30%" alt="Tools: Controls, codec, call audio, Lab and more">
+  <img src="docs/screenshots/01-home.png" width="23%" alt="Home: battery dial, listening modes and noise control">
+  <img src="docs/screenshots/02-sound.png" width="23%" alt="Sound: the Pro EQ">
+  <img src="docs/screenshots/03-sleep.png" width="23%" alt="Sleep: wake-up alarm, sleep timer and noise cancelling for the night">
+  <img src="docs/screenshots/04-tools.png" width="23%" alt="Tools: Controls, codec, call audio, Find my headphones, Lab">
 </p>
 
 ## What it does
@@ -14,6 +15,9 @@ analytics, no internet permission.
 - **Any headset:** battery, a Pro EQ with a preset per headset (AutoEq import, volume boost), a
   codec panel, louder calls, a mic check, button remapping, automations, a Quick Settings tile, a
   widget, and a universal remote to connect, disconnect, rename and forget it.
+- **Sleep** (coming in 0.9): a 15 min to 6 h sleep timer with real rain, ocean and fire recordings,
+  noise or your own sounds; noise cancelling off for the night; and wake-up alarms in the earbuds,
+  on the phone or both, with the phone as a safety net.
 - **Supported headsets** also get their own controls: noise modes, the headset's EQ, buttons and
   settings, straight over Bluetooth on the maker's own protocol.
 - **Open and careful:** a read-only Lab scanner and a connection report for every supported brand;
@@ -56,7 +60,9 @@ Protocol knowledge builds on these MIT-licensed projects: [bosectl](https://gith
 [SonyHeadphonesClient](https://github.com/mos9527/SonyHeadphonesClient), [jbl-control](https://github.com/AhmadRun/jbl-control), and
 [AutoEq](https://github.com/jaakkopasanen/AutoEq) for the correction curves. OpenSCQ30 (GPL-3.0) and
 Gadgetbridge (AGPL-3.0) were read for protocol facts only. Fonts: Barlow and JetBrains Mono (SIL OFL
-1.1). Reference copies and licences: `docs/reference/`.
+1.1). Sleep sounds: public-domain field recordings from [radio aporee ::: maps](https://aporee.org/maps/)
+(recordists named in the app's About screen and in `tools/sleep-sounds/sources.json`). Reference
+copies and licences: `docs/reference/`.
 
 ## Not affiliated
 

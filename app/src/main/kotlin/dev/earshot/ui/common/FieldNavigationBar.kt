@@ -33,9 +33,10 @@ import androidx.compose.ui.unit.dp
 import dev.earshot.ui.theme.EarshotTheme
 
 /**
- * The four-tab bar in Field's clothes: a hairline on top, a squared orange indicator behind
- * the chosen icon and monospace labels. Material's `NavigationBar` only offers a pill
- * indicator, so this is its own layout; the selection semantics are the same.
+ * The bottom tab bar (five tabs since the 0.9 Sleep tab) in Field's clothes: a hairline on top,
+ * a squared orange indicator behind the chosen icon and monospace labels. Material's
+ * `NavigationBar` only offers a pill indicator, so this is its own layout; the selection
+ * semantics are the same.
  */
 @Composable
 fun FieldNavigationBar(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
