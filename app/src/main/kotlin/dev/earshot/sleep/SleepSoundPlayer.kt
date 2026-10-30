@@ -52,6 +52,18 @@ enum class PlayerStop { HEADSET_GONE, OUTPUT_FAILED }
 class SleepSoundPlayer(private val context: Context, private val finder: DeviceFinder) {
     private val audioManager: AudioManager? get() = context.getSystemService(AudioManager::class.java)
 
+    /**
+     * Whether [address] has an audio output right now (its own or its LE twin's), as the night's
+     * player would route to. Demo headsets have made-up addresses with no output: their sounds play
+     * on the phone instead of stopping at once as "headset gone" (Play's reviewers use demo mode).
+     */
+    fun hasHeadsetOutput(address: String): Boolean {
+        val am = audioManager ?: return false
+        val outputs = runCatching { am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList() }.getOrDefault(emptyList())
+        val twins = runCatching { finder.twinsOf(address).map { it.address } }.getOrDefault(emptyList())
+        return FindOutput.pick(outputs.map { OutputCandidate(it.id, it.type, it.address) }, address, twins) != null
+    }
+
     /** The bundled recordings; decoded here, off the audio thread, before the mixer may ask. */
     private val recordings = BundledRecordings.get(context)
     private val loader = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "Earshot-sleep-decode") }

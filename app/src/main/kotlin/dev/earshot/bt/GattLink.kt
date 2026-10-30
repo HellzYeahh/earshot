@@ -1,6 +1,5 @@
 package dev.earshot.bt
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -15,7 +14,6 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import kotlinx.coroutines.delay
@@ -88,6 +86,10 @@ object GattLink {
 
         override fun requestHighPriority(): Boolean = gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH) == true
 
+        // Without this override the interface default (false) left the link at the setup burst's
+        // high priority for the whole session (see GattPort.requestBalancedPriority).
+        override fun requestBalancedPriority(): Boolean = gatt?.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED) == true
+
         override fun requestMtu(mtu: Int): Boolean = gatt?.requestMtu(mtu) == true
 
         override fun properties(service: UUID, characteristic: UUID): Int? = characteristic(service, characteristic)?.properties
@@ -142,7 +144,8 @@ object GattLink {
  * The scan accepts only an advert whose name fits the headset's ([LeAdvertMatch]) and that is
  * near ([MIN_RSSI]), so a stranger's identical buds across the room are not picked. Nothing is
  * sent on the link until the vendor's own probe answers, and every write passes its guard.
- * Needs BLUETOOTH_SCAN (declared `neverForLocation`).
+ * The scan needs BLUETOOTH_SCAN (declared `neverForLocation`) on Android 12+, and on Android 9–11
+ * the location permission with location turned on ([BleScanAccess]), never used for location.
  */
 class GattTargets(private val context: Context) {
 
@@ -168,14 +171,12 @@ class GattTargets(private val context: Context) {
     suspend fun scanAll(name: String, spec: GattLinkSpec): List<BluetoothDevice> =
         if (LeAdvertMatch.isUsable(name)) scan(name, spec) else emptyList()
 
-    private fun hasScanPermission(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
-
-    @SuppressLint("MissingPermission") // checked in hasScanPermission()
+    @SuppressLint("MissingPermission") // checked through BleScanAccess
     private suspend fun scan(name: String, spec: GattLinkSpec): List<BluetoothDevice> {
-        if (!hasScanPermission()) {
-            BtLog.d("GATT ${spec.name}: no BLUETOOTH_SCAN, can't look for the LE control address")
+        // The old BLUETOOTH_SCAN-only check passed every Android 9–11 phone, where a scan without
+        // location starts but finds nothing; BleScanAccess is the rule the Apple scanner uses too.
+        BleScanAccess.missing(context)?.let { missing ->
+            BtLog.d("GATT ${spec.name}: a BLE scan needs $missing; can't look for the LE control address")
             return emptyList()
         }
         val scanner = context.getSystemService(BluetoothManager::class.java)?.adapter?.bluetoothLeScanner ?: return emptyList()

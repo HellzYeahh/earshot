@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Google Play build has no Shizuku (B8, docs/research/play-readiness.md), so it never mentions
+    or offers it. These replace the main strings of the same name in that build only; the GitHub
+    build keeps the originals in src/main/res/values/strings.xml. A new string that names Shizuku
+    gets its Play wording here too.
+-->
+<resources>
+    <!-- Codec panel. Only the unavailable banner and the companion-link note can show in this build;
+         the others belong to privilege states it never reaches, and are neutral just in case. -->
+    <string name="codec_priv_granted">Codec switching works from here.</string>
+    <string name="codec_via_companion_link">Switching through this headset\'s link (Tools → Controls → Universal remote). Experimental.</string>
+    <string name="codec_priv_grant">Earshot needs permission to switch codecs.</string>
+    <string name="codec_priv_not_running">Codec switching isn\'t ready yet. Retry in a moment.</string>
+    <string name="codec_priv_unavailable">This version switches codecs through a linked headset (Tools → Controls → Universal remote, Android 13 or later) when the phone allows it. Otherwise change the codec by hand in Developer options.</string>
+
+    <!-- Call audio: the call codec and the absolute-volume switch need a shell-level read. -->
+    <string name="call_codec_unknown_hint">Android keeps the call codec from apps, so this version of Earshot can\'t show it.</string>
+    <string name="call_abs_volume_needs_shizuku">Not available in this version</string>
+
+    <!-- The What's New sheet (0.8 highlight) -->
+    <string name="whats_new_linked">Linked headsets: codec switching through the headset\'s link, and Earshot starts when they connect</string>
+</resources>

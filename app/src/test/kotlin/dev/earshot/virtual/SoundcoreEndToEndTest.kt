@@ -46,7 +46,9 @@ class SoundcoreEndToEndTest {
         assertEquals(80, state.battery?.left?.percent)
         assertEquals("01.91", state.info?.firmwareVersion)
         assertEquals(true, state.touchControlsEnabled)
-        assertFalse(state.capabilities.verified)
+        // Tested on our own pair (1.0 plan item 4): the Tested tier, no Experimental note.
+        assertTrue(state.capabilities.verified && state.capabilities.tested)
+        assertEquals(null, state.capabilities.supportNote)
         conn.close()
     }
 

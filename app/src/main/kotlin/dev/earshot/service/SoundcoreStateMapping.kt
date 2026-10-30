@@ -22,9 +22,6 @@ object SoundcoreStateMapping {
     const val MODE_ANC = 0
     const val MODE_OFF = 1
 
-    const val SUPPORT_NOTE =
-        "Experimental: the first Soundcore driver, built from protocol notes. Noise cancelling, listening mode, sleep options, prompts, battery and tap controls."
-
     // VendorControl ids.
     const val ANC = "anc"
     const val LISTENING = "listening_mode"
@@ -97,9 +94,11 @@ object SoundcoreStateMapping {
         listeningModes = true,
         // The two modes stand in for the noise cancelling switch: Home shows the controls instead.
         modesOnHome = false,
-        verified = false,
+        // Run on the user's own pair since 0.6: the layout and every control here are confirmed,
+        // so the Tested tier, and no "Experimental" note on Home.
+        verified = true,
+        tested = true,
         formFactor = FormFactor.EARBUDS,
-        supportNote = SUPPORT_NOTE,
     )
 
     fun apply(state: HeadphoneState, d: D1301State, now: Long = System.currentTimeMillis()): HeadphoneState =

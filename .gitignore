@@ -12,9 +12,14 @@ local.properties
 # Upstream clones used for research (the useful parts are copied to docs/reference)
 /reference/
 
-# Signing / secrets
+# Signing / secrets (docs/release-signing.md)
 *.jks
 *.keystore
+keystore.properties
+
+# Python bytecode (tools/release/check_release.py and friends)
+__pycache__/
+*.pyc
 
 # OS
 .DS_Store

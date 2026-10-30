@@ -20,13 +20,22 @@ import kotlinx.coroutines.CoroutineScope
  * sent, and the user reads why. A link that opens and stays silent is JBL's app holding the control
  * connection.
  *
- * Every pair of a model advertises the same name, so a scan that finds more than one is resolved
- * only by the address in each one's device info matching the paired headset; failing that Earshot
- * refuses rather than control a stranger's buds.
+ * Every pair of a model advertises the same name, so a scanned advert is never trusted on its name
+ * alone: a pair whose device info names another address than the paired headset is refused, even
+ * when it is the only one found (the user's own buds may be off or in the case while an identical
+ * pair nearby advertises). A scan that finds more than one keeps only the one whose device info
+ * names the paired headset; failing that Earshot refuses rather than control a stranger's buds.
  */
 class JblLinkFactory(
     private val context: Context,
     targetsOverride: GattTargets? = null,
+    /**
+     * Whether the paired headset has an audio link to the phone (A2DP, HFP or LE Audio; null when
+     * unknown), e.g. `DeviceFinder::isAudioConnected`. A definite false skips the scan for the
+     * `<name>-LE` control address: buds that are off never make Earshot look for look-alikes.
+     * Null (the default, and the tests) scans as before.
+     */
+    private val audioLinked: (suspend (String) -> Boolean?)? = null,
 ) : LinkFactory<JblConnection> {
 
     /** Made on the first real connect: a demo session and the tests only ever adopt. */
@@ -39,16 +48,20 @@ class JblLinkFactory(
     override suspend fun open(device: BluetoothDevice, name: String?, prefs: DevicePrefs, scope: CoroutineScope): JblConnection {
         if (targets.isLeCapable(device)) {
             try {
-                return openOn(device, device, name, scope)
+                return openOn(device, device, name, scope, scanned = false)
             } catch (e: GattSetupException) {
                 // The control service may sit on the buds' separate LE identity (jbl-control's finding).
                 JblLog.d("no Harman service on the paired device (${e.message}); scanning for its LE control address")
             }
         }
+        if (audioLinked?.invoke(device.address) == false) {
+            // The manager parks on its own link check after this and waits for the link-up.
+            throw ExplainedConnectException("Your JBL headphones aren't connected to this phone", retry = false)
+        }
         val found = name?.let { targets.scanAll(it, GattLinkSpec.HARMAN) }.orEmpty()
         return when (found.size) {
             0 -> throw ExplainedConnectException("Earshot couldn't find the JBL control connection nearby", retry = true)
-            1 -> openOn(found.single(), device, name, scope)
+            1 -> openOn(found.single(), device, name, scope, scanned = true)
             else -> openVerified(found, device, name, scope)
         }
     }
@@ -57,7 +70,7 @@ class JblLinkFactory(
     private suspend fun openVerified(found: List<BluetoothDevice>, bonded: BluetoothDevice, name: String?, scope: CoroutineScope): JblConnection {
         for (candidate in found) {
             val connection = try {
-                openOn(candidate, bonded, name, scope)
+                openOn(candidate, bonded, name, scope, scanned = true)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -72,13 +85,16 @@ class JblLinkFactory(
         )
     }
 
-    private suspend fun openOn(target: BluetoothDevice, bonded: BluetoothDevice, name: String?, scope: CoroutineScope): JblConnection {
+    /** [scanned]: [target] came from the `<name>-LE` scan, not the bond, so it may be someone else's pair. */
+    private suspend fun openOn(target: BluetoothDevice, bonded: BluetoothDevice, name: String?, scope: CoroutineScope, scanned: Boolean): JblConnection {
         val transport = GattLink.open(context, target, GattLinkSpec.HARMAN)
         val connection = JblConnection(transport, scope)
         try {
             val info = probe(connection)
                 ?: throw RfcommConnectException("The JBL control service opened but the headphones didn't answer", looksBusy = true)
             checkProduct(info, name)
+            // Checked before anything but the probe is sent: a stranger's pair is closed untouched.
+            if (scanned) checkScannedPair(info, bonded.address, name)
             val same = if (info.addressIs(bonded.address)) "the paired address" else "another address"
             JblLog.i("connected to ${bonded.address}: product %04x, firmware %s, device info names %s".format(info.productId ?: 0, info.firmware, same))
             return connection
@@ -110,6 +126,26 @@ class JblLinkFactory(
             JblModel.refusal(info.productId)?.let { throw ExplainedConnectException(it, retry = false) }
             if (info.productId == null && JblModel.fromName(name) == null) {
                 throw ExplainedConnectException("These JBL headphones didn't say which model they are, so Earshot doesn't control them", retry = false)
+            }
+        }
+
+        /**
+         * Throws for a pair found by the scan whose device info names another address than the
+         * paired headset ([bondedAddress]): an identical pair nearby, which Earshot must never
+         * control. The same rule [openVerified] keeps a candidate by. A device info without an
+         * address (a cut frame) can't tell, so a single scanned pair is still accepted then, as
+         * before. Pure, for the tests.
+         *
+         * If the device-info address turns out to be the buds' LE identity rather than the classic
+         * one (unconfirmed, see [JblDeviceInfo]), this check and [openVerified] change together.
+         */
+        fun checkScannedPair(info: JblDeviceInfo, bondedAddress: String?, name: String?) {
+            if (info.address != null && !info.addressIs(bondedAddress)) {
+                JblLog.i("the scanned JBL control address belongs to another pair; not connecting")
+                throw ExplainedConnectException(
+                    "Earshot found ${name ?: "JBL headphones"} nearby, but they aren't the ones paired with this phone. Turn yours on and try again",
+                    retry = true,
+                )
             }
         }
     }

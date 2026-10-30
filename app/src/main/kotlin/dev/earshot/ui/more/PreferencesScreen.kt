@@ -19,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -28,15 +27,19 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.earshot.R
 import dev.earshot.appContainer
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import dev.earshot.core.AppPreferences
 import dev.earshot.core.Appearance
+import dev.earshot.core.HeadphoneRepository
 import dev.earshot.core.ListeningMode
 import dev.earshot.core.ModeResolver
 import dev.earshot.core.SecureSessionStatus
 import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.extras.tile.TileCycle
 import dev.earshot.ui.common.EarshotPreview
+import dev.earshot.ui.common.EarshotViewModel
+import dev.earshot.ui.common.UiMessenger
 import dev.earshot.virtual.DemoDevice
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.SectionCard
@@ -57,48 +60,71 @@ fun PreferencesScreen(onBack: () -> Unit) {
     val demoDevice by demoMode.device.collectAsStateWithLifecycle(initialValue = DemoDevice.QC_ULTRA)
     val devicePrefs = remember(context) { context.appContainer.devicePrefs }
     val familyOverride by devicePrefs.familyOverrideFlow.collectAsStateWithLifecycle(initialValue = null)
-    val scope = rememberCoroutineScope()
-    val headphonesRepo = remember(context) { context.appContainer.headphones }
+    val actions = earshotViewModel { deps ->
+        PreferencesActionsViewModel(
+            headphones = deps.headphones,
+            saveFamilyOverride = devicePrefs::setFamilyOverride,
+            saveDemoEnabled = demoMode::set,
+            saveDemoDevice = demoMode::setDevice,
+            messenger = deps.messenger,
+        )
+    }
     PreferencesContent(
         prefs, headphones.modes, onBack, vm::setPreferences,
         address = headphones.connection.deviceAddress,
         canForgetPairing = headphones.secureSession.status != SecureSessionStatus.NOT_REQUIRED,
-        onForgetPairing = {
-            scope.launch {
-                runCatching { headphonesRepo.forgetPairing() }
-                // The next connect pairs again.
-                headphonesRepo.disconnect()
-                headphonesRepo.connect()
-            }
-        },
+        onForgetPairing = actions::forgetPairing,
         familyOverride = familyOverride,
-        onFamilyChange = { key ->
-            scope.launch {
-                devicePrefs.setFamilyOverride(key)
-                // The family is chosen at the start of a connect: reconnect so the change applies now.
-                headphonesRepo.disconnect()
-                headphonesRepo.connect()
-            }
-        },
+        onFamilyChange = actions::setFamilyOverride,
         demoDevice = demoDevice,
-        onDemoDeviceChange = { device ->
-            scope.launch {
-                demoMode.setDevice(device)
-                headphonesRepo.disconnect()
-                headphonesRepo.connect()
-            }
-        },
+        onDemoDeviceChange = actions::setDemoDevice,
         demoEnabled = demoEnabled,
-        onDemoChange = { enabled ->
-            scope.launch {
-                demoMode.set(enabled)
-                // Demo mode is read at the start of a connect loop: restart it so the switch
-                // takes effect at once instead of on the next natural reconnect.
-                headphonesRepo.disconnect()
-                headphonesRepo.connect()
-            }
-        },
+        onDemoChange = actions::setDemoEnabled,
     )
+}
+
+/**
+ * The Preferences actions that restart the connection. They used to run in the screen's
+ * coroutine scope with no handler: a DataStore failure (a full disk) crashed the app, a failed
+ * "Forget pairing" was ignored and the reconnect went ahead with the old pairing, and leaving
+ * the screen mid-write could keep the new setting with the old stack still connected.
+ */
+class PreferencesActionsViewModel(
+    private val headphones: HeadphoneRepository,
+    private val saveFamilyOverride: suspend (String?) -> Unit,
+    private val saveDemoEnabled: suspend (Boolean) -> Unit,
+    private val saveDemoDevice: suspend (DemoDevice) -> Unit,
+    messenger: UiMessenger,
+) : EarshotViewModel(messenger) {
+
+    /** The next connect pairs again. */
+    fun forgetPairing() = changeThenReconnect { headphones.forgetPairing() }
+
+    /** The family is chosen at the start of a connect: reconnect so the change applies now. */
+    fun setFamilyOverride(key: String?) = changeThenReconnect { saveFamilyOverride(key) }
+
+    fun setDemoDevice(device: DemoDevice) = changeThenReconnect { saveDemoDevice(device) }
+
+    /**
+     * Demo mode is read at the start of a connect loop: restart it so the switch takes effect at
+     * once instead of on the next natural reconnect.
+     */
+    fun setDemoEnabled(enabled: Boolean) = changeThenReconnect { saveDemoEnabled(enabled) }
+
+    /**
+     * [change], then a fresh connect, as one step: once it has started, closing the screen or a
+     * rotation doesn't stop it between the saved value and the reconnect. A failure is reported
+     * and skips the reconnect (after a failed forget it would only reuse the old pairing).
+     */
+    private fun changeThenReconnect(change: suspend () -> Unit) {
+        launchCatching {
+            withContext(NonCancellable) {
+                change()
+                headphones.disconnect()
+                headphones.connect()
+            }
+        }
+    }
 }
 
 @Composable

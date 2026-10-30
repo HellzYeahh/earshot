@@ -126,7 +126,22 @@ class PhoneNightExtras(private val context: Context, private val text: SleepText
             Log.i(TAG, "media volume waits for its output")
             return false
         }
-        return runCatching { am.setStreamVolume(AudioManager.STREAM_MUSIC, before, 0) }.isSuccess
+        val current = runCatching { am.getStreamVolume(AudioManager.STREAM_MUSIC) }.getOrNull()
+        if (!runCatching { am.setStreamVolume(AudioManager.STREAM_MUSIC, before, 0) }.isSuccess) return false
+        // Android 17 ignores a volume call it doesn't allow without a word. If the caller judged
+        // the rule wrong (a service's while-in-use status can't be read, so only from target 37),
+        // a volume that didn't move at all stays pending instead of being dropped. One that moved
+        // part of the way (a safe-volume limit) counts as put back. Below target 37 the caller
+        // knows its foreground services, so an unmoved volume there is a cap, not a refusal.
+        val misjudgable = BackgroundAudio.needsWhileInUse(Build.VERSION.SDK_INT, context.applicationInfo.targetSdkVersion)
+        if (misjudgable && current != null && current != before) {
+            val after = runCatching { am.getStreamVolume(AudioManager.STREAM_MUSIC) }.getOrNull()
+            if (after == current) {
+                Log.i(TAG, "media volume change ignored by Android; it waits for Earshot to be opened")
+                return false
+            }
+        }
+        return true
     }
 
     /** "type:address" of the output media plays on now; the phone speaker when nothing better is known. */

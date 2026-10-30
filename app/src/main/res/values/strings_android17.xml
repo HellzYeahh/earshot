@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 17's background-audio rules (docs/research/play-readiness.md A1): the call boost and
+     the Sleep tab when Android won't let Earshot use audio in the background. Kept apart from
+     strings.xml so parallel edits don't collide. -->
+<resources>
+    <!-- Call boost (dev.earshot.call): notification channel, in Settings > Notifications -->
+    <string name="a17_call_channel_name">Call volume</string>
+    <string name="a17_call_channel_description">Asks for a tap when Android blocks the call volume boost while Earshot is closed.</string>
+    <!-- Posted during a call when Android ignored the boost; a tap opens Earshot, which then boosts the call -->
+    <string name="a17_call_boost_title">Tap to boost the call volume</string>
+    <string name="a17_call_boost_text">Android only lets Earshot change the call volume while Earshot is open. Tap to open it and boost this call.</string>
+    <!-- Call audio screen (CallAudioState.lastError): why the last boost did not happen -->
+    <string name="a17_call_boost_blocked">Android blocked the call volume boost because Earshot wasn\'t open. Open Earshot, or tap its notification, during the call to boost it.</string>
+
+    <!-- Sleep tab (dev.earshot.sleep): a night picked up again after Android closed Earshot -->
+    <string name="a17_sleep_resume_title">Sleep sounds paused</string>
+    <string name="a17_sleep_resume_text">Android closed Earshot in the night and won\'t let it play sounds in the background. Tap to resume sounds.</string>
+    <!-- Tonight's log -->
+    <string name="a17_sleep_log_resume_waits">Android closed Earshot in the night. The sounds wait for a tap on the notification.</string>
+    <string name="a17_sleep_log_resumed">Sounds resumed.</string>
+</resources>

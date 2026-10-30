@@ -103,7 +103,7 @@ class JblConnection(
     private fun dispatch(frame: JblFrame) {
         framesReceived++
         silentRequests = 0
-        JblLog.d("<- $frame")
+        JblLog.d("<- ${frame.forLog()}")
         // A cut device info (small MTU) never replaces a whole one.
         if (frame.command == JblCommands.DEVICE_INFO) {
             JblDeviceInfo.parse(frame)?.let { if (!it.isPartial || deviceInfo == null) deviceInfo = it }
@@ -125,13 +125,13 @@ class JblConnection(
     suspend fun send(frame: JblFrame) {
         if (!isOpen) throw HeadphoneCommandException(NOT_CONNECTED)
         if (!JblWriteGuard.isAllowed(frame)) {
-            JblLog.w("refused $frame")
+            JblLog.w("refused -> ${frame.forLog()}")
             throw HeadphoneCommandException("Earshot doesn't send that command to JBL headphones (${JblCommands.name(frame.command)})")
         }
         writeLock.withLock {
             lastWriteAt?.let { last -> (last + paceMs - clock()).takeIf { it > 0 }?.let { delay(it) } }
             if (!isOpen) throw HeadphoneCommandException(NOT_CONNECTED)
-            JblLog.d("-> $frame")
+            JblLog.d("-> ${frame.forLog()}")
             try {
                 transport.write(frame.encode())
             } catch (e: CancellationException) {
@@ -250,3 +250,11 @@ class JblConnection(
         private const val EARLY_CAP = 32
     }
 }
+
+/**
+ * A frame as [JblLog] prints it: command and length, never the payload (audit R09). Built from the
+ * fields instead of [JblFrame.toString], so a later change there can't put payload bytes into the
+ * connection report: the device info (`AA 12`) and the TLV (`AA 06`) carry the headset's name and
+ * address, and the report is what users paste into public bug reports.
+ */
+private fun JblFrame.forLog(): String = "AA %02x (%d B)%s".format(command, size, if (truncated) ", truncated" else "")

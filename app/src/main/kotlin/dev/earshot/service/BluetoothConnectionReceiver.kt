@@ -8,12 +8,16 @@ import android.content.Intent
 import android.util.Log
 import dev.earshot.appContainer
 import dev.earshot.bt.DeviceFinder
+import dev.earshot.core.AppPreferences
+import dev.earshot.core.AutomationRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
 
 /**
  * Manifest-registered: wakes the process when the headphones link to the phone and, if
@@ -62,32 +66,43 @@ class BluetoothConnectionReceiver : BroadcastReceiver() {
         }
 
         val repository = context.appContainer.headphones as? RoutingHeadphoneRepository
-        val connect = when {
+        val linkUp = when {
             address == null -> false
             repository == null -> {
                 Log.d(TAG, "link up for $address, but the repository is not the routing one; ignoring")
                 false
             }
-            !autoConnectEnabled(context) -> {
-                Log.d(TAG, "link up for $address, auto-connect off")
-                false
-            }
             else -> true
         }
-        if (!connect && timeline == null) return
+        if (!linkUp && timeline == null) return
+        val automation = if (linkUp) runCatching { context.appContainer.automation }.getOrNull() else null
 
-        // Reading the saved address is a DataStore read: finish it asynchronously but within
-        // the receiver's ~10 s budget.
+        // The auto-connect choice and the saved address are DataStore reads: finish them
+        // asynchronously but within the receiver's ~10 s budget. The choice is never read from
+        // `preferences.value` here: see [autoConnectAllowed].
         val pending = goAsync()
         scope.launch {
             try {
-                if (connect && address != null && repository != null) {
-                    val ours = withTimeoutOrNull(RECEIVER_BUDGET_MS) { repository.isOurDevice(address) } ?: false
+                if (linkUp && address != null && repository != null) {
+                    val ours = withTimeoutOrNull(RECEIVER_BUDGET_MS) {
+                        if (automation != null && !autoConnectAllowed(automation)) {
+                            Log.d(TAG, "link up for $address, auto-connect off")
+                            false
+                        } else {
+                            isOurs(repository, address)
+                        }
+                    } ?: false
                     if (ours) {
                         Log.i(TAG, "headset linked ($address), connecting")
                         repository.followLinkUp(address)
-                        // Awaited: the receiver must not finish before the service and the manager have started.
-                        repository.connectNow()
+                        try {
+                            // Awaited: the receiver must not finish before the service and the manager have started.
+                            repository.connectNow()
+                        } catch (e: IOException) {
+                            // Picking the stack reads the same store (the "Headphone type"): same
+                            // reasoning as in isOurs. The user can still connect from the app.
+                            Log.w(TAG, "link up: the saved headset settings can't be read (${e.javaClass.simpleName}); not connecting")
+                        }
                     }
                 }
                 timeline?.let { withTimeoutOrNull(TIMELINE_WAIT_MS) { it.join() } }
@@ -97,8 +112,21 @@ class BluetoothConnectionReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun autoConnectEnabled(context: Context): Boolean =
-        runCatching { context.appContainer.automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true)
+    /**
+     * [RoutingHeadphoneRepository.isOurDevice] reads DataStore (the saved headset, directly and
+     * again through the finder's candidates), and a store that can't be read throws IOException. This
+     * coroutine runs in a scope without an exception handler, so an escaping IOException would
+     * crash the whole process from a background broadcast (audit R24). An unreadable store means
+     * "not ours": nothing is connected, and the user can still connect from the app.
+     * CancellationException is not an IOException, so the receiver's timeout still works.
+     */
+    private suspend fun isOurs(repository: RoutingHeadphoneRepository, address: String): Boolean = try {
+        repository.isOurDevice(address)
+    } catch (e: IOException) {
+        // No address: this broadcast fires for every device that links up, not only headsets.
+        Log.w(TAG, "link up: the saved headset can't be read (${e.javaClass.simpleName}); treating the device as not ours")
+        false
+    }
 
     private companion object {
         const val TAG = "Earshot/BtReceiver"
@@ -109,3 +137,55 @@ class BluetoothConnectionReceiver : BroadcastReceiver() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     }
 }
+
+/** How long a link-up waits for the saved auto-connect choice before treating it as off. */
+internal const val AUTO_CONNECT_READ_MS = 2_000L
+
+/**
+ * Whether a headset that just linked up may be connected to without the user asking: their saved
+ * "Auto-connect" choice. Shared by every path that connects on its own (this receiver, the sticky
+ * restart of [HeadphoneService], [HeadsetPresenceService]).
+ *
+ * Read from the store, never from `AutomationRepository.preferences.value`: that StateFlow holds
+ * the default (auto-connect on) until the store's first read lands, and the broadcast or rebind
+ * that cold-starts the process usually gets here first. With auto-connect off, Earshot would then
+ * take the headset's single control channel away from the maker's app (audit R04). A store that
+ * doesn't answer within [timeoutMs] counts as off: the user can still connect from the app, and
+ * the A2DP broadcast that follows the ACL one asks again.
+ */
+internal suspend fun autoConnectAllowed(automation: AutomationRepository, timeoutMs: Long = AUTO_CONNECT_READ_MS): Boolean =
+    withTimeoutOrNull(timeoutMs) { automation.storedPreferences() }?.autoConnectOnBluetooth ?: false
+
+/**
+ * The preferences as saved, waiting for the store's first read if it hasn't landed yet.
+ *
+ * The contract has no plain read, so this borrows [AutomationRepository.updatePreferences]: it
+ * hands its transform the stored value inside one store transaction (AutomationRepositoryImpl
+ * decodes it from DataStore there), and the transform throws before anything is written, which
+ * aborts the transaction (DataStore writes nothing when the transform throws). A store that can't
+ * be read gives what the rest of the app runs on, [AutomationRepository.preferences].
+ *
+ * A plain suspend read on the contract (in AutomationRepositoryImpl
+ * `store.data.catch { emit(emptyPreferences()) }.map(::decodePreferences).first()`) would make
+ * this detour unnecessary.
+ */
+internal suspend fun AutomationRepository.storedPreferences(): AppPreferences {
+    try {
+        updatePreferences { stored -> throw StoredPreferencesRead(stored) }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        // Searched along the causes in case the store wrapped it on the way out.
+        generateSequence<Throwable>(e) { it.cause }.filterIsInstance<StoredPreferencesRead>().firstOrNull()
+            ?.let { return it.preferences }
+        // Unreadable: the app shows and runs on the defaults then, so does this.
+    }
+    return preferences.value
+}
+
+/**
+ * Carries the stored value out of [storedPreferences]' aborted transaction. Only this constructor,
+ * so coroutine stack-trace recovery can't replace it with a copy that lost [preferences]; no stack
+ * trace, it is never logged.
+ */
+private class StoredPreferencesRead(val preferences: AppPreferences) : RuntimeException(null, null, false, false)

@@ -62,7 +62,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.earshot.R
 import dev.earshot.core.AlarmOutput
@@ -78,6 +80,7 @@ import dev.earshot.ui.common.SubScreenScaffold
 import dev.earshot.ui.common.SwitchRow
 import dev.earshot.ui.common.earshotViewModel
 import dev.earshot.ui.theme.EarshotTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import java.time.DayOfWeek
@@ -92,13 +95,34 @@ fun AlarmEditorScreen(alarmId: String?, onBack: () -> Unit) {
     val vm = earshotViewModel { SleepViewModel(it.sleep, it.messenger) }
     val alarms by vm.alarms.collectAsStateWithLifecycle()
     val existing = remember(alarmId, alarms) { alarms.firstOrNull { it.id == alarmId } }
+    // One save or delete at a time, and one pop for it: a double tap ran both commands and each
+    // popped, which left Sleep for the screen under it. As in AutomationEditorScreen: cleared again
+    // only when the command failed (its Snackbar said why), so Save can be retried; after a success
+    // the editor is on its way out. Plain remember on purpose: after a rotation mid-save the new
+    // screen must not stay locked.
+    var busy by remember { mutableStateOf(false) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    fun leaveAfter(command: (onDone: () -> Unit) -> Job) {
+        if (busy) return
+        busy = true
+        var done = false
+        command {
+            done = true
+            // Only from the editor on screen. One already leaving (Back pressed during the save:
+            // its entry sits at CREATED through the exit transition) or destroyed by a rotation
+            // mid-save must not pop again, or Sleep goes with it. After a rotation the new editor
+            // stays; its Save replaces the same alarm (the id is saved with the draft).
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) onBack()
+        }.invokeOnCompletion { if (!done) busy = false }
+    }
     AlarmEditorContent(
         alarmId = alarmId,
         existing = existing,
         onBack = onBack,
-        onSave = { alarm, confirmation -> vm.saveAlarm(alarm, confirmation, onBack) },
-        onDelete = { id -> vm.deleteAlarm(id, onBack) },
+        onSave = { alarm, confirmation -> leaveAfter { onDone -> vm.saveAlarm(alarm, confirmation, onDone) } },
+        onDelete = { id -> leaveAfter { onDone -> vm.deleteAlarm(id, onDone) } },
         onPreviewTone = vm::previewTone,
+        busy = busy,
     )
 }
 
@@ -114,6 +138,8 @@ fun AlarmEditorContent(
     onSave: (SleepAlarm, String) -> Unit,
     onDelete: (String) -> Unit,
     onPreviewTone: (String?, AlarmOutput) -> Unit,
+    /** A save or delete is under way: Save and Delete stay off so a second tap can't run it again. */
+    busy: Boolean = false,
 ) {
     val newId = rememberSaveable { UUID.randomUUID().toString() }
     // Survives rotation. Seeded once from the stored alarm, which may load after the screen
@@ -166,7 +192,7 @@ fun AlarmEditorContent(
         onBack = onBack,
         actions = {
             if (existing != null) {
-                IconButton(onClick = { showDelete = true }) { Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete)) }
+                IconButton(onClick = { showDelete = true }, enabled = !busy) { Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete)) }
             }
         },
     ) { padding ->
@@ -303,6 +329,7 @@ fun AlarmEditorContent(
                     if (playing) onPreviewTone(null, draft.output)
                     onSave(draft.copy(enabled = true, label = draft.label?.trim()?.ifBlank { null }), confirmation)
                 },
+                enabled = !busy,
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
             ) {

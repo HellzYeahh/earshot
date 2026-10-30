@@ -1,4 +1,4 @@
-# Earshot roadmap: 0.8 shipped, 0.9 ties it together, 1.0 optimises and ships to the stores
+# Earshot roadmap: 0.9 shipped, now 1.0 gets ready for Google Play
 
 Written 2026-10-20, after 0.5.0 (Controls). Updated 2026-10-21 for release 0.75. Research behind
 it: [headset landscape](research/headset-landscape-2026-10.md) and the reports in
@@ -24,11 +24,132 @@ The user's plan for the last two versions:
   work. Google Play preparation (the old item 7: target 37, `QUERY_ALL_PACKAGES` and
   `RECEIVE_BOOT_COMPLETED`, an upload key, CI, a licences screen, the `.foss` application ID),
   F-Droid / IzzyOnDroid, localisation and the per-vendor write-path security review all move here.
+  **Since 2026-10-27 this comes first:** see [1.0 plan](#10-plan-ready-for-google-play-set-2026-10-27).
+
+## 1.0 plan: ready for Google Play (set 2026-10-27)
+
+The user's decisions on 2026-10-27, right after 0.9.0 shipped:
+- Get Earshot ready for its official release on Google Play **now**. That covers signing, a full
+  code audit, optimising the app and working out the kinks.
+- Split it into a **Google Play version** and a **GitHub version**.
+- Later, the Play version gets a **paid unlock**, which must not be started before the release
+  work is done.
+- The rest of the 0.9 plan below follows where it helps the release.
+
+**What 1.0 promises:** everything Earshot shows either works or says why not, it never harms a
+headset, and updates never lose your settings. Still no internet permission, no account and no
+analytics.
+
+### Two versions from one codebase
+
+| | Google Play | GitHub (also F-Droid / IzzyOnDroid) |
+|---|---|---|
+| Gradle flavour | `play` | `foss` |
+| Application ID | `dev.earshot` | `dev.earshot.foss` |
+| Signing | an upload key; Google keeps the app-signing key (Play App Signing) | our own release key, kept and backed up by the user |
+| Price | free download; later one $3.99 unlock for the Sleep features and extra themes | everything free; no billing code in the APK |
+
+**Why flavours instead of two git branches:**
+- With two branches, every fix would have to land twice and the branches would drift apart.
+- With flavours, one `main` builds both versions.
+- Code for one version only lives in `app/src/play/` or `app/src/foss/`, so the GitHub APK never
+  contains the paid-unlock code.
+
+**Leaving today's builds** (`dev.earshot`, signed with the debug key):
+- Android can't update an app across a signing-key change.
+- So a last debug-signed 0.9.x on GitHub adds a settings export first.
+- People then install the new build, import their settings and remove the old app. The new GitHub
+  build spots the old app and offers that.
+
+### The work, in order
+
+1. **Signing and identity.**
+   - The flavours and app IDs above.
+   - Signing configs read `keystore.properties`, which is never committed. Without that file,
+     release builds come out unsigned, never debug-signed.
+   - The user makes the keys with `keytool`, so the passwords never pass through Claude, and backs
+     them up. The steps are in `docs/release-signing.md`.
+   - Settings export and import: one file through the system file picker, and a restart to apply
+     it. Moving to a new phone is allowed; cloud backup stays off.
+2. **Release gate (CI).** GitHub Actions runs on every push and tag:
+   - the protocol, dsp and app tests and lint;
+   - both release builds;
+   - an APK check: no INTERNET permission, the version matches the tag, What's New is bumped, and
+     the APK stays under its size budget.
+
+   A release only goes out from a green gate.
+3. **Reliability and a full code audit.**
+   - Audit every package for:
+     - correctness;
+     - every vendor's write path against its guard;
+     - Android 17's background rules;
+     - leaks and threading;
+     - logs without personal data.
+   - Verify each finding, then fix them.
+   - Measure on the Fold7, and keep the numbers as 1.0 targets:
+     - connect time and success rate;
+     - background survival on One UI;
+     - Earshot's own battery cost;
+     - a full overnight Sleep run.
+4. **Honest support.**
+   - One tier label (Tested / Experimental / Battery only / Any headset) wherever it matters.
+   - A report loop through the share sheet.
+   - Owners' reports move drivers to Tested.
+5. **Play Store readiness.**
+   - Target API 37.
+   - Permissions:
+     - replace `QUERY_ALL_PACKAGES` with `<queries>`;
+     - justify or drop location, usage access and the other sensitive permissions;
+     - the alarm still works when Play doesn't grant `USE_FULL_SCREEN_INTENT`.
+   - Play Console forms:
+     - the foreground-service declarations (connected device, media playback, microphone);
+     - a privacy policy and the Data safety form (no data collected);
+     - the content rating;
+     - developer verification.
+   - In the app: a licences screen (the OFL fonts and the libraries).
+   - The listing:
+     - text and screenshots with plain brand wording and "not affiliated";
+     - a decision on Shizuku in the Play version.
+6. **Performance and size.**
+   - Startup (a baseline profile).
+   - Smooth scrolling on the Fold.
+   - The cost of the always-on service.
+   - APK size: re-encode the sleep recordings.
+   - R8.
+7. **Kept out of 1.0:**
+   - new drivers;
+   - big new features;
+   - translations beyond what someone maintains (the strings are ready to translate).
+
+### Decisions for item 5 (user, 2026-10-29)
+
+Research: [research/play-readiness.md](research/play-readiness.md).
+- **Wi-Fi trigger:** kept in both versions. Earshot explains before asking for location, and the
+  user files Play's precise-location declaration when it opens (November 2026).
+- **Shizuku:** GitHub version only. Play users switch codecs through the companion link
+  (Android 13+).
+- **Target API 37 for 1.0:** done 2026-10-30. The phone pass on the Fold7 passed (research section
+  H, numbers in `docs/reliability.md`).
+- **Play account:** new and personal, so a 14-day closed test with 12 testers comes before
+  production (`docs/store/closed-test.md`).
+
+### After the release work: the paid unlock (Play only, not started)
+
+- **What it is:** a one-time $3.99 in-app product unlocks the Sleep tab's features and extra
+  themes. Everything else stays free. The GitHub version has no paywall and no billing code.
+- **To check first:**
+  - The Play Billing library must not add the INTERNET permission to our manifest; purchases go
+    through the Play Store app.
+  - Purchases are restored after a reinstall.
+  - What the free Play version shows on the Sleep tab.
+- **To build:** the extra themes still need designing. The five theme mockups from 0.75 are a
+  starting point.
 
 ## 0.9 plan: tie it together
 
 **0.9.0 shipped on 2026-10-27 with the Sleep tab (C9) and a new What's New sheet.** The rest of
-this plan follows in 0.9.x updates.
+this plan follows in 0.9.x updates, after the 1.0 store-readiness work above (user decision
+2026-10-27). A small 0.9.x on GitHub carries the settings export (1.0 plan, item 1).
 
 Drafted 2026-10-26 from three inputs, all in [research/plan-0.9](research/plan-0.9):
 - a code audit of every screen for rough edges ([ux-audit.md](research/plan-0.9/ux-audit.md), ~50 findings);
@@ -328,7 +449,7 @@ deep control for Bose and AirPods.* (In 0.75 the AirPods part became battery onl
 
 - **Done, first step of A1 + B4:**
   - `DeviceFamily.GENERIC` with `GenericHeadphoneRepository` (audio link, name, battery broadcast;
-    never sends anything). Unknown names are no longer Bose.
+    never changes its settings). Unknown names are no longer Bose.
   - `DevicePrefs.familyFor` (per-device "Headphone type", then the stack that answered on the
     address, then the name).
   - `DevicePick`: the connected headset wins at launch; an explicit pick is pinned for the run.

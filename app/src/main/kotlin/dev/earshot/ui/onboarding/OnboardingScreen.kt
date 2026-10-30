@@ -34,7 +34,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -49,7 +48,8 @@ import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.NavRow
 import dev.earshot.ui.common.SectionCard
-import kotlinx.coroutines.launch
+import dev.earshot.ui.common.earshotViewModel
+import kotlinx.coroutines.CancellationException
 
 /**
  * Shown instead of the tabs until Bluetooth permission is granted, and whenever the repository
@@ -67,13 +67,28 @@ fun OnboardingScreen(
 ) {
     val context = LocalContext.current
     val deps = LocalUiDependencies.current
-    val scope = rememberCoroutineScope()
+    // Not rememberCoroutineScope: a pick closes this screen before it has finished (see OnboardingViewModel).
+    val vm = earshotViewModel { d ->
+        val demoMode = context.appContainer.demoMode
+        OnboardingViewModel(d.headphones, enableDemo = { demoMode.set(true) }, messenger = d.messenger)
+    }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         onBluetoothPermissionResult(granted)
     }
     // Re-query whenever the status changes (e.g. after pairing in system settings and coming back).
     val candidates by produceState<List<HeadphoneCandidate>?>(initialValue = null, hasBluetoothPermission, connection.status) {
-        value = if (hasBluetoothPermission) runCatching { deps.headphones.deviceCandidates() }.getOrDefault(emptyList()) else emptyList()
+        value = if (hasBluetoothPermission) {
+            try {
+                deps.headphones.deviceCandidates()
+            } catch (e: CancellationException) {
+                // A status change restarts this producer; the cancelled one must not write "no devices".
+                throw e
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
     }
     OnboardingContent(
         contentPadding = contentPadding,
@@ -84,21 +99,14 @@ fun OnboardingScreen(
         onOpenBluetoothSettings = {
             runCatching { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         },
-        onChoose = { candidate ->
-            scope.launch {
-                runCatching { deps.headphones.chooseDevice(candidate.address, candidate.name) }
-                    .onFailure { deps.messenger.report(it) }
-            }
-        },
+        onChoose = { candidate -> vm.chooseDevice(candidate.address, candidate.name) },
         onConnect = onConnect,
         bluetoothPermanentlyDenied = bluetoothPermanentlyDenied,
         onOpenAppSettings = onOpenAppSettings,
-        onTryDemo = {
-            scope.launch {
-                context.appContainer.demoMode.set(true)
-                deps.headphones.connect()
-            }
-        },
+        // Only once Bluetooth is allowed: the root keeps this screen up while the permission is
+        // missing, so a demo started there connected out of sight and the button looked dead
+        // (and the persisted demo then replaced the real headset after the grant).
+        onTryDemo = if (hasBluetoothPermission) vm::tryDemo else null,
     )
 }
 

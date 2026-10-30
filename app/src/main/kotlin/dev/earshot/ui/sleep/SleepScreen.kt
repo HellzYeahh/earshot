@@ -16,6 +16,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -41,6 +42,8 @@ import dev.earshot.ui.LocalUiDependencies
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.earshotViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Everything the Sleep tab shows, read from the repository's flows in one place. */
 data class SleepUiState(
@@ -145,8 +148,16 @@ fun SleepScreen(contentPadding: PaddingValues, onOpenAlarm: (String?) -> Unit) {
     SleepContent(SleepUiState(state, plan, alarms, mixes, headset, permissions, customSounds, importing), actions, contentPadding)
 
     picked?.let { uri ->
-        val suggestion = remember(uri) { suggestedSoundName(context, uri.toUri()) }
-        CustomSoundNameDialog(suggestion, onAdd = { name -> vm.importCustomSound(uri, name) }, onDismiss = { picked = null })
+        // The file name comes from the file's provider, often another app's process (Drive, a
+        // file manager) that may have to start first: asked off the main thread, never during
+        // composition. The dialog seeds its name field once, so it opens when the answer is in
+        // (an empty name if the provider had none).
+        val suggestion by produceState<String?>(null, uri) {
+            value = withContext(Dispatchers.IO) { suggestedSoundName(context, uri.toUri()) }
+        }
+        suggestion?.let { name ->
+            CustomSoundNameDialog(name, onAdd = { chosen -> vm.importCustomSound(uri, chosen) }, onDismiss = { picked = null })
+        }
     }
 }
 

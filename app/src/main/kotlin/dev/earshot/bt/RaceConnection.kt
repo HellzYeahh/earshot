@@ -78,7 +78,7 @@ class RaceConnection(
         // Our own command echoed back (only a test device does that) is not an answer.
         if (packet.isCommand) return
         silentRequests = 0
-        BtLog.d("RACE <- $packet")
+        BtLog.d("RACE <- ${packet.forLog()}")
         if (!queue.offer(packet)) pushChannel.trySend(packet)
     }
 
@@ -95,7 +95,7 @@ class RaceConnection(
     ): RaceReply {
         if (!isOpen) throw HeadphoneCommandException("Headphones not connected")
         val packet = RacePacket.command(id, payload)
-        BtLog.d("RACE -> $packet")
+        BtLog.d("RACE -> ${packet.forLog()}")
         return try {
             queue.request(packet, timeoutMs, userInitiated)
         } catch (e: RaceRefusedException) {
@@ -135,3 +135,11 @@ class RaceConnection(
         const val SILENT_REQUESTS_BEFORE_DEAD = 3
     }
 }
+
+/**
+ * A packet as the RACE log lines print it: type, id and length, never the payload (audit R09).
+ * Built from the fields instead of [RacePacket.toString], so a later change there can't put payload
+ * bytes into the connection report: device info and paired lists carry names and addresses, and
+ * the report is what users paste into public bug reports.
+ */
+private fun RacePacket.forLog(): String = "${RacePacket.typeName(type)} ${RaceIds.name(id)} (${payload.size} B)"

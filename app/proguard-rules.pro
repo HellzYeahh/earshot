@@ -1,4 +1,6 @@
 # Shizuku uses reflection on hidden Android APIs through its own stubs.
+# GitHub build only (B8): the Google Play build has neither the library nor
+# dev.earshot.codec.shizuku, so these rules match nothing there, which R8 accepts.
 -keep class rikka.shizuku.** { *; }
 -keep class moe.shizuku.** { *; }
 -dontwarn rikka.**

@@ -251,6 +251,15 @@ class AlarmPlayer(private val context: Context) {
         /** Longer than the ring limit plus a wake-up window: a safety cap if stop() is never reached. */
         private const val WAKE_LIMIT_MS = 50 * 60_000L
 
+        /**
+         * USAGE_ALARM, never USAGE_MEDIA: at target 37 Android 17 silences a background service's
+         * playback unless the service has while-in-use status, and the ring starts from an alarm
+         * broadcast (no such status; the notification swap in SleepService.show may drop any the
+         * night had). Alarm streams are exempt while the app holds exact-alarm access, and wake
+         * alarms can only be switched on with it (SleepScheduler.mayEnable). Kept in place by
+         * AlarmUsageTest. The `set-enable-hardening enable` test mode ignores that exemption:
+         * check the alarm with a real targetSdk 37 build (docs/research/play-readiness.md A1.5).
+         */
         private fun alarmAttributes(): AudioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)

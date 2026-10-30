@@ -13,6 +13,7 @@ import dev.earshot.R
 import dev.earshot.bt.CompanionRemote
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.core.AlarmOutput
+import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.CustomSound
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneRepository
@@ -52,6 +53,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.Date
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The Sleep tab's runtime (docs/sleep-mode.md): one night at a time, the wake alarms and the
@@ -112,8 +114,19 @@ class SleepRepositoryImpl(
     @Volatile private var starting = false
     /** Alarms changed in memory (a one-off switched itself off) and must be saved with the night. */
     @Volatile private var alarmsDirty = false
-    /** An Earshot screen is visible (set by the activities): volume calls work on Android 17. */
-    @Volatile private var appVisible = false
+    /** An Earshot screen is visible (counted by [setAppVisible]): audio calls work on Android 17. */
+    private val appVisible: Boolean get() = BackgroundAudio.isAppVisible
+
+    /**
+     * The Sleep service runs with while-in-use status, which Android 17 asks of a foreground
+     * service's audio calls at target 37 ([BackgroundAudio]). True when [start] started it (only
+     * ever called from a visible screen: the Sleep tab, or MainActivity for the launcher
+     * shortcut) or while it handles a notification tap ([onServiceStartedFromTap]). False once it
+     * stops, and after a start that gets no such status: a night rebuilt after Android closed
+     * Earshot, a ring from an alarm broadcast. When unsure it is false: the morning volume and
+     * the sounds then wait for Earshot to be opened, which is better than a call that is ignored.
+     */
+    @Volatile private var serviceWhileInUse = false
 
     /** Read by the player thread for the envelope; null when no night runs. */
     @Volatile private var timeline: SleepTimeline? = null
@@ -129,6 +142,12 @@ class SleepRepositoryImpl(
     /** A headset that just connected and may get a pending restore, once its settings are read. */
     @Volatile private var restoreCandidate: String? = null
     @Volatile private var wasConnected = false
+
+    /**
+     * The headset the night's end action just sent away: no restore connect for it yet
+     * ([RestoreConnect.Hold]). Set under [mutex]; the headset watcher releases it.
+     */
+    private val restoreConnectHold = AtomicReference<RestoreConnect.Hold?>(null)
 
     private class Ring(
         val alarm: SleepAlarm,
@@ -171,6 +190,7 @@ class SleepRepositoryImpl(
             headphones.state.map { actions.abilities(it) to it }.conflate().collect { (abilities, s) ->
                 _headset.value = abilities
                 watchForPendingRestore(s)
+                connectForPendingRestore(s)
             }
         }
     }
@@ -230,17 +250,21 @@ class SleepRepositoryImpl(
     }
 
     override fun refreshPermissions() {
-        val nm = context.getSystemService(NotificationManager::class.java)
         val before = _permissions.value.exactAlarms
         val now = SleepPermissions(
             exactAlarms = scheduler.canScheduleExact(),
-            fullScreenAlarm = Build.VERSION.SDK_INT < 34 || runCatching { nm?.canUseFullScreenIntent() == true }.getOrDefault(true),
+            fullScreenAlarm = canShowFullScreenAlarm(),
             notifications = NotificationManagerCompat.from(context).areNotificationsEnabled(),
             doNotDisturb = phone.hasDndAccess(),
         )
         _permissions.value = now
         // Just allowed: the alarms armed without it were inexact; arm them again, exactly.
         if (!before && now.exactAlarms && loaded.isCompleted) scope.launch { rearmAlarms() }
+    }
+
+    private fun canShowFullScreenAlarm(): Boolean {
+        val nm = context.getSystemService(NotificationManager::class.java)
+        return Build.VERSION.SDK_INT < 34 || runCatching { nm?.canUseFullScreenIntent() == true }.getOrDefault(true)
     }
 
     // ---- Previews -------------------------------------------------------------------------------
@@ -265,10 +289,29 @@ class SleepRepositoryImpl(
         _state.update { it.copy(previewing = false) }
     }
 
-    /** MainActivity / AlarmActivity: visible or not. A visible app may set volumes on Android 17. */
+    /**
+     * MainActivity / AlarmActivity: started or stopped, one call each (screens are counted, so the
+     * alarm screen over the main one still reads as visible). A visible app may use audio on
+     * Android 17: a pending morning volume goes back, waiting sounds resume.
+     */
     fun setAppVisible(visible: Boolean) {
-        appVisible = visible
-        if (visible) scope.launch { locked { retryVolumeRestoreLocked() } }
+        if (visible) BackgroundAudio.screenStarted() else BackgroundAudio.screenStopped()
+        if (visible) scope.launch {
+            locked {
+                retryVolumeRestoreLocked()
+                resumeFromVisibleLocked()
+            }
+        }
+    }
+
+    /** [SleepService]: it is handling one of our notifications' buttons, a user's tap. */
+    fun onServiceStartedFromTap() {
+        serviceWhileInUse = true
+    }
+
+    /** [SleepService] was destroyed. */
+    fun onServiceStopped() {
+        serviceWhileInUse = false
     }
 
     override fun previewAlarmTone(toneId: String?, output: AlarmOutput) {
@@ -335,14 +378,16 @@ class SleepRepositoryImpl(
         }
         record = actions.applyNightExtras(plan, hs, record, notes)
         record = phone.apply(plan, record, notes)
-        record = record.copy(restoreAtMillis = morningAt(now, tl), due = false)
+        // Tonight's restore gets its own morning connect (RestoreConnect), whatever last night's had.
+        record = record.copy(restoreAtMillis = morningAt(now, tl), due = false, connectTried = false)
 
         var active = ActiveNight(
             plan = plan,
             startedAtMillis = tl.startedAtMillis, endsAtMillis = tl.endsAtMillis,
             fadeOutStartsAtMillis = tl.fadeOutStartsAtMillis, noiseOffAtMillis = tl.noiseOffAtMillis,
             headsetAddress = address, headsetName = HeadphoneLabels.displayName(hs),
-            soundOnHeadset = address != null && hs.isAudioActive,
+            // Only a headset Android can route audio to: a demo headset plays on the phone instead.
+            soundOnHeadset = address != null && hs.isAudioActive && player.hasHeadsetOutput(address),
         )
         if (tl.noiseOffAtMillis != null && tl.noiseOffAtMillis <= now) {
             record = actions.noiseOff(hs, record, notes)
@@ -357,7 +402,11 @@ class SleepRepositoryImpl(
         save()
         // Published before the service starts: it reads the session at once and stops itself on Idle.
         publishSession()
-        if (!SleepService.start(context)) {
+        // start() runs only for a visible screen, so Android gives the service while-in-use
+        // status: the sounds, the fade and the morning volume may then run with Earshot closed.
+        val serviceStarted = SleepService.start(context)
+        serviceWhileInUse = serviceStarted
+        if (!serviceStarted) {
             night = night.copy(log = night.log + note(text.get(R.string.sleep_rt_log_service_refused), problem = true))
             save()
         }
@@ -376,8 +425,10 @@ class SleepRepositoryImpl(
         val updated = active.withTimeline(tl)
         night = night.copy(active = updated, log = night.log + note(text.get(R.string.sleep_rt_log_extended, minutes)))
         timeline = tl
-        // A sound that already faded out comes back for the extra time.
-        if (updated.plan.layers.isNotEmpty() && !player.isPlaying && !updated.soundsStopped) startPlayer(updated)
+        // A sound that already faded out comes back for the extra time; one that waits for a tap
+        // comes back now (extend is the tab or a notification button: both may play).
+        if (updated.soundsWaitForTap) resumeSoundsLocked()
+        else if (updated.plan.layers.isNotEmpty() && !player.isPlaying && !updated.soundsStopped) startPlayer(updated)
         armNight(updated)
         save()
         publishSession()
@@ -462,7 +513,13 @@ class SleepRepositoryImpl(
         // Earshot was closed through the end (no exact alarm, or killed): don't switch a headset
         // off hours late while someone may be listening again.
         if (onTime) {
-            actions.endAction(active.plan.endAction, hs, notes)
+            val sentAway = actions.endAction(active.plan.endAction, hs, notes)
+            // The restore connect must not reverse the end action that just ran. The morning
+            // restore below runs at once when the morning time passed during the night, and the
+            // audio link still reads as up for a moment after a disconnect: without the hold it
+            // would connect the headset straight back. Its one connect waits instead (RestoreConnect).
+            val sentAddress = hs.connection.deviceAddress ?: active.headsetAddress
+            if (sentAway && sentAddress != null) restoreConnectHold.set(RestoreConnect.Hold(sentAddress, now + RestoreConnect.HOLD_MS))
             if (active.plan.endAction == SleepEndAction.DISCONNECT) armReconnectBeforeEarbudAlarm(now)
         } else {
             notes += StepNote(text.get(R.string.sleep_rt_log_end_skipped), isProblem = true)
@@ -480,6 +537,7 @@ class SleepRepositoryImpl(
         ticker = null
         phone.releaseCap()
         scheduler.cancelNightSteps()
+        notifications.cancelResume()
         timeline = null
         night = night.copy(active = null, log = night.log + notes.toRecords())
     }
@@ -488,19 +546,123 @@ class SleepRepositoryImpl(
     private suspend fun morningRestoreLocked() {
         val record = night.restore ?: return
         val notes = mutableListOf<StepNote>()
-        var r = actions.restore(record, headphones.state.value, notes)
+        val hs = headphones.state.value
+        // Put back on the connected headset: what a refused command leaves gets no connect of ours.
+        val ranOnHeadset = record.headsetPart && actions.readyToRestore(record, hs)
+        var r = actions.restore(record, hs, notes)
         r = phone.restore(r, notes, canTouchVolume())
+        if (ranOnHeadset) r = r.copy(connectTried = true)
         night = night.copy(restore = if (r.isEmpty) null else r.copy(due = true), log = night.log + notes.toRecords())
         if (r.isEmpty) scheduler.cancelStep(SleepStep.RESTORE)
+        connectForRestoreIfLinked()
     }
 
     /**
-     * Android 17 ignores volume calls from an app that is neither visible nor running a foreground
-     * service (silently: the call "works"). Earshot's own services count: the Sleep service while a
-     * night or an alarm runs, the headset service while a headset is connected.
+     * The morning came (the alarm stopped, the restore time, a restart) and the headset part still
+     * waits for Earshot's control link: connect once if that headset is already linked for audio
+     * ([RestoreConnect]). One that links later is caught by [connectForPendingRestore].
      */
-    private fun canTouchVolume(): Boolean =
-        Build.VERSION.SDK_INT < API_17 || appVisible || nightRunning || ring != null || headphones.state.value.isAudioActive
+    private fun connectForRestoreIfLinked() {
+        val address = night.restore?.takeIf { it.due }?.address ?: return
+        if (RestoreConnect.waitingFor(address, night) == null) return
+        if (headphones.state.value.connection.status != ConnectionStatus.DISCONNECTED) return
+        // Straight after an end action that sent the headset away: the watcher connects once it links again.
+        if (RestoreConnect.isHeld(restoreConnectHold.get(), address, System.currentTimeMillis())) return
+        scope.launch {
+            // Off the lock: the profile proxies can take a moment to answer.
+            if (runCatching { finder.isAudioConnected(address) }.getOrNull() != true) return@launch
+            locked { connectForRestoreLocked(address) }
+        }
+    }
+
+    /**
+     * The headset of a waiting restore is linked for audio while Earshot's control link is down
+     * (auto-connect off, or a process that already used its one app-start connect): connect once
+     * for it ([RestoreConnect]). The restore itself then runs from [watchForPendingRestore].
+     */
+    private fun connectForPendingRestore(s: HeadphoneState) {
+        // The headset an end action sent away is seen gone (or the hold ran out): its connect is free again.
+        restoreConnectHold.get()?.let { hold ->
+            if (RestoreConnect.release(hold, s, System.currentTimeMillis()) == null) restoreConnectHold.compareAndSet(hold, null)
+        }
+        if (!RestoreConnect.shouldConnect(s, night)) return
+        val address = s.connection.deviceAddress ?: return
+        if (RestoreConnect.isHeld(restoreConnectHold.get(), address, System.currentTimeMillis())) return
+        scope.launch {
+            locked {
+                if (!RestoreConnect.shouldConnect(headphones.state.value, night)) return@locked
+                connectForRestoreLocked(address)
+            }
+        }
+    }
+
+    /** The one connect a restore gets: marked and saved first, so neither a retry nor a restart repeats it. */
+    private suspend fun connectForRestoreLocked(address: String) {
+        if (RestoreConnect.waitingFor(address, night) == null) return
+        if (headphones.state.value.connection.status != ConnectionStatus.DISCONNECTED) return
+        // Never right after the end action sent this headset away; not marked, so it still gets its
+        // connect once it links again.
+        if (RestoreConnect.isHeld(restoreConnectHold.get(), address, System.currentTimeMillis())) return
+        night = RestoreConnect.markTried(night, address)
+        save()
+        Log.i(TAG, "connecting $address for its morning restore")
+        headphones.connect()
+    }
+
+    /**
+     * Android 17 ignores volume, focus and playback calls from an app that is neither visible nor
+     * running a foreground service (silently: the call "works"); see [BackgroundAudio].
+     *  - Below target 37 any of Earshot's foreground services counts: the Sleep service while a
+     *    night or an alarm runs or a button tap is handled, the headset service while a headset is
+     *    connected.
+     *  - From target 37 the service also needs while-in-use status. Only the Sleep service can
+     *    vouch for its own ([serviceWhileInUse]); the headset service usually starts in the
+     *    background (a Bluetooth connect, companion presence), so it no longer counts. The alarm's
+     *    Stop button is a notification tap, so the restore after it may run.
+     * False keeps the restore pending ([PhoneNightExtras.restoreMusicVolume]) until Earshot is
+     * opened (below target 37 also when the headset connects again: from target 37 the retry on a
+     * reconnect asks this again, and the headset service has no while-in-use status).
+     */
+    private fun canTouchVolume(): Boolean = BackgroundAudio.mayUseAudio(
+        sdk = Build.VERSION.SDK_INT,
+        targetSdk = context.applicationInfo.targetSdkVersion,
+        appVisible = appVisible,
+        foregroundService = nightRunning || ring != null || serviceWhileInUse || headphones.state.value.isAudioActive,
+        whileInUseService = serviceWhileInUse,
+    )
+
+    /**
+     * The sounds of a night rebuilt in the background ([ActiveNight.soundsWaitForTap]) play again
+     * once Android allows it: the "Tap to resume sounds" notification, a notification button, or
+     * an Earshot screen. Without that permission the notification stays up.
+     */
+    suspend fun resumeSounds(): Unit = locked { resumeSoundsLocked() }
+
+    private suspend fun resumeSoundsLocked() {
+        val active = night.active
+        if (active == null || !active.soundsWaitForTap) {
+            notifications.cancelResume()
+            return
+        }
+        if (!canTouchVolume()) return
+        val resumed = active.copy(soundsWaitForTap = false)
+        night = night.copy(active = resumed, log = night.log + note(text.get(R.string.a17_sleep_log_resumed)))
+        notifications.cancelResume()
+        if (resumed.plan.layers.isNotEmpty() && !resumed.soundsStopped) startPlayer(resumed)
+        save()
+        publishSession()
+        publishLog()
+    }
+
+    /**
+     * An Earshot screen started while the sounds wait: start the service again from here, so it
+     * gets while-in-use status and the sounds keep playing once Earshot is closed again.
+     */
+    private suspend fun resumeFromVisibleLocked() {
+        if (night.active?.soundsWaitForTap != true || !appVisible) return
+        if (SleepService.start(context)) serviceWhileInUse = true
+        resumeSoundsLocked()
+    }
 
     /** A morning volume that couldn't be put back yet (another output, or no foreground): try again. */
     private suspend fun retryVolumeRestoreLocked() {
@@ -534,15 +696,21 @@ class SleepRepositoryImpl(
                 val notes = mutableListOf<StepNote>()
                 val current = headphones.state.value
                 val tonight = night.restore
+                // A restore that ran here has had its connect (RestoreConnect): a refused command
+                // left over waits for the next connect, never one of the Sleep runtime's own.
+                suspend fun restoreHere(record: RestoreRecord): RestoreRecord {
+                    val ran = actions.readyToRestore(record, current)
+                    return actions.restore(record, current, notes).let { if (ran) it.copy(connectTried = true) else it }
+                }
                 if (tonight != null && tonight.due && tonight.address.equals(candidate, ignoreCase = true)) {
-                    val r = actions.restore(tonight, current, notes)
+                    val r = restoreHere(tonight)
                     night = night.copy(restore = if (r.isEmpty) null else r)
                 }
                 // The headset is back: its media volume can go back on its own output now.
                 retryVolumeRestoreLocked()
                 night = night.copy(pending = night.pending.mapNotNull { p ->
                     if (!p.address.equals(candidate, ignoreCase = true)) p
-                    else actions.restore(p, current, notes).takeIf { it.headsetPart }
+                    else restoreHere(p).takeIf { it.headsetPart }
                 })
                 night = night.copy(log = night.log + notes.toRecords())
                 save()
@@ -563,10 +731,40 @@ class SleepRepositoryImpl(
                 nightRunning = true
                 armNight(active)
                 publishSession()
+                // Rebuilt after Android closed Earshot: the process started from an alarm
+                // broadcast or a Bluetooth event, in the background, so this start gets no
+                // while-in-use status unless an Earshot screen is up. serviceWhileInUse is not
+                // cleared here: in this fresh process only a tap can have set it already (the
+                // "Tap to resume sounds" notification of the process before started this one).
                 val inForeground = SleepService.start(context)
+                if (inForeground && appVisible) serviceWhileInUse = true
+                // A "Tap to resume sounds" posted by the process before outlives it. Only the wait
+                // branch below needs it, and shows it again; in every other case it would say the
+                // sounds are paused while they play (or are gone), and nothing else takes it down:
+                // resumeFromVisibleLocked returns early once nothing waits.
+                notifications.cancelResume()
                 if (active.plan.layers.isNotEmpty() && !active.soundsStopped) {
-                    if (inForeground) startPlayer(active)
-                    else night = night.copy(active = active.copy(soundsStopped = true), log = night.log + note(text.get(R.string.sleep_rt_log_killed), problem = true))
+                    when {
+                        !inForeground -> night = night.copy(
+                            active = active.copy(soundsStopped = true, soundsWaitForTap = false),
+                            log = night.log + note(text.get(R.string.sleep_rt_log_killed), problem = true),
+                        )
+                        // Android 17 at target 37 silences playback from this service: rather
+                        // than play into silence, ask for a tap, which Android accepts.
+                        !canTouchVolume() -> {
+                            night = night.copy(
+                                active = active.copy(soundsWaitForTap = true),
+                                log = night.log + note(text.get(R.string.a17_sleep_log_resume_waits), problem = true),
+                            )
+                            notifications.showResume()
+                            Log.i(TAG, "night rebuilt in the background: sounds wait for a tap")
+                        }
+                        else -> {
+                            val playing = active.copy(soundsWaitForTap = false)
+                            night = night.copy(active = playing)
+                            startPlayer(playing)
+                        }
+                    }
                 }
                 startTicker()
             }
@@ -665,7 +863,7 @@ class SleepRepositoryImpl(
                 plan = active.plan,
                 startedAtMillis = tl.startedAtMillis,
                 endsAtMillis = tl.endsAtMillis,
-                phase = SleepPlanner.phase(tl, active.plan.layers.isNotEmpty() && !active.soundsStopped, now),
+                phase = SleepPlanner.phase(tl, active.plan.layers.isNotEmpty() && !active.soundsStopped && !active.soundsWaitForTap, now),
                 noiseOffAtMillis = tl.noiseOffAtMillis,
                 noiseOffDone = active.noiseOffDone,
                 headsetName = active.headsetName,
@@ -707,13 +905,16 @@ class SleepRepositoryImpl(
     /** "The alarm will ring on the phone": the headset is switched off before an earbud alarm. */
     private fun earbudAlarmWarning(plan: SleepPlan, now: Long): StepNote? {
         if (plan.endAction != SleepEndAction.POWER_OFF) return null
-        val (alarm, at) = SleepPlanner.nextAlarm(_alarms.value, now) ?: return null
+        val (alarm, at) = SleepPlanner.nextAlarm(ringingAlarms(), now) ?: return null
         if (alarm.output == AlarmOutput.PHONE || at - now > ALARM_HORIZON_MS) return null
         return StepNote(text.get(R.string.sleep_rt_log_alarm_on_phone_power))
     }
 
+    /** The alarms that will ring: none while they wait for exact-alarm access ([rearmAlarms]). */
+    private fun ringingAlarms(): List<SleepAlarm> = if (scheduler.canScheduleExact()) _alarms.value else emptyList()
+
     private fun armReconnectBeforeEarbudAlarm(now: Long) {
-        val (alarm, at) = SleepPlanner.nextAlarm(_alarms.value, now) ?: return
+        val (alarm, at) = SleepPlanner.nextAlarm(ringingAlarms(), now) ?: return
         if (alarm.output == AlarmOutput.PHONE || at - now > ALARM_HORIZON_MS) return
         val lead = maxOf(at - alarm.wakeWindowMinutes * SleepPlanner.MINUTE - RECONNECT_LEAD_MS, now + 1_000)
         scheduler.armStep(SleepStep.RECONNECT, lead)
@@ -723,6 +924,13 @@ class SleepRepositoryImpl(
 
     override suspend fun saveAlarm(alarm: SleepAlarm) {
         if (alarm.hour !in 0..23 || alarm.minute !in 0..59) throw HeadphoneCommandException(text.get(R.string.sleep_rt_error_alarm_time))
+        // Without "Alarms & reminders" the alarm could only be armed inexactly, and might not
+        // sound at all (SleepScheduler.mayEnable): refuse to switch it on, and let the tab's
+        // banner, refreshed here, offer the setting.
+        if (!SleepScheduler.mayEnable(alarm, scheduler.canScheduleExact())) {
+            refreshPermissions()
+            throw HeadphoneCommandException(text.get(R.string.sleep_rt_error_exact_alarms))
+        }
         locked {
             _alarms.update { list -> if (list.any { it.id == alarm.id }) list.map { if (it.id == alarm.id) alarm else it } else list + alarm }
             // A changed alarm starts afresh: no skip left over from an early stop.
@@ -750,10 +958,22 @@ class SleepRepositoryImpl(
 
     /**
      * Arms every enabled alarm's next ring (and its wake-up window), publishes the soonest and
-     * copies them where a locked phone can read them ([LockedAlarms]).
+     * copies them where a locked phone can read them ([LockedAlarms]). Arms none while exact
+     * alarms aren't allowed: see [SleepPlanner.ringsToArm].
      */
     suspend fun rearmAlarms(): Unit = locked {
         val now = System.currentTimeMillis()
+        // Alarms a settings restore replaced (Back up and restore): their AlarmManager entries
+        // outlive the restart and the restored list no longer names them, so nothing else would
+        // ever cancel them. Empty on every other start.
+        val replacedByRestore = dev.earshot.backup.BackupStaging.takeAlarmIdsToCancel(context)
+            .filter { id -> _alarms.value.none { it.id == id } }
+        for (id in replacedByRestore) {
+            scheduler.cancelAlarm(SleepAlarmReceiver.KIND_RING, id)
+            scheduler.cancelAlarm(SleepAlarmReceiver.KIND_WAKE_WINDOW, id)
+            scheduler.cancelAlarm(SleepAlarmReceiver.KIND_SNOOZE, id)
+        }
+        night.snooze?.let { s -> if (s.alarmId in replacedByRestore) night = night.copy(snooze = null) }
         // One-off alarms that rang while the phone was locked after a restart are done.
         val rangLocked = LockedAlarms.consumeRang(context)
         if (rangLocked.isNotEmpty()) {
@@ -769,19 +989,29 @@ class SleepRepositoryImpl(
             }
         }
         night = night.copy(skipRingUntil = night.skipRingUntil.filterValues { it > now })
-        var soonest: NextAlarm? = null
-        val mirror = ArrayList<MirroredRing>()
+        // Without "Alarms & reminders" no wake alarm is armed (SleepPlanner.ringsToArm, audit
+        // X02/X04): restored or older alarms stay switched on but wait, with no next alarm shown
+        // and the tab's banner up (published here too: the permission broadcast reaches this
+        // without refreshPermissions). Allowing the access re-arms them exactly: the broadcast
+        // calls this, and so does refreshPermissions when the tab comes back.
+        val exact = scheduler.canScheduleExact()
+        _permissions.update { if (it.exactAlarms == exact) it else it.copy(exactAlarms = exact) }
+        val rings = SleepPlanner.ringsToArm(_alarms.value, now, night.skipRingUntil, exactAllowed = exact)
+        if (!exact && _alarms.value.any { it.enabled }) Log.w(TAG, "exact alarms not allowed: the wake alarms wait unarmed")
+        // Every alarm's entries go first, also those of an alarm armed inexactly before (by an
+        // older build, or before the access was taken away), which must not ring now.
         for (alarm in _alarms.value) {
             scheduler.cancelAlarm(SleepAlarmReceiver.KIND_RING, alarm.id)
             scheduler.cancelAlarm(SleepAlarmReceiver.KIND_WAKE_WINDOW, alarm.id)
-            val from = maxOf(now, night.skipRingUntil[alarm.id] ?: 0L)
-            val at = SleepPlanner.nextRing(alarm, from) ?: continue
-            scheduler.armAlarm(SleepAlarmReceiver.KIND_RING, alarm.id, at)
-            val windowStart = (at - alarm.wakeWindowMinutes * SleepPlanner.MINUTE).takeIf { alarm.wakeWindowMinutes > 0 && it > now }
-            windowStart?.let { scheduler.armAlarm(SleepAlarmReceiver.KIND_WAKE_WINDOW, alarm.id, it) }
-            if (soonest == null || at < soonest.atMillis) soonest = NextAlarm(alarm.id, at, windowStart)
-            mirror += MirroredRing(alarm.id, at, alarm.toneId, alarm.fadeInSeconds, alarm.snoozeMinutes, alarm.vibrate, alarm.label)
         }
+        val mirror = ArrayList<MirroredRing>()
+        for (ring in rings) {
+            val alarm = ring.alarm
+            scheduler.armAlarm(SleepAlarmReceiver.KIND_RING, alarm.id, ring.atMillis)
+            ring.windowStartMillis?.let { scheduler.armAlarm(SleepAlarmReceiver.KIND_WAKE_WINDOW, alarm.id, it) }
+            mirror += MirroredRing(alarm.id, ring.atMillis, alarm.toneId, alarm.fadeInSeconds, alarm.snoozeMinutes, alarm.vibrate, alarm.label)
+        }
+        val soonest = rings.minByOrNull { it.atMillis }?.let { NextAlarm(it.alarm.id, it.atMillis, it.windowStartMillis) }
         night.snooze?.let { s ->
             _alarms.value.firstOrNull { it.id == s.alarmId }?.let { a ->
                 mirror.removeAll { it.alarmId == a.id && it.atMillis > s.ringsAtMillis }
@@ -864,6 +1094,11 @@ class SleepRepositoryImpl(
         save()
         publishRinging(r, route.fallback)
         publishLog()
+        // A ring starts from an alarm broadcast (or a rebuilt process), and the night's
+        // notification is swapped for the alarm's (SleepService.show): assume no while-in-use
+        // status from here. The alarm plays USAGE_ALARM, exempt while exact alarms are allowed;
+        // the morning volume after it waits for the Stop tap or the alarm screen.
+        serviceWhileInUse = false
         if (!SleepService.start(context)) {
             // No foreground service from here: post the alarm notification ourselves, so its
             // full-screen screen opens; a visible screen is what lets the alarm sound.
@@ -871,6 +1106,15 @@ class SleepRepositoryImpl(
             (_state.value.session as? SleepSession.Ringing)?.let { session ->
                 notifications.ensureChannels()
                 runCatching { context.getSystemService(NotificationManager::class.java)?.notify(SleepNotifications.ID_ALARM, notifications.alarm(session)) }
+            }
+            // Nor can that screen open (no full-screen access, or notifications off): Android may
+            // silence or freeze this ring at once. The morning log says so instead of leaving a
+            // quiet alarm unexplained (audit R05; typically an inexact alarm, see SleepScheduler).
+            if (!canShowFullScreenAlarm() || !NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+                Log.w(TAG, "alarm: no foreground service and no full-screen alarm screen")
+                night = night.copy(log = night.log + note(text.get(R.string.sleep_rt_log_alarm_background), problem = true))
+                save()
+                publishLog()
             }
         }
         ringWatch?.cancel()
@@ -1059,8 +1303,6 @@ class SleepRepositoryImpl(
         private const val START_GAIN = 0.08f
         private const val PREVIEW_GAIN = 0.6f
         private const val TONE_PREVIEW_MS = 6_000L
-        /** Android 17: no VERSION_CODES name in every SDK yet. */
-        private const val API_17 = 37
         private const val MAX_NAME = 40
     }
 }

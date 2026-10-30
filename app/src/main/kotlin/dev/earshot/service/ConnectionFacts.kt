@@ -104,14 +104,17 @@ internal data class ConnectionFacts(
             verified = model.verified,
             formFactor = formFactor.toFormFactor(),
             supportNote = if (catalogued) model.supportNote else null,
+            // An unknown product running on the QC Ultra 2 defaults has not been tried, whatever the defaults say.
+            tested = catalogued && model.tested,
         )
     }
 
+    /** QC35 and the like: the battery and product info are read, nothing is written (the Battery only tier). */
     private fun unsupportedCapabilities() = HeadphoneCapabilities(
         spatialAudio = false, ancToggle = false, liveNoiseControl = false, noiseCancelling = false,
         ancAlwaysOn = false, windBlock = false, editableModes = false, favoriteModes = false,
         listeningModes = false, verified = false, formFactor = model.formFactor.toFormFactor(),
-        supportNote = model.supportNote,
+        supportNote = model.supportNote, batteryOnly = true,
     )
 }
 

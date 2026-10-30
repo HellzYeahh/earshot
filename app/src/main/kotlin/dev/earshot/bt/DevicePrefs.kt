@@ -2,8 +2,10 @@ package dev.earshot.bt
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -16,7 +18,14 @@ import kotlinx.coroutines.flow.map
 data class SavedDevice(val address: String, val name: String?)
 
 // File-private delegate so there is exactly one DataStore instance for this file per process.
-private val Context.btDeviceDataStore: DataStore<Preferences> by preferencesDataStore(name = "bt_device")
+// A corrupt file is replaced with an empty one (audit R24): without the handler every read throws
+// CorruptionException, so every connect stopped with the storage-failed message until the app's
+// data was cleared. Losing it costs only the saved headset and what was learned about it (link
+// hints, "Headphone type"), which the next connect finds again.
+private val Context.btDeviceDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "bt_device",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 /**
  * Tiny DataStore holding the chosen headset (address and name), so reconnects and the manifest

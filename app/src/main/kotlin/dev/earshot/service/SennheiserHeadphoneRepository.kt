@@ -91,6 +91,9 @@ class SennheiserHeadphoneRepository internal constructor(
             log.w("initial read failed: ${e.message}")
             mutableEvents.tryEmit(HeadphoneEvent.Error("Connected, but reading the headphones failed: ${e.message}", e))
         }
+        // The status collector normally published a (maybe nameless) identity already; this is the guard if it hasn't run.
+        val modelName = s.model?.let { "Sennheiser ${it.displayName}" }
+        identifyIfUnread(conn, modelName ?: link.state.value.deviceName, modelName)
         mutableEvents.tryEmit(HeadphoneEvent.Connected)
         pollWhileOpen(conn, BATTERY_POLL_MS) { commands.withLock { s.readBattery() } }
     }

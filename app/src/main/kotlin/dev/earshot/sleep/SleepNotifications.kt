@@ -15,9 +15,10 @@ import dev.earshot.core.SleepSession
 import java.util.Date
 
 /**
- * The Sleep tab's two notifications: the quiet one while a night runs (time left, +15 min, Stop)
- * and the alarm one (full-screen over the lock screen, Stop, Snooze). Separate channels so the
- * user can silence the first without touching the alarm.
+ * The Sleep tab's notifications: the quiet one while a night runs (time left, +15 min, Stop), the
+ * alarm one (full-screen over the lock screen, Stop, Snooze), and "Tap to resume sounds" for a
+ * night Android 17 won't let play in the background ([resume]). Separate channels so the user can
+ * silence the night ones without touching the alarm.
  */
 class SleepNotifications(private val context: Context) {
     private val manager: NotificationManager? get() = context.getSystemService(NotificationManager::class.java)
@@ -72,6 +73,31 @@ class SleepNotifications(private val context: Context) {
             .build()
     }
 
+    /**
+     * "Tap to resume sounds": a night rebuilt in the background after Android closed Earshot. At
+     * target 37 Android 17 silences playback from a service started that way, so the sounds wait.
+     * The tap starts the service from a notification, which gives it while-in-use status. On the
+     * quiet night channel: it must not wake anyone; it is there when the phone is picked up.
+     */
+    fun resume(): Notification = NotificationCompat.Builder(context, CHANNEL_NIGHT)
+        .setSmallIcon(R.drawable.ic_sleep_moon)
+        .setContentTitle(context.getString(R.string.a17_sleep_resume_title))
+        .setContentText(context.getString(R.string.a17_sleep_resume_text))
+        .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.a17_sleep_resume_text)))
+        .setSilent(true)
+        .setAutoCancel(true)
+        .setContentIntent(service(SleepService.ACTION_RESUME, 5))
+        .build()
+
+    fun showResume() {
+        ensureChannels()
+        runCatching { manager?.notify(ID_RESUME, resume()) }
+    }
+
+    fun cancelResume() {
+        runCatching { manager?.cancel(ID_RESUME) }
+    }
+
     /** Shown for a moment while the service handles a button and finds the night already over. */
     fun placeholder(): Notification = NotificationCompat.Builder(context, CHANNEL_NIGHT)
         .setSmallIcon(R.drawable.ic_sleep_moon)
@@ -124,5 +150,6 @@ class SleepNotifications(private val context: Context) {
         const val CHANNEL_ALARM = "sleep_alarm"
         const val ID_NIGHT = 4_201
         const val ID_ALARM = 4_202
+        const val ID_RESUME = 4_203
     }
 }

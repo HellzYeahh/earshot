@@ -47,7 +47,8 @@ Download `earshot-<version>.apk` from [Releases](../../releases) and open it on 
 hold its control channel. [Shizuku](https://shizuku.rikka.app/) is optional (codec switching).
 No headset at hand? **Try demo mode** on the welcome screen.
 
-Build it yourself: `./gradlew assembleDebug` (Windows: `.\gw.cmd assembleDebug`).
+Build it yourself: `./gradlew :app:assembleFossDebug` (Windows: `.\gw.cmd :app:assembleFossDebug`). The Play
+version is `:app:assemblePlayDebug`; signing for releases: [docs/release-signing.md](docs/release-signing.md).
 
 What changed: [CHANGELOG.md](CHANGELOG.md) · Plans: [docs/roadmap.md](docs/roadmap.md) ·
 Protocol research: [docs/research/](docs/research/)

@@ -8,7 +8,9 @@ import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import android.util.Log
+import androidx.core.app.NotificationManagerCompat
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -31,7 +33,15 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
-private val Context.automationStore: DataStore<Preferences> by preferencesDataStore(name = "earshot_automation")
+// A corrupt file is replaced with an empty one, as for the other stores. Without the handler every
+// read fell back to the defaults (auto-connect on) and every save threw CorruptionException, so a
+// user who had switched Auto-connect off got it back on every link-up and could never save it
+// off again short of clearing the app's data. Losing the file costs the rules, the log and these
+// preferences, which go back to their defaults.
+private val Context.automationStore: DataStore<Preferences> by preferencesDataStore(
+    name = "earshot_automation",
+    corruptionHandler = ReplaceFileCorruptionHandler { androidx.datastore.preferences.core.emptyPreferences() },
+)
 
 /**
  * DataStore-backed [AutomationRepository]. Rules and the recent log are JSON strings
@@ -88,11 +98,38 @@ class AutomationRepositoryImpl(
     }
 
     override suspend fun setPreferences(preferences: AppPreferences) {
-        store.edit { prefs -> writePreferences(prefs, preferences) }
+        var switchedOff = false
+        store.edit { prefs ->
+            switchedOff = persistentNotificationSwitchedOff(prefs, preferences)
+            writePreferences(prefs, preferences)
+        }
+        if (switchedOff) dropKeptConnectionNotification()
     }
 
     override suspend fun updatePreferences(transform: (AppPreferences) -> AppPreferences) {
-        store.edit { prefs -> writePreferences(prefs, transform(decodePreferences(prefs))) }
+        var switchedOff = false
+        store.edit { prefs ->
+            val next = transform(decodePreferences(prefs))
+            switchedOff = persistentNotificationSwitchedOff(prefs, next)
+            writePreferences(prefs, next)
+        }
+        if (switchedOff) dropKeptConnectionNotification()
+    }
+
+    /** [stored] is the store as it was before this edit's writes. */
+    private fun persistentNotificationSwitchedOff(stored: Preferences, next: AppPreferences): Boolean =
+        (stored[KEY_PERSISTENT_NOTIFICATION] ?: AppPreferences().persistentNotification) && !next.persistentNotification
+
+    /**
+     * "Persistent notification" was just switched off. While the connection service runs, it
+     * removes its own notification at its idle stop (it reads the choice then). Once it has
+     * stopped, the notification it kept stays up, ongoing (Android 9 to 13 don't let the user
+     * swipe it), and nothing else is left to remove it, so it goes here. Android ignores an app's
+     * cancel of a running foreground service's notification, so this never touches a live one.
+     */
+    private fun dropKeptConnectionNotification() {
+        runCatching { NotificationManagerCompat.from(appContext).cancel(CONNECTION_NOTIFICATION_ID) }
+            .onFailure { Log.w(TAG, "could not remove the kept connection notification", it) }
     }
 
     private fun writePreferences(prefs: MutablePreferences, preferences: AppPreferences) {
@@ -189,6 +226,13 @@ class AutomationRepositoryImpl(
     companion object {
         private const val TAG = "Earshot/Automation"
         const val LOG_CAP = 50
+
+        /**
+         * The connection service's notification id (ServiceNotification.NOTIFICATION_ID), repeated
+         * rather than imported: extras may not reference the service package (VendorBoundaryTest).
+         * KeptNotificationIdTest keeps the two equal.
+         */
+        internal const val CONNECTION_NOTIFICATION_ID = 1001
 
         private val json = AutomationJson.json
 

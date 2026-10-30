@@ -21,8 +21,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -33,6 +36,7 @@ import dev.earshot.appContainer
 import dev.earshot.bt.BtTimeline
 import dev.earshot.bt.TimelineEvent
 import dev.earshot.bt.TimelineKind
+import dev.earshot.ui.common.ConfirmDialog
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.EmptyHint
 import dev.earshot.ui.common.InfoBanner
@@ -70,11 +74,14 @@ fun TimelineContent(events: List<TimelineEvent>, names: Map<String, String>, onB
     val newestFirst = remember(events) { events.asReversed() }
     val day = remember { DateFormat.getDateInstance(DateFormat.MEDIUM) }
     val time = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    // Clearing deletes the stored history for good, and it is what a connection bug report and
+    // Find's "last seen" are built from: one stray tap must not wipe it, so it is confirmed first.
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
     SubScreenScaffold(
         title = stringResource(R.string.timeline_title),
         onBack = onBack,
         actions = {
-            IconButton(onClick = onClear, enabled = events.isNotEmpty()) {
+            IconButton(onClick = { confirmClear = true }, enabled = events.isNotEmpty()) {
                 Icon(Icons.Default.DeleteSweep, contentDescription = stringResource(R.string.timeline_clear))
             }
         },
@@ -95,6 +102,19 @@ fun TimelineContent(events: List<TimelineEvent>, names: Map<String, String>, onB
                 item(key = "${e.timeMs}-${e.address}-${e.kind}-${e.detail}") { TimelineRow(e, names[e.address.uppercase()] ?: e.address, time.format(Date(e.timeMs))) }
             }
         }
+    }
+
+    if (confirmClear) {
+        // The app's one confirm dialog, like every other destructive confirm; the body says the
+        // deletion is for good and stays on this phone (nothing else holds a copy).
+        ConfirmDialog(
+            title = stringResource(R.string.timeline_clear),
+            text = stringResource(R.string.timeline_clear_text),
+            confirmLabel = stringResource(R.string.action_delete),
+            destructive = true,
+            onConfirm = onClear,
+            onDismiss = { confirmClear = false },
+        )
     }
 }
 

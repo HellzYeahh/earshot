@@ -48,6 +48,15 @@ class GattTransportTest {
 
         override fun requestHighPriority(): Boolean = true.also { calls += "priority" }
 
+        /** Android throws for a client that is already gone; the transport must shrug it off. */
+        var balancedFails = false
+
+        override fun requestBalancedPriority(): Boolean {
+            calls += "balanced"
+            if (balancedFails) throw IllegalStateException("no GATT client")
+            return true
+        }
+
         override fun requestMtu(mtu: Int): Boolean {
             calls += "mtu $mtu"
             grantedMtu?.let { transport.onMtuChanged(it, GattTransport.GATT_SUCCESS) }
@@ -79,13 +88,24 @@ class GattTransportTest {
         return port to transport
     }
 
-    @Test fun `setup runs discover, priority, MTU and notifications in that order`() = runTest {
+    @Test fun `setup runs discover, priority, MTU and notifications in that order, then hands the radio back`() = runTest {
         val (port, transport) = link()
         transport.onConnectionStateChange(GattTransport.GATT_SUCCESS, isConnected = true)
         transport.open()
-        assertEquals(listOf("discover", "priority", "mtu 512", "notify"), port.calls)
+        // High priority only for the setup burst: the long, sparse session runs at the balanced interval.
+        assertEquals(listOf("discover", "priority", "mtu 512", "notify", "balanced"), port.calls)
         assertEquals(247, transport.mtu)
         assertTrue(transport.isConnected)
+    }
+
+    @Test fun `a failed balanced-priority request doesn't fail setup`() = runTest {
+        val port = FakePort(spec).apply { balancedFails = true }
+        val (_, transport) = link(port)
+        transport.onConnectionStateChange(GattTransport.GATT_SUCCESS, isConnected = true)
+        transport.open()
+        assertTrue(transport.isConnected)
+        transport.write(byteArrayOf(1))
+        assertEquals(1, port.written.size)
     }
 
     @Test fun `open waits for the LE connection`() = runTest {
@@ -140,7 +160,7 @@ class GattTransportTest {
         val (_, transport) = link(port)
         transport.onConnectionStateChange(GattTransport.GATT_SUCCESS, isConnected = true)
         transport.open()
-        assertEquals("indicate", port.calls.last())
+        assertEquals(listOf("indicate", "balanced"), port.calls.takeLast(2))
     }
 
     @Test fun `a characteristic without write-with-response is written without`() = runTest {

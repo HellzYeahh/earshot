@@ -7,7 +7,6 @@ import android.bluetooth.BluetoothSocketSettings
 import android.os.Build
 import dev.earshot.protocol.BmapOperator
 import dev.earshot.protocol.BmapPacket
-import dev.earshot.protocol.toHex
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -18,6 +17,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -59,6 +59,10 @@ class RfcommTransport private constructor(
     @Volatile
     private var closed = false
 
+    /** The greeting drain already saw end of stream: the reader must not block in another read(). */
+    @Volatile
+    private var streamEnded = false
+
     override val isConnected: Boolean get() = !closed && socket.isConnected
 
     override val incoming: Flow<ByteArray> = flow {
@@ -85,24 +89,13 @@ class RfcommTransport private constructor(
 
     private fun startReader() {
         thread(name = "Earshot-rfcomm-reader", isDaemon = true) {
-            val buf = ByteArray(READ_BUFFER)
-            try {
-                while (!closed) {
-                    val n = input.read(buf)
-                    if (n < 0) break
-                    if (n > 0) chunks.trySend(buf.copyOf(n))
-                }
-                chunks.close()
-            } catch (e: IOException) {
-                // After close() an IOException is the expected way out; otherwise the link dropped.
-                chunks.close(if (closed) null else e)
-            } catch (e: Throwable) {
-                // An OEM stack quirk (a NullPointerException deep in the socket's read path,
-                // say) must not take the process down; surface it as a dropped link instead.
-                BtLog.e("reader thread died", e)
-                chunks.close(if (closed) null else IOException("reader failed", e))
+            val cause = if (streamEnded) {
+                if (closed) null else IOException(END_OF_STREAM)
+            } else {
+                readUntilEnd(input, { chunks.trySend(it) }, { closed })
             }
-            BtLog.d("reader thread finished (closed=$closed)")
+            chunks.close(cause)
+            BtLog.d("reader thread finished (closed=$closed${if (cause != null) ", ${cause.message}" else ""})")
         }
     }
 
@@ -121,28 +114,26 @@ class RfcommTransport private constructor(
      * Returns the bytes seen (null when silent) so SDP strategies can sanity-check the channel.
      */
     private suspend fun drainGreeting(): ByteArray? {
-        val out = ByteArrayOutputStream()
-        val start = System.currentTimeMillis()
-        var deadline = start + GREETING_WAIT_MS
-        while (System.currentTimeMillis() - start < GREETING_MAX_MS) {
-            if (System.currentTimeMillis() >= deadline && !endsMidFrame(out.toByteArray())) break
-            val available = withContext(Dispatchers.IO) { input.available() }
-            if (available > 0) {
-                val buf = ByteArray(available.coerceAtMost(READ_BUFFER))
-                val n = withContext(Dispatchers.IO) { input.read(buf) }
-                if (n > 0) out.write(buf, 0, n)
-                deadline = System.currentTimeMillis() + GREETING_GAP_MS
-            } else {
-                delay(GREETING_POLL_MS)
-            }
+        val greeting = collectGreeting(input)
+        val bytes = greeting.bytes
+        if (greeting.endOfStream) {
+            // The link went down while the channel opened. The reader then closes `incoming`
+            // with END_OF_STREAM at once, so the liveness probe fails fast instead of waiting.
+            streamEnded = true
+            BtLog.w("greeting: end of stream after ${bytes.size} bytes (link dropped)")
         }
-        val bytes = out.toByteArray()
         if (bytes.isEmpty()) {
             BtLog.d("greeting: silent")
             return null
         }
-        BtLog.d("greeting: ${bytes.size} bytes ${bytes.toHex()}")
-        val consumed = BmapPacket.decodeStream(bytes).consumed
+        val decoded = BmapPacket.decodeStream(bytes)
+        // Size and one summary per frame, never the hex (audit R09): a greeting burst can carry
+        // block-4 pushes (paired devices by MAC and name), and BtLog lines reach the connection
+        // report users paste into bug reports. describeForLog prints a payload only where it is
+        // known to be harmless, as BmapConnection does for every other frame.
+        val frames = decoded.packets.joinToString(limit = GREETING_LOG_FRAMES) { it.describeForLog() }
+        BtLog.d("greeting: ${bytes.size} bytes, ${decoded.packets.size} frames${if (frames.isEmpty()) "" else ": $frames"}")
+        val consumed = decoded.consumed
         if (consumed < bytes.size) {
             // The rest of this frame will arrive on the reader; the connection's frame buffer
             // completes it (or flags it as a desync if it was never BMAP). The channel is
@@ -153,25 +144,92 @@ class RfcommTransport private constructor(
         return bytes
     }
 
-    /** True when [bytes] end in a partial frame that could still complete (not a non-BMAP header). */
-    private fun endsMidFrame(bytes: ByteArray): Boolean {
-        if (bytes.isEmpty()) return false
-        val consumed = BmapPacket.decodeStream(bytes).consumed
-        if (consumed == bytes.size) return false
-        // The operator nibble is the third header byte; before it arrives anything is possible.
-        return bytes.size - consumed < 3 || BmapOperator.fromCode(bytes[consumed + 2].toInt() and 0x0F) != null
-    }
+    /** What the greeting drain read, and whether the stream ended (read() returned -1) under it. */
+    internal class Greeting(val bytes: ByteArray, val endOfStream: Boolean)
 
     companion object {
         const val CHANNEL = 2
         val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
         val BMAP_UUID: UUID = UUID.fromString("00000000-deca-fade-deca-deafdecacaff")
 
+        /**
+         * The close cause of a link that ended by itself. Apps targeting Android 17 (API 37) get
+         * -1 from an RFCOMM socket's read() when the far end closes or the link drops, where older
+         * targets got an IOException. Closing `incoming` with this keeps a drop looking like a
+         * drop: [BmapConnection.closeCause] is set and the log does not say "closed locally".
+         */
+        internal const val END_OF_STREAM = "RFCOMM end of stream"
+
+        /**
+         * The reader thread's loop, on a plain [InputStream] so a unit test can drive it. Hands
+         * every chunk to [emit] until the stream ends, then returns the cause to close `incoming`
+         * with: null when [isClosed] (we closed the socket ourselves), otherwise the link dropped.
+         * Before target 37 a drop arrives as an IOException, from target 37 as read() == -1; both
+         * end up as an IOException cause, so callers cannot tell the two targets apart.
+         */
+        internal fun readUntilEnd(input: InputStream, emit: (ByteArray) -> Unit, isClosed: () -> Boolean): Throwable? {
+            val buf = ByteArray(READ_BUFFER)
+            return try {
+                while (!isClosed()) {
+                    val n = input.read(buf)
+                    if (n < 0) return if (isClosed()) null else IOException(END_OF_STREAM)
+                    if (n > 0) emit(buf.copyOf(n))
+                }
+                null
+            } catch (e: IOException) {
+                // After close() an IOException is the expected way out; otherwise the link dropped.
+                if (isClosed()) null else e
+            } catch (e: Throwable) {
+                // An OEM stack quirk (a NullPointerException deep in the socket's read path,
+                // say) must not take the process down; surface it as a dropped link instead.
+                BtLog.e("reader thread died", e)
+                if (isClosed()) null else IOException("reader failed", e)
+            }
+        }
+
+        /**
+         * The greeting drain's read loop (see [drainGreeting]), on a plain [InputStream] for tests.
+         * Stops at once on read() == -1: from target 37 that is how a dropped link shows up, and
+         * `available()` on a dead socket is not guaranteed to fall to 0, so the loop would
+         * otherwise spin until [GREETING_MAX_MS].
+         */
+        internal suspend fun collectGreeting(input: InputStream): Greeting {
+            val out = ByteArrayOutputStream()
+            val start = System.currentTimeMillis()
+            var deadline = start + GREETING_WAIT_MS
+            while (System.currentTimeMillis() - start < GREETING_MAX_MS) {
+                if (System.currentTimeMillis() >= deadline && !endsMidFrame(out.toByteArray())) break
+                val available = withContext(Dispatchers.IO) { input.available() }
+                if (available > 0) {
+                    val buf = ByteArray(available.coerceAtMost(READ_BUFFER))
+                    val n = withContext(Dispatchers.IO) { input.read(buf) }
+                    if (n < 0) return Greeting(out.toByteArray(), endOfStream = true)
+                    if (n > 0) out.write(buf, 0, n)
+                    deadline = System.currentTimeMillis() + GREETING_GAP_MS
+                } else {
+                    delay(GREETING_POLL_MS)
+                }
+            }
+            return Greeting(out.toByteArray(), endOfStream = false)
+        }
+
+        /** True when [bytes] end in a partial frame that could still complete (not a non-BMAP header). */
+        private fun endsMidFrame(bytes: ByteArray): Boolean {
+            if (bytes.isEmpty()) return false
+            val consumed = BmapPacket.decodeStream(bytes).consumed
+            if (consumed == bytes.size) return false
+            // The operator nibble is the third header byte; before it arrives anything is possible.
+            return bytes.size - consumed < 3 || BmapOperator.fromCode(bytes[consumed + 2].toInt() and 0x0F) != null
+        }
+
         private const val READ_BUFFER = 4096
         private const val GREETING_WAIT_MS = 400L
         private const val GREETING_GAP_MS = 150L
         private const val GREETING_MAX_MS = 1_500L
         private const val GREETING_POLL_MS = 25L
+
+        /** Frames named in the greeting's log line; a wrong channel's log stream can decode to hundreds. */
+        private const val GREETING_LOG_FRAMES = 12
 
         /**
          * [checkGreeting]: a non-BMAP greeting means a wrong channel, so move on. Off for fixed

@@ -126,7 +126,7 @@ already do it.
 ## Any headset
 
 Every other Bluetooth headset (Samsung, JBL's 2025+ and Airoha models, Soundcore models Earshot doesn't know, no-name
-earbuds...) is shown by its own name. Earshot never sends it anything, so nothing can go wrong.
+earbuds...) is shown by its own name. Earshot never changes its settings: it only reads its battery, and the universal remote can connect, disconnect, rename or forget it on this phone.
 What works through Android itself:
 
 - **Battery**, as the headset reports it to Android; straight away on LE-capable headsets

@@ -11,6 +11,7 @@ import android.content.IntentFilter
 import android.util.Log
 import androidx.core.content.ContextCompat
 import dev.earshot.bt.AppleAdvertScanner
+import dev.earshot.bt.ConnectionManager
 import dev.earshot.bt.DeviceFamily
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
@@ -47,6 +48,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 /**
  * Any headset Earshot has no stack for ([DeviceFamily.GENERIC]): AirPods, Sony, Soundcore,
@@ -155,9 +157,22 @@ class GenericHeadphoneRepository(
         if (following) updateLink()
     }
 
-    /** Find the headset the same way the connection managers do, then follow its audio link. */
+    /**
+     * Find the headset the same way the connection managers do, then follow its audio link.
+     *
+     * The finder and [DevicePrefs] read DataStore, which throws IOException on an unreadable file
+     * or a full disk. This runs in the application scope, where an uncaught exception kills the
+     * process, so an unreadable store shows the managers' storage-failed message instead.
+     * Remembering the pick is bookkeeping, as in ConnectionManager: a failed save doesn't stop it.
+     */
     private suspend fun locate() {
-        when (val found = finder.find()) {
+        val found = try {
+            finder.find()
+        } catch (e: IOException) {
+            storageFailed(e)
+            return
+        }
+        when (found) {
             FindResult.NoPermission -> setConnection(ConnectionStatus.NO_PERMISSION, message = "Allow Earshot to connect to nearby devices")
             FindResult.BluetoothOff -> setConnection(ConnectionStatus.DISCONNECTED, message = "Bluetooth is off")
             is FindResult.NoDevice -> setConnection(
@@ -167,11 +182,21 @@ class GenericHeadphoneRepository(
             is FindResult.Found -> {
                 val pick = found.candidate
                 // Same rule as the router and the managers: a device another stack drives isn't ours.
-                if (prefs.familyFor(pick.address, pick.name) != DeviceFamily.GENERIC) {
+                val family = try {
+                    prefs.familyFor(pick.address, pick.name)
+                } catch (e: IOException) {
+                    storageFailed(e)
+                    return
+                }
+                if (family != DeviceFamily.GENERIC) {
                     Log.d(TAG, "\"${pick.name}\" has its own stack; standing down")
                     return
                 }
-                if (!pick.isSaved || prefs.savedDevice()?.name != pick.name) prefs.save(pick.address, pick.name)
+                try {
+                    if (!pick.isSaved || prefs.savedDevice()?.name != pick.name) prefs.save(pick.address, pick.name)
+                } catch (e: IOException) {
+                    Log.w(TAG, "could not save ${pick.address} as the headset: ${e.javaClass.simpleName}")
+                }
                 address = pick.address
                 _state.update { s ->
                     // A different headset than the one shown: start from a clean slate.
@@ -261,6 +286,12 @@ class GenericHeadphoneRepository(
         _state.update { it.copy(connection = it.connection.copy(status = status, message = message), lastUpdatedMillis = System.currentTimeMillis()) }
     }
 
+    /** The saved headset can't be read: say so, with the connection managers' message. */
+    private fun storageFailed(e: IOException) {
+        Log.w(TAG, "could not read the saved headset: ${e.javaClass.simpleName}")
+        setConnection(ConnectionStatus.DISCONNECTED, message = ConnectionManager.MESSAGE_STORAGE_FAILED)
+    }
+
     private fun onBluetoothEvent(intent: Intent) {
         if (!following) return
         if (intent.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
@@ -325,7 +356,10 @@ class GenericHeadphoneRepository(
         const val SUPPORT_NOTE =
             "Earshot doesn't know this headset's own controls yet. Pro EQ, the codec panel, call audio, Controls and automations work with it."
 
-        /** Nothing of the headset's own; worded by the form factor its name suggests ("… Buds"). */
+        /**
+         * Nothing of the headset's own; worded by the form factor its name suggests ("… Buds").
+         * AirPods and Beats are Battery only: Earshot reads each bud and the case from their adverts.
+         */
         fun capabilitiesFor(name: String?) = HeadphoneCapabilities(
             spatialAudio = false,
             ancToggle = false,
@@ -338,6 +372,7 @@ class GenericHeadphoneRepository(
             ownSettings = false,
             formFactor = HeadphoneLabels.formFactorFromName(name),
             supportNote = SUPPORT_NOTE,
+            batteryOnly = looksApple(name),
         )
     }
 }

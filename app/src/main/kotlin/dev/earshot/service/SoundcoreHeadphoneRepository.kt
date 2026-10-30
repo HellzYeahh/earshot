@@ -115,6 +115,13 @@ class SoundcoreHeadphoneRepository internal constructor(
             log.w("initial read failed: ${e.message}")
             mutableEvents.tryEmit(HeadphoneEvent.Error("Connected, but reading the earbuds failed: ${e.message}", e))
         }
+        // A failed read, or a Sleep A30 body that didn't parse, published nothing. The Sleep A30's
+        // capabilities don't depend on a read (Tested on our own pair); a newer model's do, so it
+        // keeps the defaults, which say Experimental.
+        identifyIfUnread(
+            conn, model.displayName, model.displayName,
+            capabilities = if (sleepA30) SoundcoreStateMapping.capabilities() else null,
+        )
         mutableEvents.tryEmit(HeadphoneEvent.Connected)
         pollWhileOpen(conn, STATE_POLL_MS, what = "state poll") { commands.withLock { readState(conn) } }
     }

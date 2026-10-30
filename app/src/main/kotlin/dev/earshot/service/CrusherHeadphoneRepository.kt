@@ -130,6 +130,10 @@ class CrusherHeadphoneRepository internal constructor(
             }
             mutableEvents.tryEmit(HeadphoneEvent.Error("Connected, but reading settings failed: ${e.message}", e))
         }
+        // A failed onConnected published nothing, and a refused dev_info leaves info out even when the rest worked.
+        // The model is the Bluetooth name's guess (the Crusher by default), as dev_info would have left it.
+        val model = protocol.currentModel.displayName
+        identifyIfUnread(conn, model, model)
         mutableEvents.tryEmit(HeadphoneEvent.Connected)
         // No battery push in the headphones' protocol: poll, without greying out the controls.
         pollWhileOpen(conn, BATTERY_POLL_MS) {

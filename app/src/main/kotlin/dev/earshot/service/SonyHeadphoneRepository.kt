@@ -95,6 +95,9 @@ class SonyHeadphoneRepository internal constructor(
             log.w("init failed: ${e.message}")
             mutableEvents.tryEmit(HeadphoneEvent.Error("Connected, but reading the headphones failed: ${e.message}", e))
         }
+        // A failed init published nothing: the model if device info got that far, else the Bluetooth name.
+        val modelName = s.snapshot.modelName
+        identifyIfUnread(conn, modelName?.let { "Sony $it" } ?: link.state.value.deviceName, modelName)
         mutableEvents.tryEmit(HeadphoneEvent.Connected)
         pollWhileOpen(conn, BATTERY_POLL_MS) { commands.withLock { publish(s.readBattery()) } }
     }

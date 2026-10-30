@@ -5,7 +5,9 @@ import dev.earshot.bt.LinkSource
 import dev.earshot.bt.ManagedLink
 import dev.earshot.core.ButtonAction
 import dev.earshot.core.ConnectionStatus
+import dev.earshot.core.DeviceInfo
 import dev.earshot.core.HeadphoneCandidate
+import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
@@ -152,6 +154,29 @@ abstract class SessionRepository<C : ManagedLink>(
     protected fun requireConnection(checkOpen: Boolean = true): C =
         (if (checkOpen) openConnection() else link.connection.value)
             ?: throw HeadphoneCommandException(notConnectedMessage)
+
+    /**
+     * Run right after a session's first read, whether it worked or not: when nothing has published
+     * `info` yet (the read failed, timed out or didn't parse), publish the identity the driver
+     * already knows. The support tier waits for `info` (before it the capabilities are only the
+     * defaults), so without this a headset that keeps failing would show no tier and no "Send a
+     * report", just when a report helps most. The default capabilities say Experimental; a driver
+     * that knows the model's own without a read passes [capabilities] (the Sleep A30: Tested).
+     * Nothing changes once `info` is there, or when [conn] has closed meanwhile (the state was
+     * reset for the next link, which must not inherit this one's identity).
+     */
+    protected fun identifyIfUnread(
+        conn: C,
+        productName: String?,
+        modelName: String? = null,
+        capabilities: HeadphoneCapabilities? = null,
+    ) {
+        if (!conn.isOpen) return
+        mutableState.update { s ->
+            if (s.info != null) s
+            else s.copy(info = DeviceInfo(productName = productName, modelName = modelName), capabilities = capabilities ?: s.capabilities)
+        }
+    }
 
     /**
      * The shared poll: every [periodMs] while [conn] is open, until [stopWhen] says so, run [read].

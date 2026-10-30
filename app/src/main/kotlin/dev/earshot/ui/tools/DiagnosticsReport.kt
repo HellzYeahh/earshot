@@ -10,6 +10,9 @@ import dev.earshot.bt.BtTimeline
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.LogRing
 import dev.earshot.core.HeadphoneState
+import dev.earshot.core.SupportTier
+import dev.earshot.distribution.Distribution
+import dev.earshot.distribution.LegacyApp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -32,7 +35,14 @@ object DiagnosticsReport {
         val channel = saved?.address?.let { runCatching { container.devicePrefs.candidateFor(it) }.getOrNull() }
         return buildString {
             appendLine("Earshot connection report")
-            appendLine("App: ${runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()}")
+            // Both builds share the version name: the flavour and package tell a Play report from a GitHub one.
+            val versionName = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
+            appendLine("App: $versionName (${Distribution.NAME}, ${context.packageName})")
+            // Two Earshots fight over the one control channel: the losing one only sees a busy headset.
+            LegacyApp.find(context)?.let { other ->
+                val what = if (other == LegacyApp.Kind.LEGACY) "the pre-1.0 app" else "the Google Play build"
+                appendLine("Also installed: ${Distribution.LEGACY_PACKAGE} ($what)")
+            }
             appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine()
             appendLine("Saved headphones: ${saved?.name ?: "none"} ${saved?.address ?: ""}".trim())
@@ -110,6 +120,8 @@ object DiagnosticsReport {
         appendLine("Detected model: ${info?.modelName ?: "-"} (product ${info?.productName ?: "-"}, id ${info?.productId?.let { "0x%04x".format(it) } ?: "-"})")
         appendLine("Firmware: ${info?.firmwareVersion ?: "-"}")
         appendLine("Layout verified on hardware: ${state.capabilities.verified}")
+        // What the owner saw on the tier tag; an Experimental report is how a model moves to Tested.
+        appendLine("Support tier: ${SupportTier.of(state)?.name?.lowercase() ?: "-"}")
         appendLine("Secure session: ${state.secureSession.status} ${state.secureSession.message ?: ""}".trim())
     }
 

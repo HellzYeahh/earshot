@@ -120,22 +120,24 @@ class SonyConnection(
                 SonyLog.w("could not ACK: ${e.message}")
             }
         }
+        // The resend check is link-level: every acknowledged frame moves the headset's seq on (it
+        // takes the next one from our ACK), including the ones Earshot ignores below. Tracking only
+        // the frames it parses would leave lastReceivedSeq stale after an ignored data type or an
+        // empty frame, and the next real reply, carrying that stale seq, would be dropped as a resend.
+        val repeatsSeq = acknowledged && frame.seq == lastReceivedSeq
+        if (acknowledged) lastReceivedSeq = frame.seq
         val table = SonyTable.forDataType(frame.dataType)
         if (table == null || frame.payload.isEmpty()) {
-            SonyLog.d("ignored frame $frame")
+            SonyLog.d("ignored frame ${frame.forLog()}")
             return
         }
         val message = SonyMessage(table, frame.payload)
-        if (acknowledged) {
-            val resend = frame.seq == lastReceivedSeq && !message.isNotify
-            lastReceivedSeq = frame.seq
-            if (resend) {
-                SonyLog.d("dropped a resent $message")
-                return
-            }
+        if (repeatsSeq && !message.isNotify) {
+            SonyLog.d("dropped a resent ${message.forLog()}")
+            return
         }
         // Command, type and size only: some replies carry names and addresses (paired devices, the headset's own address).
-        SonyLog.d("<- $message")
+        SonyLog.d("<- ${message.forLog()}")
         pendingReplies.remove(ReplyKey(table, message.command, message.type))?.complete(message) ?: _unsolicited.tryEmit(message)
     }
 
@@ -151,7 +153,7 @@ class SonyConnection(
             throw HeadphoneCommandException("Earshot doesn't send that command to Sony headphones ($message)")
         }
         frameLock.withLock {
-            if (!isOpen) throw HeadphoneCommandException("Headphones not connected")
+            if (!isOpen) throw HeadphoneCommandException(NOT_CONNECTED)
             if (!openDelayDone) {
                 delay(openDelayMs)
                 openDelayDone = true
@@ -159,10 +161,10 @@ class SonyConnection(
             val seq = sendSeq
             val bytes = TandemFrame(message.table.dataType, seq, message.payload).encode()
             for (attempt in 0..resends) {
-                if (!isOpen) throw HeadphoneCommandException("Headphones not connected")
+                if (!isOpen) throw HeadphoneCommandException(NOT_CONNECTED)
                 val ack = CompletableDeferred<Int>()
                 pendingAck = ack
-                SonyLog.d("-> $message seq $seq${if (attempt > 0) " (resend $attempt)" else ""}")
+                SonyLog.d("-> ${message.forLog()} seq $seq${if (attempt > 0) " (resend $attempt)" else ""}")
                 try {
                     writeRaw(bytes)
                 } catch (e: CancellationException) {
@@ -179,7 +181,7 @@ class SonyConnection(
                     return
                 }
             }
-            SonyLog.w("no ACK for $message after ${resends + 1} tries; dropping the link")
+            SonyLog.w("no ACK for ${message.forLog()} after ${resends + 1} tries; dropping the link")
             finish(UnresponsiveLinkException("Remote endpoint does not respond"))
             throw HeadphoneCommandException("The headphones stopped answering")
         }
@@ -215,17 +217,34 @@ class SonyConnection(
         if (!isOpen) return
         isOpen = false
         runCatching { transport.close() }
-        pendingAck?.cancel()
-        pendingReplies.values.forEach { it.cancel() }
+        // Not cancel(): the caller waiting for the ACK or the reply is still alive and must hear "not
+        // connected". A bare CancellationException escapes withTimeoutOrNull, SonyLinkFactory.probe
+        // then can't report the busy channel, and ConnectionManager takes it for its own cancellation
+        // (the connect loop ends silently, stuck in CONNECTING). Same rule as JblConnection.finish.
+        pendingAck?.completeExceptionally(HeadphoneCommandException(NOT_CONNECTED))
+        pendingReplies.values.forEach { it.completeExceptionally(HeadphoneCommandException(NOT_CONNECTED)) }
         pendingReplies.clear()
         closed.complete(cause)
         scope.cancel()
     }
 
     companion object {
+        const val NOT_CONNECTED = "Headphones not connected"
         const val OPEN_DELAY_MS = 500L
         const val ACK_TIMEOUT_MS = 750L
         const val MAX_RESENDS = 10
         const val REPLY_TIMEOUT_MS = 2_000L
     }
 }
+
+/**
+ * A message as [SonyLog] prints it: table, command byte, inquired type and length, never the rest
+ * of the payload (audit R09). Built from the fields instead of [SonyMessage.toString], so a later
+ * change there can't put payload bytes into the connection report: some replies carry the phone's
+ * name, paired devices' addresses or the headset's own address, and the report is what users
+ * paste into public bug reports.
+ */
+private fun SonyMessage.forLog(): String = "${table.name} %02x %02x (%d B)".format(command, type, payload.size)
+
+/** A Tandem frame Earshot doesn't parse, for [SonyLog]: data type, sequence and length only (same reason). */
+private fun TandemFrame.forLog(): String = "type %02x seq %d (%d B)".format(dataType, seq, payload.size)

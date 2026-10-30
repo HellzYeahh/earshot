@@ -62,7 +62,10 @@ class JblHeadphoneRepository internal constructor(
         demoName: () -> String = { DEMO_NAME },
     ) : this(
         link = ConnectionManager(
-            context.applicationContext, finder, prefs, scope, JblLinkFactory(context.applicationContext),
+            context.applicationContext, finder, prefs, scope,
+            // Buds without an audio link to the phone (off, in the case) skip the `<name>-LE` scan,
+            // so Earshot never goes looking for a look-alike pair nearby (R11).
+            JblLinkFactory(context.applicationContext, audioLinked = { finder.isAudioConnected(it) }),
             autoConnect = autoConnect,
             demoTransport = demoTransport,
             demoName = demoName,
@@ -92,6 +95,8 @@ class JblHeadphoneRepository internal constructor(
         }
         // Which probes answered can change without a status change: publish once more with the final set.
         publish(s)
+        // The publish above always carries an identity; the guard keeps it so if the mapping ever leaves info out.
+        identifyIfUnread(conn, s.model?.fullName ?: link.state.value.deviceName, s.model?.fullName)
         mutableEvents.tryEmit(HeadphoneEvent.Connected)
         pollWhileOpen(conn, BATTERY_POLL_MS) { commands.withLock { s.readBattery() } }
     }

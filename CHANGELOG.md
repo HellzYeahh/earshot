@@ -1,5 +1,91 @@
 # Changelog
 
+## Unreleased — preparing 1.0 for Google Play
+
+Roadmap "1.0 plan" (set 2026-10-27).
+
+### Changed
+- **Two versions from one codebase:** `play` (Google Play, app ID `dev.earshot`) and `foss`
+  (GitHub, F-Droid and IzzyOnDroid, `dev.earshot.foss`, always everything free). The GitHub build
+  notices an older `dev.earshot` install and offers to open its App info page.
+- **Release signing:** release builds are signed only with the keys in `keystore.properties`
+  (`docs/release-signing.md`), one per version; without it they come out unsigned, never with the
+  debug key. Builds up to 0.9.0 were debug-signed, so moving to the new builds needs one reinstall.
+- **Release gate:** GitHub Actions runs every test, lint and both release builds on each push (one
+  variant per Gradle run), then `tools/release/check_release.py`.
+  - On every APK it checks: no internet permission, no QUERY_ALL_PACKAGES, the flavour taken from
+    the app ID, and the size budget.
+  - On a release tag it also checks the version, What's New and CHANGELOG, and that the signed APK
+    passes `apksigner verify`, isn't debug-signed and isn't debuggable.
+  - `--bridge` and `--installs-over` cover the one-time 0.9.1 bridge
+    (`docs/release-signing.md`).
+- **Targets Android 17 (API 37).** It was checked on a Galaxy Z Fold7:
+  - the Bose connect works;
+  - a dropped link is reported as a drop and reconnects;
+  - sleep sounds keep playing with the screen off;
+  - the alarm rings on time;
+  - Earshot asks for location only when you tap.
+- **Builds anywhere:** the project no longer pins a Windows JDK path (`gw.cmd` still sets it on the
+  developer's PC).
+
+### New
+- **Back up and restore** (More). Save your settings to one file, or load them back.
+  - **Included:** EQ and presets, automations, headset settings, Sleep plan, alarms and mixes;
+    your own sleep sounds are optional.
+  - **Not included:** the Bluetooth history, demo mode, a night in progress, and pairings or links
+    (Android keeps those per phone).
+  - **Restoring:** the file is fully checked first (allowed paths only, sizes, checksums, value
+    types). A restore runs only after you tap Restart now, and only within 10 minutes.
+  - **Safety:** your own sounds are added, never deleted. If a restore stops part-way, the previous
+    settings are put back and Earshot says so.
+  - **Leaving the pre-1.0 builds:** the GitHub version tells you when the old Earshot is still
+    installed and how to move your settings over.
+- **Honest support labels.** Home's headset card and More's About card show one tag: Tested,
+  Experimental, Battery only or Any headset. Tap it to see what works on that headset.
+  - **Experimental headsets** get **Send a report**: the connection report goes to the app you pick
+    in the share menu, with a line asking what works. Owners' reports are how a headset becomes Tested.
+  - **Soundcore Sleep A30** now shows as Tested (it is tested on our own pair), without the
+    Experimental note.
+  - Only the models Earshot has run on for real count as Tested: the other Bose models stay
+    Experimental even where bosectl confirmed the layout. AirPods, Beats and the QuietComfort 35
+    are Battery only.
+
+### Fixed (full code audit before the store release)
+- **Other apps can no longer drive Earshot:**
+  - Only a real headset press can start a voice memo.
+  - Only Earshot's own notification and shortcut can ring the earbuds or start a sleep night.
+- **No more QUERY_ALL_PACKAGES:** Earshot names the apps and intents it looks up instead (Google
+  Play policy).
+- **Logs and the connection report no longer carry** paired devices' names and addresses, the
+  phone's own Bluetooth address, or call and app details.
+- **Bose:**
+  - storage errors no longer crash the app;
+  - send has a timeout, and the reconnect backoff no longer resets after every short session;
+  - device-info replies are matched to the device that was asked;
+  - pushes during a mode dump and late frames are no longer lost.
+- **Sony and Soundcore** no longer get stuck on "Connecting" after a link drop.
+- **JBL:**
+  - only your own buds are connected, never a nearby identical pair;
+  - the Bluetooth LE link drops back to normal power after setup.
+- **Skullcandy:** a brief Keystore error no longer wipes paired Skullcandy headsets.
+- **Auto-connect off** is respected after a cold start too.
+- **Sleep alarms:** the wake alarm has a fallback when exact alarms or the full-screen alarm aren't
+  allowed (default on new Play installs).
+- **EQ and audio:**
+  - the EQ recovers from a failed effect and no longer forgets presets at start;
+  - corrupt settings files are reset instead of blocking saves;
+  - codec refreshes no longer pile up.
+- **Onboarding and editors:**
+  - the headset pick in onboarding works;
+  - the demo button shows the demo;
+  - automation, mode and alarm edits survive rotation, and a double tap saves once.
+- **Smaller fixes:**
+  - the Bluetooth history asks before clearing;
+  - the notification permission is asked once;
+  - the Lab no longer writes duplicate scan files.
+- **Android 9–11:** Earshot asks for location where AirPods battery or a JBL connection needs a
+  Bluetooth scan.
+
 ## 0.9.0 — 2026-10-27
 
 The first part of roadmap 0.9: the Sleep tab. The rest of the 0.9 plan ("tie it together") follows

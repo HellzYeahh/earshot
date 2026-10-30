@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import dev.earshot.MainActivity
 import dev.earshot.find.FindSide
 import dev.earshot.R
@@ -201,6 +202,17 @@ class ServiceNotification(private val context: Context) {
         const val CHANNEL_ID = "connection"
         const val NOTIFICATION_ID = 1001
         private const val DEFAULT_NAME = "Headphones"
+
+        /**
+         * Removes the notification [HeadphoneService] left behind when it stopped with the
+         * persistent notification on (detached, still ongoing, so Android 9 to 13 don't let the
+         * user swipe it away). Nothing else can reach it once the service is gone. While the
+         * service is in the foreground Android ignores an app's cancel of its notification, so a
+         * call that races a start does no harm (and the next `startForeground` posts it anyway).
+         */
+        fun cancelKept(context: Context) {
+            runCatching { NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID) }
+        }
 
         // What Android shows on a notification.
         private const val MAX_ACTIONS = 3

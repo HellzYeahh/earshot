@@ -383,6 +383,8 @@ class FakeHeadphoneRepository(
                 battery = BatteryDetail(overall = BatteryLevel(72, minutesLeft = 17 * 60)),
                 autoOffMinutes = 20,
                 eqRange = -10..10,
+                // The QC Ultra 2 is the model Earshot runs on for real: previews show the Tested tier.
+                capabilities = HeadphoneCapabilities(tested = true),
             )
         }
 

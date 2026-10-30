@@ -3,6 +3,7 @@ package dev.earshot.ui.tools
 import android.content.IntentSender
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -77,6 +78,11 @@ class UniversalRemoteViewModel(
     private val main = Handler(Looper.getMainLooper())
     private val mainExecutor = Executor { main.post(it) }
 
+    private val pendingDialog = PendingDialog<IntentSender>()
+
+    /** The system's link dialog, waiting for the screen to launch it (see [PendingDialog]). */
+    val dialog: StateFlow<IntentSender?> = pendingDialog.state
+
     fun refresh(current: RemoteTarget?) {
         viewModelScope.launch {
             val target = current ?: runCatching { prefs.savedDevice() }.getOrNull()?.let { RemoteTarget(it.address, it.name) }
@@ -92,13 +98,13 @@ class UniversalRemoteViewModel(
         }
     }
 
-    fun link(onDialog: (IntentSender) -> Unit) {
+    fun link() {
         val target = _state.value.target ?: return
         if (!abilities.canLink) {
             messenger.show(R.string.remote_unavailable)
             return
         }
-        remote.link(target.address, target.name, mainExecutor, onDialog) { error ->
+        remote.link(target.address, target.name, mainExecutor, pendingDialog::offer) { error ->
             if (error == null) {
                 messenger.show(R.string.remote_linked, label(target))
             } else if (error.isNotBlank()) {
@@ -106,6 +112,16 @@ class UniversalRemoteViewModel(
             }
             refresh(target)
         }
+    }
+
+    /** The screen is launching [sender]; one offered meanwhile stays for the next launch. */
+    fun dialogShown(sender: IntentSender) = pendingDialog.taken(sender)
+
+    /** Launching the dialog failed; nothing else will tell the user. */
+    fun dialogFailed(error: Throwable) {
+        Log.w(TAG, "link dialog failed to launch: ${error.javaClass.simpleName}")
+        val detail = error.message
+        if (detail.isNullOrBlank()) messenger.show(R.string.error_generic) else messenger.show(R.string.remote_link_failed, detail)
     }
 
     fun connect() = act { remote.connect(it.address); messenger.show(R.string.remote_connecting, label(it)) }
@@ -121,6 +137,31 @@ class UniversalRemoteViewModel(
     }
 
     private fun label(t: RemoteTarget) = t.name ?: t.address
+
+    private companion object {
+        const val TAG = "Earshot/Remote"
+    }
+}
+
+/**
+ * A dialog the system handed over in a callback, kept until the screen launches it. The
+ * callback must not launch it itself: on Android 9–12 it comes only after the system's device
+ * scan, seconds later, and by then a rotation, a fold (MainActivity handles no configuration
+ * changes) or leaving the Controls screen has unregistered the launcher it would have captured.
+ * `launch` then threw IllegalStateException from a main-looper callback and crashed the app.
+ */
+internal class PendingDialog<T : Any> {
+    private val pending = MutableStateFlow<T?>(null)
+    val state: StateFlow<T?> = pending.asStateFlow()
+
+    fun offer(dialog: T) {
+        pending.value = dialog
+    }
+
+    /** [dialog] is being launched; a newer one offered meanwhile stays. */
+    fun taken(dialog: T) {
+        pending.compareAndSet(dialog, null)
+    }
 }
 
 /**
@@ -136,6 +177,17 @@ fun UniversalRemoteSection(target: RemoteTarget?, modifier: Modifier = Modifier)
     val abilities = vm.abilities
     val dialog = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { vm.refresh(target) }
     LaunchedEffect(target) { vm.refresh(target) }
+    // Launched from here, with this composition's own launcher, never from the companion callback.
+    val pendingDialog by vm.dialog.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingDialog) {
+        val sender = pendingDialog ?: return@LaunchedEffect
+        vm.dialogShown(sender)
+        try {
+            dialog.launch(IntentSenderRequest.Builder(sender).build())
+        } catch (e: RuntimeException) {
+            vm.dialogFailed(e)
+        }
+    }
 
     var showRename by rememberSaveable { mutableStateOf(false) }
     var showForget by rememberSaveable { mutableStateOf(false) }
@@ -158,7 +210,7 @@ fun UniversalRemoteSection(target: RemoteTarget?, modifier: Modifier = Modifier)
                 value = name,
                 subtitle = stringResource(if (abilities.canLink) R.string.remote_link_subtitle else R.string.remote_unavailable),
                 icon = Icons.Default.Link,
-                onClick = { vm.link { sender -> dialog.launch(IntentSenderRequest.Builder(sender).build()) } },
+                onClick = vm::link,
             )
             return@SectionCard
         }

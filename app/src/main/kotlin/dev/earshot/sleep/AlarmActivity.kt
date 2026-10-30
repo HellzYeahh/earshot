@@ -48,14 +48,24 @@ class AlarmActivity : ComponentActivity() {
         }
     }
 
-    // Visible: volume calls work on Android 17 (a pending morning volume can go back).
+    /** This screen counted itself as visible in onStart; onStop takes back exactly that. */
+    private var countedVisible = false
+
+    // Visible: volume calls work on Android 17 (a pending morning volume can go back). Screens are
+    // counted, so each onStop must undo only its own onStart: the phone may be unlocked in between.
     override fun onStart() {
         super.onStart()
-        if (!LockedAlarms.isLocked(this)) appContainer.sleepRuntime.setAppVisible(true)
+        if (!LockedAlarms.isLocked(this)) {
+            appContainer.sleepRuntime.setAppVisible(true)
+            countedVisible = true
+        }
     }
 
     override fun onStop() {
-        if (!LockedAlarms.isLocked(this)) appContainer.sleepRuntime.setAppVisible(false)
+        if (countedVisible) {
+            appContainer.sleepRuntime.setAppVisible(false)
+            countedVisible = false
+        }
         super.onStop()
     }
 }

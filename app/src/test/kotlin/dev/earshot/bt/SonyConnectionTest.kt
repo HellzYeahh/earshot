@@ -159,6 +159,47 @@ class SonyConnectionTest {
         conn.close()
     }
 
+    @Test fun `an ignored acknowledged frame still moves the received seq on`() = runTest {
+        val t = ScriptedTransport()
+        val conn = SonyConnection(t, backgroundScope)
+        val got = mutableListOf<Int>()
+        backgroundScope.launch { conn.unsolicited.collect { got += it.payload[2].toInt() } }
+        testScheduler.runCurrent()
+        t.inject(TandemDataType.DATA_MDR, 0, 0x23, 0x00, 0x46, 0x00) // RET battery 70, seq 0
+        t.inject(TandemDataType.DATA_COMMON, 1, 0x01, 0x02) // a type Earshot ignores, seq 1
+        t.inject(TandemDataType.DATA_MDR, 0, 0x23, 0x00, 0x45, 0x00) // RET battery 69, seq 0: new, not a resend
+        t.inject(TandemDataType.DATA_MDR, 1) // an empty frame, seq 1: ignored, but it moves the seq too
+        t.inject(TandemDataType.DATA_MDR, 0, 0x23, 0x00, 0x44, 0x00) // RET battery 68, seq 0: new again
+        t.inject(TandemDataType.DATA_MDR, 0, 0x23, 0x00, 0x44, 0x00) // the same again: a real resend
+        testScheduler.runCurrent()
+        assertEquals(listOf(0x46, 0x45, 0x44), got)
+        assertEquals(listOf(1, 0, 1, 0, 1, 1), t.written.filter { it.isAck }.map { it.seq }, "every acknowledged frame was ACKed")
+        conn.close()
+    }
+
+    @Test fun `a link that drops while a reply is awaited fails with not connected, not a cancellation`() = runTest {
+        val t = ScriptedTransport()
+        // ACK the request, then the far end closes the socket before replying (the maker's app
+        // holding the service accepts and drops the link like this).
+        t.onData = { f ->
+            t.inject(TandemDataType.ACK, f.seq xor 1)
+            t.inbound.close()
+        }
+        val conn = SonyConnection(t, backgroundScope)
+        val e = assertFailsWith<HeadphoneCommandException> { conn.request(protocolInfo) }
+        assertEquals(SonyConnection.NOT_CONNECTED, e.message)
+        assertFalse(conn.isOpen)
+    }
+
+    @Test fun `a link that drops while an ACK is awaited fails with not connected, not a cancellation`() = runTest {
+        val t = ScriptedTransport()
+        t.onData = { t.inbound.close() }
+        val conn = SonyConnection(t, backgroundScope)
+        val e = assertFailsWith<HeadphoneCommandException> { conn.send(protocolInfo) }
+        assertEquals(SonyConnection.NOT_CONNECTED, e.message)
+        assertFalse(conn.isOpen)
+    }
+
     @Test fun `an ACK carrying the current seq is stale and ignored`() = runTest {
         val t = ScriptedTransport()
         var tries = 0

@@ -29,7 +29,9 @@ object SessionRegistry {
 
     fun open(sessionId: Int, packageName: String?) {
         if (sessionId <= 0) return // 0 is the global mix; apps never legitimately announce it
-        Log.d(TAG, "open session=$sessionId pkg=$packageName")
+        // Not the package itself: a line per playback start would be a record of the user's app
+        // usage in logcat and in bug reports (no PII in logs beyond the headphones' address).
+        log("open session=$sessionId pkg=${if (packageName != null) "yes" else "no"}")
         _sessions.update { list ->
             list.filterNot { it.sessionId == sessionId } +
                 AudioSession(sessionId, packageName, System.currentTimeMillis())
@@ -37,7 +39,7 @@ object SessionRegistry {
     }
 
     fun close(sessionId: Int) {
-        Log.d(TAG, "close session=$sessionId")
+        log("close session=$sessionId")
         _sessions.update { list -> list.filterNot { it.sessionId == sessionId } }
     }
 
@@ -46,9 +48,24 @@ object SessionRegistry {
     /**
      * Drop sessions announced more than [maxAgeMillis] ago. Players the OS kills never send CLOSE,
      * so without this the list only ever grows; a session that is still live gets re-announced by
-     * the player on its next start anyway.
+     * the player on its next start anyway. Sessions in [attached] (they carry a working effect, so
+     * the player may simply be playing for hours since its one announcement) may reach
+     * [attachedMaxAgeMillis] instead.
      */
-    fun pruneOlderThan(maxAgeMillis: Long, nowMillis: Long = System.currentTimeMillis()) {
-        _sessions.update { list -> list.filter { nowMillis - it.openedAtMillis <= maxAgeMillis } }
+    fun pruneOlderThan(
+        maxAgeMillis: Long,
+        nowMillis: Long = System.currentTimeMillis(),
+        attached: Set<Int> = emptySet(),
+        attachedMaxAgeMillis: Long = maxAgeMillis,
+    ) {
+        _sessions.update { list ->
+            list.filter { s ->
+                val limit = if (s.sessionId in attached) maxOf(maxAgeMillis, attachedMaxAgeMillis) else maxAgeMillis
+                nowMillis - s.openedAtMillis <= limit
+            }
+        }
     }
+
+    // Wrapped so the registry also runs in plain JVM unit tests, where android.util.Log is a stub that throws.
+    private fun log(msg: String) { runCatching { Log.d(TAG, msg) } }
 }

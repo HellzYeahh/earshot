@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Sleep runtime's (dev.earshot.sleep) words for a wake alarm Android won't let ring on time
+     (audit R05). Kept apart from strings_sleep_runtime.xml only so parallel edits don't collide;
+     they belong there. -->
+<resources>
+    <!-- Thrown by SleepRepository.saveAlarm when an alarm is switched on without exact alarms -->
+    <string name="sleep_rt_error_exact_alarms">Allow “Alarms &amp; reminders” for Earshot first (Allow alarms, on the Sleep tab). Without it, Android may ring the alarm late or not at all.</string>
+    <!-- Tonight's log: the alarm got neither a foreground service nor its lock-screen screen -->
+    <string name="sleep_rt_log_alarm_background">Android didn\'t let the alarm ring in the background or show it on the lock screen, so it may have stayed quiet. Allow what the Sleep tab asks for.</string>
+</resources>

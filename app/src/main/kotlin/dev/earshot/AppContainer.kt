@@ -232,7 +232,11 @@ class AppContainer(private val appContext: Context) {
         )
     }
 
-    /** Shizuku shell for the few reads Android keeps from apps (dumpsys); optional everywhere. */
+    /**
+     * Shizuku shell for the few reads Android keeps from apps (dumpsys); optional everywhere. Each
+     * flavour has its own ShizukuPrivilegedShell: the real one in the GitHub build, one that is never
+     * available in the Google Play build, which has no Shizuku (B8, docs/research/play-readiness.md).
+     */
     private val privilegedShell: dev.earshot.call.PrivilegedShell by lazy { dev.earshot.call.ShizukuPrivilegedShell(appContext) }
 
     /**

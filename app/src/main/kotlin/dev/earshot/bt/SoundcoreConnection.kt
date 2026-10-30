@@ -113,7 +113,7 @@ class SoundcoreConnection(
         }
         return requests.withLock {
             for (timeout in timeoutsMs) {
-                if (!isOpen) throw HeadphoneCommandException("Headphones not connected")
+                if (!isOpen) throw HeadphoneCommandException(NOT_CONNECTED)
                 val answer = CompletableDeferred<SoundcorePacket>()
                 pending[command] = answer
                 BtLog.d("-> soundcore ${SoundcorePacket.commandName(command)} (${body.size} bytes)")
@@ -143,13 +143,18 @@ class SoundcoreConnection(
         if (!isOpen) return
         isOpen = false
         runCatching { transport.close() }
-        pending.values.forEach { it.cancel() }
+        // Not cancel(): the caller waiting on the answer is still alive and must hear "not connected".
+        // A bare CancellationException escapes withTimeoutOrNull, the link factory then can't report
+        // the busy channel, and ConnectionManager takes it for its own cancellation (the connect loop
+        // ends silently, stuck in CONNECTING). Same rule as JblConnection.finish.
+        pending.values.forEach { it.completeExceptionally(HeadphoneCommandException(NOT_CONNECTED)) }
         pending.clear()
         closed.complete(cause)
         scope.cancel()
     }
 
     companion object {
+        const val NOT_CONNECTED = "Headphones not connected"
         val DEFAULT_TIMEOUTS_MS = listOf(500L, 1_000L, 1_500L)
         const val MIN_WRITE_GAP_MS = 60L
     }

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  1.0 plan item 4, "Honest support": the support tier tag (Home's headset card, More's About card),
+  the sheet it opens and the report an Experimental headset's owner can share. One tier name per
+  core SupportTier value; the "what works" lines say it in plain words for every brand.
+-->
+<resources>
+    <!-- Tier names: on the tag (shown in capitals) and as the sheet's title. -->
+    <string name="support_tier_tested">Tested</string>
+    <string name="support_tier_experimental">Experimental</string>
+    <string name="support_tier_battery_only">Battery only</string>
+    <string name="support_tier_any_headset">Any headset</string>
+
+    <!-- TalkBack: the tag reads "Support: Experimental"; double-tap "to show what works on this headset". -->
+    <string name="support_tag_description">Support: %1$s</string>
+    <string name="support_tag_action">show what works on this headset</string>
+
+    <!-- More › About these headphones: the label left of the tag. -->
+    <string name="support_row_label">Support</string>
+    <!-- Under the tag for an Experimental headset (replaces the old "hasn't been tested" note). -->
+    <string name="support_row_experimental_note">Earshot hasn\'t been tried on a real headset of this model yet. If a control doesn\'t respond, tap Experimental to send a report.</string>
+
+    <!-- The sheet: what works in each tier. -->
+    <string name="support_what_tested">Earshot has been tried on a real headset of this model. Every control it shows should work.</string>
+    <string name="support_what_experimental">Earshot can control this model, but it hasn\'t been tried on a real headset yet. Most controls should work; some may not respond.</string>
+    <string name="support_what_battery_only">Earshot can read this headset\'s battery, but it can\'t change any of its settings. Pro EQ, the codec panel, call audio, Controls, Sleep and automations still work through Android.</string>
+    <string name="support_what_any_headset">Earshot doesn\'t know this headset\'s own controls, so it never changes anything on it. Pro EQ, the codec panel, call audio, Controls, Sleep and automations work through Android.</string>
+
+    <!-- The report loop, Experimental only. -->
+    <string name="support_report_why">A short report on what works and what doesn\'t helps fix it. Owners\' reports are how a headset becomes Tested.</string>
+    <string name="support_report_send">Send a report</string>
+    <string name="support_report_privacy">Opens your share menu with the connection report: the headset\'s name, Bluetooth address and model, the services the phone has seen, its Bluetooth history on this phone, your phone\'s model and Android version, and the recent connection log. Nothing is sent until you pick an app.</string>
+    <!-- Title of the Android share menu. -->
+    <string name="support_report_chooser">Send the report with</string>
+    <!-- Subject line for mail apps; %1$s is the model or the headset's name. -->
+    <string name="support_report_subject">Earshot report: %1$s</string>
+    <string name="support_report_subject_plain">Earshot report</string>
+    <!-- The first line of the shared text, above the report: what the owner is asked to write. -->
+    <string name="support_report_prompt">What works on this headset, and what doesn\'t? Write it here, above the report:</string>
+</resources>

@@ -307,7 +307,7 @@ data class HeadphoneCapabilities(
      * mode carousel and editor, and the noise level (if readable) is shown read-only.
      */
     val listeningModes: Boolean = true,
-    /** False while the model's layout is a best guess rather than confirmed on hardware. */
+    /** False while the model's layout is a best guess rather than confirmed on hardware. The support tier goes by [tested]. */
     val verified: Boolean = true,
     /**
      * The headset's own settings can be reached over its protocol: touch controls, prompts,
@@ -330,6 +330,19 @@ data class HeadphoneCapabilities(
      * unsupported one (QuietComfort 35 / 35 II, the 2024 QC Earbuds). Null for fully supported models.
      */
     val supportNote: String? = null,
+    /**
+     * Earshot itself has run on this model's real hardware (our own pair, or owners' reports): the
+     * Tested [SupportTier]. Stronger than [verified], which a layout confirmed by someone else's
+     * captures (bosectl's QC45, say) also earns. False by default, unlike the QC Ultra 2 defaults
+     * around it: a driver claims it for a model it knows, a new driver never inherits it.
+     */
+    val tested: Boolean = false,
+    /**
+     * Earshot reads this headset's battery and nothing else of its own: AirPods and Beats (each bud
+     * and the case, from their adverts) and the recognised-but-unsupported models (QuietComfort 35).
+     * The Battery only [SupportTier].
+     */
+    val batteryOnly: Boolean = false,
 )
 
 /**

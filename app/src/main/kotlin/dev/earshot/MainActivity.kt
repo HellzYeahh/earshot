@@ -2,6 +2,7 @@ package dev.earshot
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -58,24 +59,41 @@ class MainActivity : ComponentActivity() {
         // ring a headset someone may be wearing again.
         val fromHistory = (intent?.flags ?: 0) and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
         intent?.getStringExtra(EXTRA_FIND)?.takeUnless { fromHistory }?.let { side ->
-            FindSide.entries.firstOrNull { it.name.equals(side, ignoreCase = true) }?.let { appContainer.find.start(it) }
+            // This activity is exported (the launcher entry): another app could send the extra and
+            // have Earshot ring a headset someone is wearing. Only Earshot's own notification rings;
+            // anyone else just opens the Find screen, where the user can ring it themselves.
+            if (fromEarshot(intent, "find")) {
+                FindSide.entries.firstOrNull { it.name.equals(side, ignoreCase = true) }?.let { appContainer.find.start(it) }
+            }
             tabRequests.value = NavRequest(Tab.TOOLS, Routes.FIND)
             intent.removeExtra(EXTRA_FIND) // a configuration change must not ring again
         }
         // The launcher's "Start sleep" shortcut: start tonight's plan while this activity is visible
-        // (Android 17 audio rules), then show the Sleep tab. Never replayed from Recents.
+        // (Android 17 audio rules), then show the Sleep tab. Never replayed from Recents. Same
+        // rule as Find: a night uses Earshot's Do Not Disturb access and may power the headset off
+        // at the end, so another app's request only opens the tab.
         if (intent?.action == SleepShortcut.ACTION_START && !fromHistory) {
-            lifecycleScope.launch { runCatching { appContainer.sleep.start() } }
+            if (fromEarshot(intent, "sleep")) lifecycleScope.launch { runCatching { appContainer.sleep.start() } }
             Tab.fromExtra("sleep")?.let { tabRequests.value = NavRequest(it) }
             intent.action = Intent.ACTION_MAIN
         }
+    }
+
+    /** [intent] came from Earshot's own notification or launcher shortcut ([LaunchOrigin]); logs a refusal. */
+    private fun fromEarshot(intent: Intent, what: String): Boolean {
+        val origin = LaunchOrigin.of(this, intent)
+        val allowed = LaunchOrigin.mayRunAppAction(origin.caller)
+        if (!allowed) Log.w(TAG, "$what request ignored: started by ${origin.packageName ?: "an unknown app"} (${origin.caller})")
+        return allowed
     }
 
     companion object {
         /** String extra: one of "home", "sound", "tools", "more". */
         const val EXTRA_OPEN_TAB = "dev.earshot.EXTRA_OPEN_TAB"
 
-        /** String extra: a [FindSide] name. Opens Tools → Find and starts the tone. */
+        /** String extra: a [FindSide] name. Opens Tools → Find and starts the tone (Earshot's own intents only). */
         const val EXTRA_FIND = "dev.earshot.EXTRA_FIND"
+
+        private const val TAG = "Earshot/Main"
     }
 }

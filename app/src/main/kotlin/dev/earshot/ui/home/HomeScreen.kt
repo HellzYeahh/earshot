@@ -132,6 +132,10 @@ fun HomeContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         ConnectionHeader(state = state, onRefresh = onRefresh, onSwitch = onOpenSwitcher)
+        // Android 9-11: the location ask a BLE scan needs (AirPods/Beats bud battery, a JBL's LE link).
+        BleScanBanner(state)
+        // GitHub build: another Earshot is installed and may hold the headset's control channel.
+        OtherEarshotBanner()
         StatusChips(state)
         AnimatedVisibility(visible = !state.isConnected) {
             DisconnectedCard(

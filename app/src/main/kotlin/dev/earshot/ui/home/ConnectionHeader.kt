@@ -49,23 +49,26 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.earshot.R
+import dev.earshot.core.BatteryDetail
 import dev.earshot.core.BatteryLevel
 import dev.earshot.core.ConnectionState
 import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.FormFactor
+import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.SectionCard
+import dev.earshot.ui.common.SupportTierChip
 import dev.earshot.ui.theme.EarshotTheme
 import kotlin.math.PI
 
 /**
- * Top of Home: the user's name for the product (big), the model and generation, the status and
- * time left, and the battery: one dial for headphones, L / R / case for earbuds. Tapping the
- * card opens the device switcher ([onSwitch]).
+ * Top of Home: the user's name for the product (big), the model and generation with the support
+ * tier tag, the status and time left, and the battery: one dial for headphones, L / R / case for
+ * earbuds. Tapping the card opens the device switcher ([onSwitch]); the tag opens what works.
  */
 @Composable
 fun ConnectionHeader(
@@ -118,13 +121,17 @@ fun ConnectionHeader(
                         modifier = Modifier.size(24.dp),
                     )
                 }
+                // The support tier tag sits next to the model, or by the status when there is no model line
+                // (no driver, or the Bluetooth name already says it). Its own tap; the card's opens the switcher.
+                val tierTag: @Composable () -> Unit = { SupportTierChip(state, Modifier.padding(start = 8.dp)) }
                 if (model != null) {
-                    MetaLine(text = model, icon = formFactorIcon(formFactor), iconDescription = formFactorLabel(formFactor))
+                    MetaLine(text = model, icon = formFactorIcon(formFactor), iconDescription = formFactorLabel(formFactor), trailing = tierTag)
                 }
                 MetaLine(
                     text = status,
                     icon = if (model == null) formFactorIcon(formFactor) else null,
                     iconDescription = formFactorLabel(formFactor),
+                    trailing = if (model == null) tierTag else null,
                 )
             }
             if (connected) {
@@ -146,9 +153,12 @@ fun ConnectionHeader(
     }
 }
 
-/** The model and status lines: small monospace capitals, like the legend on a panel. */
+/**
+ * The model and status lines: small monospace capitals, like the legend on a panel. [trailing]
+ * (the support tier tag) follows the text and keeps its size; a long line wraps or ellipsizes first.
+ */
 @Composable
-private fun MetaLine(text: String, icon: ImageVector?, iconDescription: String) {
+private fun MetaLine(text: String, icon: ImageVector?, iconDescription: String, trailing: (@Composable () -> Unit)? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
         if (icon != null) {
             Icon(icon, contentDescription = iconDescription, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
@@ -160,7 +170,9 @@ private fun MetaLine(text: String, icon: ImageVector?, iconDescription: String) 
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
         )
+        trailing?.invoke()
     }
 }
 
@@ -329,6 +341,23 @@ private const val TICK_COUNT = 36
 private fun HeaderHeadphonesPreview() {
     EarshotPreview {
         ConnectionHeader(FakeHeadphoneRepository.connectedState(), onRefresh = {}, onSwitch = {}, modifier = Modifier.padding(16.dp))
+    }
+}
+
+/** A headset without a driver (AirPods): no model line, so the tier tag sits by the status. */
+@LightDarkPreview
+@Composable
+private fun HeaderBatteryOnlyPreview() {
+    EarshotPreview {
+        ConnectionHeader(
+            HeadphoneState(
+                connection = ConnectionState(ConnectionStatus.CONNECTED, "AirPods Pro", "AA:BB:CC:DD:EE:09", audioLinked = true),
+                batteryPercent = 80,
+                battery = BatteryDetail(left = BatteryLevel(90), right = BatteryLevel(80), case = BatteryLevel(60)),
+                capabilities = HeadphoneCapabilities(ownSettings = false, listeningModes = false, batteryOnly = true, formFactor = FormFactor.EARBUDS),
+            ),
+            onRefresh = {}, onSwitch = {}, modifier = Modifier.padding(16.dp),
+        )
     }
 }
 

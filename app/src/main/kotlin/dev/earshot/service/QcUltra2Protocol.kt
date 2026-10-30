@@ -3,6 +3,7 @@ package dev.earshot.service
 import dev.earshot.bt.BmapConnection
 import dev.earshot.bt.BmapRequester
 import dev.earshot.bt.ReplyMode
+import dev.earshot.bt.describeForLog
 import dev.earshot.core.ButtonAction
 import dev.earshot.core.DeviceInfo
 import dev.earshot.core.HeadphoneCommandException
@@ -498,9 +499,13 @@ class QcUltra2Protocol(
             var name = before?.name
             var isLocal: Boolean? = null
             var isBose = before?.isBoseProduct
+            // Every [4.5]/[4.6] GET has the same address whichever MAC it asks about, so a late reply
+            // for the previous device (its request timed out) would be taken as this one's: only a
+            // reply that names this MAC counts. Names are cached in `known`, so a wrong one would
+            // stick for the whole session and the switcher would route to the wrong device.
             if (name == null) {
                 r.request(DeviceInfoQuery.request(mac)) { reply ->
-                    DeviceInfoQuery.parse(reply.payload)?.let { di ->
+                    DeviceInfoQuery.parse(reply.payload)?.takeIf { it.mac.equals(mac, ignoreCase = true) }?.let { di ->
                         name = di.name
                         isLocal = di.isLocalDevice
                         isBose = di.isBoseProduct
@@ -510,7 +515,8 @@ class QcUltra2Protocol(
             var profiles = before?.profiles
             if (extendedInfoWorks) {
                 extendedInfoWorks = r.request(DeviceExtendedInfoQuery.request(mac)) { reply ->
-                    DeviceExtendedInfoQuery.parse(reply.payload)?.let { profiles = it.toDeviceProfiles() }
+                    DeviceExtendedInfoQuery.parse(reply.payload)?.takeIf { it.mac.equals(mac, ignoreCase = true) }
+                        ?.let { profiles = it.toDeviceProfiles() }
                 } == Outcome.OK
             }
             val isThisPhone = when {
@@ -646,7 +652,7 @@ class QcUltra2Protocol(
         if (parsedEcho != null && parsedEcho.index == index) {
             return current.copy(modes = current.modes.ifEmpty { emptyModeList() }.withSlot(parsedEcho, facts))
         }
-        ProtocolLog.w("[31.6] echo did not describe slot $index (${echo}); re-reading the slot list")
+        ProtocolLog.w("[31.6] echo did not describe slot $index (${echo.describeForLog()}); re-reading the slot list")
         val r = TolerantReader(c)
         val configs = readModeConfigs(r)
         return current.copy(modes = buildModeList(configs, null, current.modes, facts))
@@ -1269,7 +1275,7 @@ class QcUltra2Protocol(
                 else -> null
             }
         } catch (e: IllegalArgumentException) {
-            ProtocolLog.w("ignoring malformed push $frame: ${e.message}")
+            ProtocolLog.w("ignoring malformed push ${frame.describeForLog()}: ${e.message}")
             null
         }
     }

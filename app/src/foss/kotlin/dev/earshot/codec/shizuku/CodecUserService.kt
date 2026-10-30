@@ -11,6 +11,7 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.Keep
+import dev.earshot.codec.CodecConfigFactory
 import dev.earshot.codec.CodecNames
 import dev.earshot.codec.CodecRequest
 import dev.earshot.codec.CodecStatusText
@@ -58,7 +59,7 @@ class CodecUserService(private val context: Context?) : ICodecService.Stub() {
             val request = CodecRequest(CodecNames.normalize(codecName), codecType, sampleRate, bits, specific1)
             val device = device(mac)
             val a2dp = aidl()
-            val config = CodecConfigFactory.build(request) { a2dp.getSupportedCodecTypes() }
+            val config = CodecConfigFactory.build(request, SVC_TAG) { a2dp.getSupportedCodecTypes() }
             Log.i(SVC_TAG, "requesting $request")
             val overload = a2dp.setCodecConfigPreference(device, config)
             Log.i(SVC_TAG, "setCodecConfigPreference accepted via $overload; polling status")

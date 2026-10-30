@@ -20,6 +20,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 interface GattPort {
     fun discoverServices(): Boolean
     fun requestHighPriority(): Boolean
+
+    /**
+     * Back to Android's balanced connection interval (`CONNECTION_PRIORITY_BALANCED`). Android
+     * documents the high priority for short transfers only; a control link that stays up for
+     * hours with a few frames per minute would otherwise keep an 11–15 ms interval next to A2DP,
+     * draining the phone and the buds. The default does nothing, for a port that can't.
+     */
+    fun requestBalancedPriority(): Boolean = false
+
     fun requestMtu(mtu: Int): Boolean
 
     /** The characteristic's property bits, or null when the service or characteristic is absent. */
@@ -45,8 +54,10 @@ class GattSetupException(message: String) : IOException(message)
  *
  * [open] runs the sequence JBL's app uses (JBL notes §2): wait for the LE connection, discover
  * services, ask for high connection priority, ask for [GattLinkSpec.mtu], then switch on each
- * notifying characteristic in order. Android allows one GATT operation at a time, so every
- * operation goes through one lock and waits for its callback (or its timeout) before the next.
+ * notifying characteristic in order. Once that setup burst is done it asks for the balanced
+ * priority again: the session that follows is sparse and long-lived. Android allows one GATT
+ * operation at a time, so every operation goes through one lock and waits for its callback (or its
+ * timeout) before the next.
  *
  * Writes are cut into ATT payloads of `MTU - 3` bytes ([GattChunks]) and each one waits for its
  * write callback, so a long frame arrives whole and in order. Notifications come out of
@@ -120,6 +131,9 @@ class GattTransport(
             negotiateMtu()
             pickWriteType()
             for (characteristic in spec.notify) enableNotifications(characteristic)
+            // The setup burst (MTU, CCCD writes) ran at high priority; the session itself is a few
+            // frames a minute for hours, so hand the radio back. A hint too: refused is harmless.
+            runCatching { port.requestBalancedPriority() }
             ready = true
             BtLog.d("GATT ${spec.name}: ready, MTU $mtu, write ${if (withResponse) "with" else "without"} response")
         } catch (t: Throwable) {

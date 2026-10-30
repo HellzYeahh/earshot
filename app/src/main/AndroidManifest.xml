@@ -46,11 +46,11 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- Automations: foreground-app trigger (special access, user grants in Settings) -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
-    <!-- Per-app profiles need to list launchable apps on Android 11+ -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <!-- No QUERY_ALL_PACKAGES on purpose: Google Play allows it only for apps whose core purpose
+         needs every installed app. Each app Earshot looks up is named by the <queries> below. -->
 
-    <!-- Codec switching via Shizuku (user-level, no root) -->
-    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+    <!-- Shizuku (its permission, provider and <queries> entry) is in the GitHub build only:
+         app/src/foss/AndroidManifest.xml (B8, docs/research/play-readiness.md). -->
 
     <!-- No INTERNET permission on purpose: this app never talks to a server. -->
 
@@ -59,8 +59,18 @@
     <!-- Universal remote: a Companion Device Manager link per headset (connect, rename, forget). -->
     <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
 
-    <!-- Shortcuts remapper: the assistants it can forward to, and the TextToSpeech engine. -->
+    <!-- Package visibility (Android 11+): every other app Earshot resolves or looks up must match an
+         entry here, or Android hides it. Code that starts resolving another app or intent adds its
+         entry (PackageVisibilityManifestTest checks the ones below). -->
     <queries>
+        <!-- Launchable apps: the per-app sound profile and foreground-app trigger pickers
+             (audio/InstalledApps), the shortcut's "Launch an app" (getLaunchIntentForPackage) and
+             its icon on the Shortcuts remapper. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- Shortcuts remapper: the assistants it can forward to, and the TextToSpeech engine. -->
         <intent>
             <action android:name="android.intent.action.VOICE_COMMAND" />
         </intent>
@@ -70,6 +80,27 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+        <!-- A saved voice memo's notification opens it in an audio player (MediaStore content URI;
+             shortcut/VoiceMemoNotifications checks resolveActivity first). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="content" android:mimeType="audio/*" />
+        </intent>
+        <!-- Codec panel: Developer options, else Settings (codec/CodecRepositoryImpl checks resolveActivity). -->
+        <intent>
+            <action android:name="android.settings.APPLICATION_DEVELOPMENT_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SETTINGS" />
+        </intent>
+        <!-- Who started the headset trigger (LaunchOrigin): Android hides the referrer of an app we
+             can't see, and only a press from the Bluetooth stack, the system or Android's app
+             chooser may start a voice memo, so those stay visible on every Android version.
+             Exactly LaunchOrigin.PRESS_SOURCES: change both together. -->
+        <package android:name="android" />
+        <package android:name="com.android.bluetooth" />
+        <package android:name="com.google.android.bluetooth" />
+        <package android:name="com.android.intentresolver" />
     </queries>
 
     <application
@@ -242,14 +273,5 @@
             android:taskAffinity="dev.earshot.alarm"
             android:theme="@style/Theme.Earshot"
             android:turnScreenOn="true" />
-
-        <!-- Shizuku -->
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            android:authorities="${applicationId}.shizuku"
-            android:enabled="true"
-            android:exported="true"
-            android:multiprocess="false"
-            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
     </application>
 </manifest>

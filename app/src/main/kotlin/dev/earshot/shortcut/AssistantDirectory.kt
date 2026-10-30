@@ -12,7 +12,8 @@ import android.util.Log
 /**
  * Package-manager side of the shortcuts: who handles `VOICE_COMMAND` / `VOICE_ASSIST`, who holds
  * the assistant role, and whether Earshot is the default for the headset gesture. Visibility of
- * other apps comes from the `<queries>` block (and `QUERY_ALL_PACKAGES`) in the manifest.
+ * other apps comes only from the `<queries>` block in the manifest (`VOICE_COMMAND`,
+ * `VOICE_ASSIST`; there is no `QUERY_ALL_PACKAGES`).
  */
 class AssistantDirectory(private val context: Context) {
     private val pm: PackageManager get() = context.packageManager

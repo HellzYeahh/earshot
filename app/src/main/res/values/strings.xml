@@ -7,7 +7,8 @@
 
     <!-- Lab deep scan -->
     <string name="lab_deep_scan">Deep scan (%1$d reads)</string>
-    <string name="lab_deep_scan_hint">%1$s Results are also saved under Android/data/dev.earshot/files/lab.</string>
+    <!-- %2$s: this build's package (dev.earshot on Google Play, dev.earshot.foss on GitHub), so the folder is the real one -->
+    <string name="lab_deep_scan_hint">%1$s Results are also saved under Android/data/%2$s/files/lab.</string>
 
     <!-- Appearance -->
     <string name="prefs_appearance">Appearance</string>
@@ -18,7 +19,7 @@
 
     <!-- Demo mode -->
     <string name="prefs_headphone_type">Headphone type</string>
-    <string name="prefs_headphone_type_subtitle">Earshot recognises your headphones by their Bluetooth name. If you renamed them, choose the type here. Other headset: Earshot shows it and never sends it anything.</string>
+    <string name="prefs_headphone_type_subtitle">Earshot recognises your headphones by their Bluetooth name. If you renamed them, choose the type here. Other headset: Earshot never changes its settings. It can still read its battery, and the universal remote can connect, disconnect, forget it or rename it on this phone.</string>
     <string name="prefs_forget_pairing">Forget secure pairing</string>
     <string name="prefs_forget_pairing_subtitle">Use this after resetting your headphones. Earshot reconnects and asks you to pair again.</string>
     <string name="prefs_type_auto">Automatic</string>
@@ -99,6 +100,9 @@
     <string name="onboarding_candidate_audio">Audio device</string>
     <string name="action_import">Import</string>
     <string name="action_allow_location">Allow location</string>
+    <string name="action_use_precise_location">Use precise location</string>
+    <string name="action_location_settings">Location settings</string>
+    <string name="action_not_now">Not now</string>
     <string name="sound_global_session">Also apply to apps that don\'t share their session (experimental)</string>
     <string name="sound_global_session_subtitle">Attaches to the global audio output; some phones ignore this</string>
     <string name="sound_preamp_auto">Auto</string>
@@ -111,7 +115,8 @@
     <string name="sound_autoeq_parse_error">Couldn\'t read that AutoEq text: %1$s</string>
     <string name="sound_boost_cap_no_limiter">Without the limiter the boost is capped at %1$s dB.</string>
     <string name="sound_boost_overshoot">Peaks may exceed full scale by %1$s dB; relying on the limiter.</string>
-    <string name="trigger_wifi_location_needed">Location permission is needed to read the Wi-Fi name, and location services must be on.</string>
+    <string name="trigger_wifi_location_needed">Android shows the Wi-Fi name only to apps with precise location, and only while location services are on. Earshot compares it on this phone to start your automation; it never reads, stores or sends your location.</string>
+    <string name="trigger_wifi_precise_needed">Turn on precise location so Earshot can read the Wi-Fi name. It compares the name on this phone and never reads, stores or sends your location.</string>
     <string name="automation_saved_needs_usage_access">Saved “%1$s” — it won\'t fire until Usage access is granted.</string>
     <string name="about_autoeq_credit">Headphone correction curve from AutoEq (Jaakko Pasanen, MIT)</string>
 
@@ -121,7 +126,7 @@
     <string name="home_modes_hint_tap">Tap to switch</string>
     <string name="home_modes_unavailable">This firmware doesn\'t expose listening modes to other apps, so they can only be changed on the headphones.</string>
     <string name="lab_report_title">Connection report</string>
-    <string name="lab_report_hint">If your headphones will not connect or a control does not work, copy this report and include it when you ask for help. It lists the headphones\' Bluetooth name and address, the services the phone has seen, the model Earshot detected, these headphones\' Bluetooth history on this phone and the recent connection log. Nothing else.</string>
+    <string name="lab_report_hint">If your headphones will not connect or a control does not work, copy this report and include it when you ask for help. It lists the headphones\' Bluetooth name and address, the services the phone has seen, the model Earshot detected, these headphones\' Bluetooth history on this phone, the recent connection log, and your phone\'s model and Android version and Earshot\'s version. Read it over before you post it.</string>
     <string name="lab_report_copy">Copy connection report</string>
     <string name="pairing_title">Pair with your headphones</string>
     <string name="pairing_body_code">Your headphones need a one-time pairing. They will announce a number, or ask you to press a button. Check that it is the same as this one:</string>
@@ -274,6 +279,7 @@
     <string name="timeline_intro">What happened to your headsets\' Bluetooth connections, recorded on this phone only and never sent anywhere. Connections and disconnections are always recorded; call (hands-free) connections, pairing, encryption and codec changes only while Earshot is running.</string>
     <string name="timeline_empty">Nothing recorded yet. Connect a headset and its history starts here.</string>
     <string name="timeline_clear">Clear history</string>
+    <string name="timeline_clear_text">Every recorded event is deleted from this phone.</string>
     <string name="tools_lab_subtitle">Protocol explorer (scanner reads only)</string>
     <string name="disconnected_body_skullcandy">Close the Skullcandy app, then tap Connect. Only one app at a time can use the headphones\' control connection.</string>
     <string name="disconnected_body_held">Close the %1$s app, then tap Connect. Only one app at a time can use the headphones\' control channel. Music and calls keep working meanwhile.</string>
@@ -510,7 +516,7 @@
     <string name="trigger_wifi_hint">Android needs location access to read the network name. Without background location it only reveals the name while Earshot is open, so the rule may fire the next time you open the app on that network.</string>
     <string name="trigger_app_none">No app chosen</string>
     <string name="trigger_app_pick">Choose app</string>
-    <string name="trigger_app_usage_access">Usage access needed to notice which app is in front.</string>
+    <string name="trigger_app_usage_access">Usage access needed to notice which app is in front. The app list stays on this phone.</string>
     <string name="trigger_app_usage_access_action">Open settings</string>
     <string name="trigger_schedule_time">Time</string>
     <string name="trigger_on_connect">When the headphones connect</string>
@@ -539,7 +545,7 @@
     <string name="prefs_tile_default">None selected: the tile cycles through your favourites, or the built-in modes if there are none.</string>
 
     <!-- About -->
-    <string name="about_version">Version %1$s</string>
+    <string name="about_version">Version %1$s · %2$s</string>
     <string name="about_tagline">A native companion for any Bluetooth headset, with no account, no cloud and no internet permission. Deepest control for Bose headphones and earbuds, experimental drivers for Skullcandy, Soundcore, Sennheiser and Sony, and name, battery, Pro EQ, codec, call audio, Controls and a universal remote for every other headset.</string>
     <string name="about_not_affiliated">Not affiliated with, endorsed by or supported by Bose, Apple, Skullcandy, Anker (Soundcore), Sony, Sennheiser, JBL (Harman) or any other headphone maker. Bose and QuietComfort are trademarks of Bose Corporation; AirPods and Beats of Apple Inc.; Skullcandy and Crusher of Skullcandy, Inc.; Anker and Soundcore of Anker Innovations Limited; Sony of Sony Group Corporation; Sennheiser of Sennheiser electronic SE &amp; Co. KG; JBL of Harman International Industries. Other product names belong to their owners.</string>
     <string name="about_control_channel">Only one app can use the headphones\' control channel at a time. Close the headphone maker\'s own app while Earshot is connected (and the other way round).</string>
@@ -549,6 +555,7 @@
     <string name="about_licence_body">Earshot is released under the MIT licence.</string>
     <string name="about_privacy">Privacy</string>
     <string name="about_privacy_body">Earshot has no internet permission. Settings, presets and automations are stored only on this phone.</string>
+    <string name="about_privacy_policy">Read the privacy policy</string>
 
     <!-- 0.4.0: header, battery, device switcher -->
     <string name="device_generic_name_buds">Earbuds</string>
@@ -567,6 +574,11 @@
     <string name="battery_left_unknown">Left earbud battery unknown</string>
     <string name="battery_right_unknown">Right earbud battery unknown</string>
     <string name="battery_case_unknown">Case battery unknown</string>
+    <!-- Android 9-11 only: a Bluetooth scan returns nothing without location (BleScanBanner) -->
+    <string name="ble_scan_permission_battery">Android 11 and older show Bluetooth scans only to apps with the location permission. Allow it so Earshot can show each earbud\'s and the case\'s battery. Earshot never uses your location.</string>
+    <string name="ble_scan_permission_link">Earshot may need a Bluetooth scan to find these headphones\' control connection, and Android 11 and older show scans only to apps with the location permission. Earshot never uses your location.</string>
+    <string name="ble_scan_location_off_battery">Turn on location so Earshot can show each earbud\'s and the case\'s battery: Android 11 and older return no Bluetooth scan results while it is off. Earshot never uses your location.</string>
+    <string name="ble_scan_location_off_link">Turn on location so Earshot can find these headphones\' control connection: Android 11 and older return no Bluetooth scan results while it is off. Earshot never uses your location.</string>
     <string name="switcher_title">Your headphones</string>
     <string name="switcher_subtitle">Paired with this phone. Pick one to connect to it.</string>
     <string name="switcher_current">Current</string>
@@ -606,7 +618,6 @@
     <string name="info_generation">Generation</string>
     <string name="info_firmware">Firmware</string>
     <string name="info_serial">Serial number</string>
-    <string name="info_unverified">Earshot hasn\'t been tested on this model yet. If a control doesn\'t respond, a connection report (Tools › Lab) helps fix it.</string>
 
     <!-- 0.4.0: modes screen -->
     <plurals name="modes_builtin_count">

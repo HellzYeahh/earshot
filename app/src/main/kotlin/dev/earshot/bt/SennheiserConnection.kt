@@ -94,7 +94,7 @@ class SennheiserConnection(
         if (frame.type == GaiaCommand.TYPE_COMMAND) return
         hasFramed = true
         silentRequests = 0
-        SennheiserLog.d("<- $frame")
+        SennheiserLog.d("<- ${frame.forLog()}")
         if (!queue.offer(frame)) pushChannel.trySend(frame)
     }
 
@@ -111,7 +111,7 @@ class SennheiserConnection(
     ): GaiaReply {
         if (!isOpen) throw HeadphoneCommandException("Headphones not connected")
         val frame = GaiaFrame(vendor, command, payload)
-        SennheiserLog.d("-> $frame")
+        SennheiserLog.d("-> ${frame.forLog()}")
         return try {
             queue.request(frame, timeoutMs)
         } catch (e: GaiaRefusedException) {
@@ -177,3 +177,11 @@ class SennheiserConnection(
             }
     }
 }
+
+/**
+ * A frame as [SennheiserLog] prints it: vendor, command word and length, never the payload (audit
+ * R09). Built from the fields instead of [GaiaFrame.toString], so a later change there can't put
+ * payload bytes into the connection report: the device name and the paired-device list are
+ * payloads, and the report is what users paste into public bug reports.
+ */
+private fun GaiaFrame.forLog(): String = "${GaiaCommand.name(vendor, command)} (${payload.size} B)"

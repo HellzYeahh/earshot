@@ -67,6 +67,10 @@ class SleepService : LifecycleService() {
             return START_NOT_STICKY
         }
         val sleep = appContainer.sleepRuntime
+        // Every action but START comes from one of our notifications. That tap gives this service
+        // while-in-use status (Android 17, target 37), so what the command does with audio (the
+        // morning volume, resumed sounds) is allowed. Told before the command runs.
+        if (action != null && action in TAP_ACTIONS) sleep.onServiceStartedFromTap()
         lifecycleScope.launch {
             // The repository runs each of these to the end even if this scope is cancelled.
             when (action) {
@@ -74,6 +78,7 @@ class SleepService : LifecycleService() {
                 ACTION_STOP -> runCatching { sleep.stop() }
                 ACTION_SNOOZE -> runCatching { sleep.snooze() }
                 ACTION_DISMISS -> runCatching { sleep.dismissAlarm() }
+                ACTION_RESUME -> runCatching { sleep.resumeSounds() }
             }
             if (!showing || !show(sleep.state.value.session)) stopNow()
         }
@@ -88,6 +93,13 @@ class SleepService : LifecycleService() {
             else -> return false
         }
         return try {
+            // The swap from the night's notification to the alarm's: stopForeground, then
+            // startForeground with the other id, at a ring that starts from an alarm broadcast.
+            // Whether the service keeps the night's while-in-use status across it is not
+            // documented (Android 17, target 37), so the repository assumes it doesn't
+            // (beginRingingLocked). The alarm itself doesn't need it: it plays USAGE_ALARM, which
+            // is exempt while the app holds exact-alarm access (AlarmPlayer). Never move the
+            // alarm to USAGE_MEDIA. To check on a targetSdk 37 build: docs/research/play-readiness.md H.
             if (shownId != 0 && shownId != id) ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             ServiceCompat.startForeground(this, id, notification, type())
             shownId = id
@@ -111,6 +123,12 @@ class SleepService : LifecycleService() {
         false
     }
 
+    override fun onDestroy() {
+        // Gone, and with it any while-in-use status; the locked ringer never touches the app's storage.
+        if (!locked) runCatching { appContainer.sleepRuntime.onServiceStopped() }
+        super.onDestroy()
+    }
+
     private fun type(): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0
 
     /**
@@ -132,7 +150,12 @@ class SleepService : LifecycleService() {
         const val ACTION_STOP = "$PKG.STOP"
         const val ACTION_SNOOZE = "$PKG.SNOOZE"
         const val ACTION_DISMISS = "$PKG.DISMISS"
+        /** "Tap to resume sounds" ([SleepNotifications.resume]). */
+        const val ACTION_RESUME = "$PKG.RESUME"
         const val EXTEND_MINUTES = 15
+
+        /** The actions only our notifications send: a user's tap. */
+        private val TAP_ACTIONS = setOf(ACTION_EXTEND, ACTION_STOP, ACTION_SNOOZE, ACTION_DISMISS, ACTION_RESUME)
 
         /** True when Android accepted the start; false from a background context it refuses. */
         fun start(context: Context): Boolean = try {

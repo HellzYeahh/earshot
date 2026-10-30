@@ -93,12 +93,15 @@ class HeadsetPresenceService : CompanionDeviceService() {
     private fun connect(address: String, waitForAudio: Boolean) {
         val app = applicationContext
         val repository = app.appContainer.headphones as? RoutingHeadphoneRepository ?: return
-        val autoConnect = runCatching { app.appContainer.automation.preferences.value.autoConnectOnBluetooth }.getOrDefault(true)
-        if (!autoConnect) {
-            Log.d(TAG, "$address present, auto-connect off")
-            return
-        }
+        val automation = runCatching { app.appContainer.automation }.getOrNull()
         scope.launch {
+            // The saved choice, read from the store, never `preferences.value`: a rebind ~10 s after
+            // the process died gets here before DataStore's first read lands, while that StateFlow
+            // still holds the default "on" (audit R04, see [autoConnectAllowed]).
+            if (automation != null && !autoConnectAllowed(automation)) {
+                Log.d(TAG, "$address present, auto-connect off")
+                return@launch
+            }
             if (waitForAudio && !linkedForAudio(app, address)) {
                 Log.d(TAG, "$address present but not linked for audio; leaving it to the link-up broadcast")
                 return@launch

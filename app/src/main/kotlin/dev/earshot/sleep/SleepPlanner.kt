@@ -23,6 +23,9 @@ data class SleepTimeline(
     val durationMillis: Long get() = endsAtMillis - startedAtMillis
 }
 
+/** One wake alarm's next ring as it is armed: the ring itself and, with a wake-up window, its start. */
+data class PlannedRing(val alarm: SleepAlarm, val atMillis: Long, val windowStartMillis: Long?)
+
 /**
  * The Sleep tab's rules as pure functions (docs/sleep-mode.md §4.2): the night's timeline, the
  * sound envelope, alarm times and the battery guess. Everything time-based takes `now` so the
@@ -106,6 +109,33 @@ object SleepPlanner {
     /** The soonest enabled alarm and when it rings. */
     fun nextAlarm(alarms: List<SleepAlarm>, nowMillis: Long, zone: ZoneId = ZoneId.systemDefault()): Pair<SleepAlarm, Long>? =
         alarms.mapNotNull { a -> nextRing(a, nowMillis, zone)?.let { a to it } }.minByOrNull { it.second }
+
+    /**
+     * The wake rings to arm for [alarms], in list order: each enabled alarm's next ring after
+     * [nowMillis] (or after its [skipUntil] time) and the start of its wake-up window when that is
+     * still ahead.
+     *
+     * None at all when exact alarms aren't allowed. The rule `saveAlarm` keeps
+     * ([SleepScheduler.mayEnable]: an inexact wake alarm may ring up to an hour late, or not at all
+     * on a locked phone) holds where alarms are armed too (audit X02/X04): an alarm that is switched
+     * on without the access (restored from a backup onto a new phone, where Android 14+ denies
+     * exact alarms to new installs, or one whose access was taken away) waits unarmed instead of
+     * looking set, until the access is allowed and the alarms are armed again, exactly.
+     */
+    fun ringsToArm(
+        alarms: List<SleepAlarm>,
+        nowMillis: Long,
+        skipUntil: Map<String, Long>,
+        exactAllowed: Boolean,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): List<PlannedRing> {
+        if (!exactAllowed) return emptyList()
+        return alarms.mapNotNull { alarm ->
+            val at = nextRing(alarm, maxOf(nowMillis, skipUntil[alarm.id] ?: 0L), zone) ?: return@mapNotNull null
+            val windowStart = (at - alarm.wakeWindowMinutes * MINUTE).takeIf { alarm.wakeWindowMinutes > 0 && it > nowMillis }
+            PlannedRing(alarm, at, windowStart)
+        }
+    }
 
     /**
      * Listening minutes left: the headset's own figure when it gives one, else a rough guess from

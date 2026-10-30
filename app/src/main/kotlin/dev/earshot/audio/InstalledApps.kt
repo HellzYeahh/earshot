@@ -10,9 +10,10 @@ object InstalledApps {
     data class Entry(val label: String, val packageName: String)
 
     /**
-     * Launchable apps, sorted by label, without ourselves. Relies on `QUERY_ALL_PACKAGES`
-     * (declared in the manifest) on Android 11+, otherwise the list would only contain apps that
-     * declare a `<queries>` match. This is a blocking package-manager call: run it off the main thread.
+     * Launchable apps, sorted by label, without ourselves. On Android 11+ they are visible through
+     * the manifest's `<queries>` MAIN/LAUNCHER intent (not `QUERY_ALL_PACKAGES`, which Google Play
+     * refuses for this); keep that entry in step with the intent below, or the list comes back
+     * nearly empty. This is a blocking package-manager call: run it off the main thread.
      */
     fun launchable(context: Context): List<Entry> {
         val pm = context.packageManager

@@ -36,9 +36,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,6 +56,7 @@ import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.ListeningMode
 import dev.earshot.core.NoiseSettings
+import dev.earshot.core.SpatialAudio
 import dev.earshot.core.fake.FakeHeadphoneRepository
 import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.ui.common.ConfirmDialog
@@ -66,6 +69,7 @@ import dev.earshot.ui.common.SubScreenScaffold
 import dev.earshot.ui.common.UiMessenger
 import dev.earshot.ui.common.earshotViewModel
 import dev.earshot.ui.home.NoiseControls
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 
 class ModesViewModel(
@@ -92,7 +96,26 @@ class ModesViewModel(
 fun ModesScreen(onBack: () -> Unit) {
     val vm = earshotViewModel { ModesViewModel(it.headphones, it.messenger) }
     val state by vm.state.collectAsStateWithLifecycle()
-    ModesContent(state = state, onBack = onBack, onUse = vm::setMode, onSave = vm::save, onReset = vm::reset)
+    // One save or reset at a time: a double tap on Save used to write the slot twice (state.isBusy
+    // flips only once the command has started), and the second command's onDone could close an
+    // editor opened since. Cleared when the command ends either way: on success the sheet has
+    // closed, on failure (its Snackbar said why) Save can be retried. Plain remember on purpose:
+    // after a rotation mid-save the new sheet must not stay locked. Unlike the automation and alarm
+    // editors no lifecycle check is needed here: onDone only closes the sheet, it pops no screen.
+    var busy by remember { mutableStateOf(false) }
+    fun once(onDone: () -> Unit, command: (onDone: () -> Unit) -> Job) {
+        if (busy) return
+        busy = true
+        command(onDone).invokeOnCompletion { busy = false }
+    }
+    ModesContent(
+        state = state,
+        onBack = onBack,
+        onUse = vm::setMode,
+        onSave = { index, name, settings, onDone -> once(onDone) { done -> vm.save(index, name, settings, done) } },
+        onReset = { index, onDone -> once(onDone) { done -> vm.reset(index, done) } },
+        busy = busy,
+    )
 }
 
 @Composable
@@ -102,10 +125,17 @@ fun ModesContent(
     onUse: (Int) -> Unit,
     onSave: (index: Int, name: String, settings: NoiseSettings, onDone: () -> Unit) -> Unit,
     onReset: (index: Int, onDone: () -> Unit) -> Unit = { _, _ -> },
+    /** A save or reset is under way: the editor's buttons stay off so a second tap can't run it again. */
+    busy: Boolean = false,
 ) {
     var editing by rememberSaveable { mutableStateOf<Int?>(null) }
     var confirmReset by rememberSaveable { mutableStateOf<Int?>(null) }
     val enabled = state.isConnected && !state.isBusy
+    // A command's onDone closes the editor it was started from, never one opened since (the sheet
+    // can be dismissed while the write is still on its way).
+    fun closeEditor(index: Int) {
+        if (editing == index) editing = null
+    }
 
     SubScreenScaffold(title = stringResource(R.string.modes_title), onBack = onBack) { padding ->
         LazyColumn(
@@ -167,10 +197,10 @@ fun ModesContent(
             slotIndex = editIndex,
             initialName = mode?.name.orEmpty(),
             initialSettings = mode?.settings ?: state.noise ?: NoiseSettings(),
-            busy = state.isBusy,
+            busy = state.isBusy || busy,
             capabilities = state.capabilities,
             onDismiss = { editing = null },
-            onSave = { name, settings -> onSave(editIndex, name, settings) { editing = null } },
+            onSave = { name, settings -> onSave(editIndex, name, settings) { closeEditor(editIndex) } },
             onReset = if (mode?.isConfigured == true) ({ confirmReset = editIndex }) else null,
         )
     }
@@ -183,7 +213,7 @@ fun ModesContent(
             text = stringResource(R.string.modes_reset_slot_text, mode?.name.orEmpty()),
             confirmLabel = stringResource(R.string.modes_reset_slot),
             destructive = true,
-            onConfirm = { onReset(resetIndex) { editing = null } },
+            onConfirm = { onReset(resetIndex) { closeEditor(resetIndex) } },
             onDismiss = { confirmReset = null },
         )
     }
@@ -271,7 +301,9 @@ fun ModeEditorSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var name by rememberSaveable(slotIndex) { mutableStateOf(initialName) }
-    var settings by remember(slotIndex) { mutableStateOf(initialSettings) }
+    // Saved like the name: in plain remember a rotation or fold put the slot's stored noise
+    // settings back while the typed name stayed, so Save wrote a half-edited mode.
+    var settings by rememberSaveable(slotIndex, saver = NoiseSettingsSaver) { mutableStateOf(initialSettings) }
     val bytes = name.toByteArray(Charsets.UTF_8).size
     val nameValid = name.isNotBlank() && bytes <= MAX_NAME_BYTES
 
@@ -316,6 +348,37 @@ fun ModeEditorSheet(
 }
 
 private const val MAX_NAME_BYTES = 31
+
+/**
+ * The editor's noise settings across a rotation or process death, as four numbers: level,
+ * cancelling on, wind block, spatial audio by its frozen [SpatialAudio.storedId] (never the Bose
+ * wire code). Pure so it is unit-tested.
+ */
+internal object NoiseSettingsSaving {
+    fun encode(s: NoiseSettings): IntArray =
+        intArrayOf(s.cancellingLevel, if (s.ancEnabled) 1 else 0, if (s.windBlock) 1 else 0, s.spatialAudio.storedId)
+
+    /** Null for anything this build didn't write, so the editor starts again from the slot. */
+    fun decode(saved: IntArray): NoiseSettings? {
+        if (saved.size != 4) return null
+        return NoiseSettings(
+            // NoiseSettings refuses a level outside 0..10; a restore must never crash the sheet.
+            cancellingLevel = saved[0].coerceIn(0, 10),
+            ancEnabled = saved[1] != 0,
+            windBlock = saved[2] != 0,
+            spatialAudio = SpatialAudio.fromStoredId(saved[3]),
+        )
+    }
+}
+
+/**
+ * The whole state, so an unreadable saved value returns null and rememberSaveable runs its
+ * initializer again (a `stateSaver` would put the null into the state instead).
+ */
+private val NoiseSettingsSaver = Saver<MutableState<NoiseSettings>, IntArray>(
+    save = { NoiseSettingsSaving.encode(it.value) },
+    restore = { saved -> NoiseSettingsSaving.decode(saved)?.let { mutableStateOf(it) } },
+)
 
 @LightDarkPreview
 @Composable

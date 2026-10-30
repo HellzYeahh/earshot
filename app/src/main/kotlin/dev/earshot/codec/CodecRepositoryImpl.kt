@@ -11,7 +11,6 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.ContextCompat
-import dev.earshot.codec.shizuku.CodecServiceClient
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.core.CODEC_SWITCH_UNSUPPORTED_MESSAGE
 import dev.earshot.core.CodecInfo
@@ -29,18 +28,20 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import rikka.shizuku.Shizuku
 
 /**
  * Codec panel backend. Read paths, most to least capable, each falling through to the next:
- *  1. the Shizuku user service ([CodecServiceClient] → `CodecUserService`, shell uid):
- *     `IBluetoothA2dp.getCodecStatus`, returned as `BluetoothCodecStatus.toString()`;
- *  2. `dumpsys bluetooth_manager` through Shizuku, parsed by [DumpsysCodecParser];
+ *  1. the privileged route's user service ([PrivilegedCodecAccess]: Shizuku's `CodecUserService`,
+ *     shell uid, GitHub build only): `IBluetoothA2dp.getCodecStatus`, returned as
+ *     `BluetoothCodecStatus.toString()`;
+ *  2. `dumpsys bluetooth_manager` through the same route, parsed by [DumpsysCodecParser];
  *  3. Android 13+, experimental: `BluetoothA2dp.getCodecStatus` on our own proxy for a headset
  *     linked through the universal remote ([AssociationCodecPath]; the stack accepts a Companion
  *     Device Manager association instead of BLUETOOTH_PRIVILEGED);
@@ -50,6 +51,10 @@ import rikka.shizuku.Shizuku
  * ready; otherwise [selectCodec] throws and the UI points at [openDeveloperCodecSettings]. No
  * hidden-API bypass runs in this (the app's) process: the reflective calls are on SDK/system-API
  * methods that Android's hidden-API policy allows.
+ *
+ * The Google Play build has no privileged route ([PrivilegedCodecAccess.None], B8 in
+ * docs/research/play-readiness.md): paths 1 and 2 are skipped, the privilege stays UNAVAILABLE and
+ * no message names Shizuku; reading and the companion-link switch work as in the GitHub build.
  */
 class CodecRepositoryImpl(
     private val context: Context,
@@ -58,19 +63,27 @@ class CodecRepositoryImpl(
     private val preferredAddress: () -> String? = { null },
 ) : CodecRepository {
 
-    // canSwitch follows Shizuku (running + permission), re-evaluated on every refresh.
+    // canSwitch follows the privileged route (Shizuku running + permission), re-evaluated on every refresh.
     private val _state = MutableStateFlow(CodecState(canSwitch = false))
     override val state: StateFlow<CodecState> = _state
 
     private val proxies = A2dpProxyHolder(context)
-    private val codecService = CodecServiceClient(context)
-    private val shell = ShizukuShell()
+
+    /** Shizuku in the GitHub build, none in the Google Play build (each flavour's PrivilegedCodecRoute). */
+    private val privileged: PrivilegedCodecAccess = PrivilegedCodecRoute.create(context)
     private val companionLink = AssociationCodecPath(context)
     private val refreshMutex = Mutex()
 
     /** The last refresh read the shown headset through its companion link (path 3), so switching can use it too. */
     @Volatile private var linkActive = false
     private var debounceJob: Job? = null
+
+    /** The late re-read after a broadcast; debounced on its own so a burst of broadcasts costs one. */
+    private var lateJob: Job? = null
+
+    /** A play/stop broadcast was skipped while no screen showed the codec; refresh when one does. */
+    @Volatile private var staleWhileUnwatched = false
+    private val watchJob: Job
 
     /** Numeric codec ids the stack reported last time, keyed by normalised name; needed to build configs. */
     @Volatile private var codecTypeIds: Map<String, Int> = emptyMap()
@@ -105,21 +118,19 @@ class CodecRepositoryImpl(
 
     private val a2dpReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, intent: Intent) {
+            // PLAYING_STATE_CHANGED fires on every play, pause and notification sound, and the
+            // receiver lives as long as the process; with Shizuku each refresh may run dumpsys.
+            // Only the screens read this state, so while none collects it the change just marks
+            // the state stale (CODEC_CONFIG_CHANGED still records real codec changes meanwhile).
+            if (intent.action == BluetoothA2dp.ACTION_PLAYING_STATE_CHANGED && _state.subscriptionCount.value == 0) {
+                staleWhileUnwatched = true
+                return
+            }
             // Codec negotiation finishes a moment after the connection broadcast, and some stacks
             // renegotiate when streaming starts (LDAC ABR, Samsung Scalable), so refresh twice.
             scheduleRefresh(DEBOUNCE_MS)
-            scheduleRefresh(LATE_REFRESH_MS, replace = false)
+            scheduleRefresh(LATE_REFRESH_MS, late = true)
         }
-    }
-
-    private val binderReceived = Shizuku.OnBinderReceivedListener {
-        serviceReadFailedAt = 0L // Shizuku (re)started: worth trying the service straight away
-        scheduleRefresh(0)
-    }
-    private val binderDead = Shizuku.OnBinderDeadListener {
-        // The user service dies with the Shizuku server; forget it so the next call binds again.
-        codecService.reset()
-        scheduleRefresh(0)
     }
 
     init {
@@ -136,21 +147,30 @@ class CodecRepositoryImpl(
             context, codecConfigReceiver, IntentFilter(ACTION_CODEC_CONFIG_CHANGED), ContextCompat.RECEIVER_EXPORTED,
         )
         // Shizuku hands us its binder asynchronously; re-evaluate privilege whenever that changes.
-        runCatching {
-            Shizuku.addBinderReceivedListenerSticky(binderReceived)
-            Shizuku.addBinderDeadListener(binderDead)
-        }.onFailure { Log.w(TAG, "Shizuku listeners unavailable: $it") }
+        privileged.watch(
+            onAppeared = {
+                serviceReadFailedAt = 0L // Shizuku (re)started: worth trying the service straight away
+                scheduleRefresh(0)
+            },
+            onGone = { scheduleRefresh(0) },
+        )
         scheduleRefresh(0)
+        watchJob = scope.launch {
+            _state.subscriptionCount.map { it > 0 }.distinctUntilChanged().collect { watched ->
+                if (watched && staleWhileUnwatched) {
+                    staleWhileUnwatched = false
+                    scheduleRefresh(0)
+                }
+            }
+        }
     }
 
     /** Stops the codec service process and drops listeners. The repository is unusable afterwards. */
     fun close() {
         debounceJob?.cancel()
-        codecService.close()
-        runCatching {
-            Shizuku.removeBinderReceivedListener(binderReceived)
-            Shizuku.removeBinderDeadListener(binderDead)
-        }
+        lateJob?.cancel()
+        watchJob.cancel()
+        privileged.close()
         runCatching { context.unregisterReceiver(a2dpReceiver) }
     }
 
@@ -159,13 +179,14 @@ class CodecRepositoryImpl(
     }
 
     override suspend fun requestPrivilege() {
-        when (ShizukuPrivilege.current(context)) {
+        if (!privileged.included) throw HeadphoneCommandException(NO_ROUTE_MESSAGE)
+        when (privileged.state()) {
             PrivilegeState.UNAVAILABLE -> throw HeadphoneCommandException("Install Shizuku from the Play Store to switch codecs without root.")
             PrivilegeState.SHIZUKU_NOT_RUNNING -> throw HeadphoneCommandException("Shizuku is installed but not running. Open the Shizuku app and start it (Wireless debugging).")
             else -> Unit
         }
-        val granted = ShizukuPrivilege.request(REQUEST_CODE)
-        val privilege = ShizukuPrivilege.current(context)
+        val granted = privileged.request()
+        val privilege = privileged.state()
         _state.update { it.copy(privilege = privilege, canSwitch = privilege == PrivilegeState.GRANTED) }
         if (!granted) throw HeadphoneCommandException("Shizuku permission was not granted.")
         serviceReadFailedAt = 0L
@@ -173,7 +194,7 @@ class CodecRepositoryImpl(
     }
 
     override suspend fun selectCodec(selection: CodecSelection) {
-        val privilege = ShizukuPrivilege.current(context)
+        val privilege = privileged.state()
         if (privilege != PrivilegeState.GRANTED && linkActive) {
             selectViaCompanionLink(selection)
             return
@@ -181,8 +202,9 @@ class CodecRepositoryImpl(
         if (privilege != PrivilegeState.GRANTED) {
             _state.update { it.copy(privilege = privilege, canSwitch = false, viaCompanionLink = false) }
             throw HeadphoneCommandException(
-                when (privilege) {
-                    PrivilegeState.UNAVAILABLE -> "Switching codecs needs Shizuku. Install it, or use Developer options → Bluetooth audio codec."
+                when {
+                    !privileged.included -> NO_ROUTE_MESSAGE
+                    privilege == PrivilegeState.UNAVAILABLE -> "Switching codecs needs Shizuku. Install it, or use Developer options → Bluetooth audio codec."
                     else -> CODEC_SWITCH_UNSUPPORTED_MESSAGE
                 },
             )
@@ -200,9 +222,7 @@ class CodecRepositoryImpl(
                 ?: throw HeadphoneCommandException("The headphones aren't connected for audio (A2DP).")
             Log.i(TAG, "requesting $request through the codec service")
             val result = try {
-                codecService.withService {
-                    it.setCodecConfig(device.address, request.codecName, request.codecType, request.sampleRateMask, request.bitsMask, request.codecSpecific1)
-                }
+                privileged.select(device.address, request)
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
@@ -250,7 +270,11 @@ class CodecRepositoryImpl(
             linkActive = false
             _state.update { it.copy(canSwitch = it.privilege == PrivilegeState.GRANTED, viaCompanionLink = false) }
             throw HeadphoneCommandException(
-                "Android refused the codec switch through the headset's link. Start Shizuku, or use Developer options → Bluetooth audio codec.",
+                if (privileged.included) {
+                    "Android refused the codec switch through the headset's link. Start Shizuku, or use Developer options → Bluetooth audio codec."
+                } else {
+                    "Android refused the codec switch through the headset's link. Use Developer options → Bluetooth audio codec instead."
+                },
             )
         }
         awaitCodec(name, polls = LATE_VERIFY_POLLS + 1)
@@ -274,14 +298,17 @@ class CodecRepositoryImpl(
     }
 
     override suspend fun applyProfile(profile: ConnectionProfile) {
-        if (!_state.value.canSwitch && ShizukuPrivilege.current(context) != PrivilegeState.GRANTED) {
-            throw HeadphoneCommandException(CODEC_SWITCH_UNSUPPORTED_MESSAGE)
+        if (!_state.value.canSwitch && privileged.state() != PrivilegeState.GRANTED) {
+            throw HeadphoneCommandException(if (privileged.included) CODEC_SWITCH_UNSUPPORTED_MESSAGE else NO_ROUTE_MESSAGE)
         }
         if (_state.value.options.none { it.isSelectable }) refresh()
         val selection = CodecProfiles.pick(profile, _state.value.options)
             ?: throw HeadphoneCommandException(
-                if (_state.value.privilege == PrivilegeState.GRANTED) "No switchable codec found yet; make sure the headphones are connected and try again."
-                else "Profiles need Shizuku to read which codecs the headphones accept.",
+                if (_state.value.privilege == PrivilegeState.GRANTED || !privileged.included) {
+                    "No switchable codec found yet; make sure the headphones are connected and try again."
+                } else {
+                    "Profiles need Shizuku to read which codecs the headphones accept."
+                },
             )
         selectCodec(selection)
     }
@@ -308,17 +335,27 @@ class CodecRepositoryImpl(
 
     // ---- refresh ---------------------------------------------------------------------------
 
-    private fun scheduleRefresh(delayMs: Long, replace: Boolean = true) {
-        if (replace) debounceJob?.cancel()
+    /**
+     * Refresh after [delayMs]. The quick refresh and the [late] re-read each keep only their newest
+     * request: a new one cancels the pending one, so a burst of broadcasts costs one of each.
+     */
+    private fun scheduleRefresh(delayMs: Long, late: Boolean = false) {
+        if (late) lateJob?.cancel() else debounceJob?.cancel()
         val job = scope.launch {
             if (delayMs > 0) delay(delayMs)
-            runCatching { refresh() }.onFailure { Log.w(TAG, "refresh failed: $it") }
+            try {
+                refresh()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                Log.w(TAG, "refresh failed: $t")
+            }
         }
-        if (replace) debounceJob = job
+        if (late) lateJob = job else debounceJob = job
     }
 
     private suspend fun doRefresh() {
-        val privilege = ShizukuPrivilege.current(context)
+        val privilege = privileged.state()
         val ready = privilege == PrivilegeState.GRANTED
         val a2dp = proxies.get()
         val device = a2dp?.let { proxies.pickSink(proxies.connectedDevices(it), preferredAddress()) }
@@ -351,7 +388,7 @@ class CodecRepositoryImpl(
                     extraPhoneCodecs = extraPhoneCodecs + names
                     return@run status
                 }
-                val dump = shell.exec("dumpsys bluetooth_manager")
+                val dump = privileged.exec("dumpsys bluetooth_manager")
                 dump.getOrNull()?.let { text ->
                     val parsedDump = DumpsysCodecParser.parse(text)
                     extraPhoneCodecs = extraPhoneCodecs + parsedDump.phoneCodecNames
@@ -401,9 +438,7 @@ class CodecRepositoryImpl(
         // making each one wait for the service again; a codec switch still tries the service.
         val sinceFailure = SystemClock.elapsedRealtime() - serviceReadFailedAt
         if (serviceReadFailedAt != 0L && sinceFailure < SERVICE_READ_BACKOFF_MS) return null
-        val (status, names) = codecService.withService { svc ->
-            svc.getCodecStatus(address) to (runCatching { svc.supportedCodecs() }.getOrNull() ?: emptyList())
-        }
+        val (status, names) = privileged.readStatus(address)
         val parsed = CodecStatusText.parse(status, address)
         if (parsed == null) {
             Log.w(TAG, "codec service status didn't parse (${status.length} chars): ${status.take(200)}")
@@ -466,7 +501,14 @@ class CodecRepositoryImpl(
         private const val EXTRA_CODEC_STATUS = "android.bluetooth.extra.CODEC_STATUS"
 
         private const val TAG = "Earshot/Codec"
-        private const val REQUEST_CODE = 0xEA12
+
+        /**
+         * The Google Play build's answer when nothing can switch: it has no Shizuku (B8), so only
+         * the companion link (Android 13+) or Developer options are left.
+         */
+        private const val NO_ROUTE_MESSAGE =
+            "This version of Earshot switches codecs through a linked headset (Tools → Controls → Universal remote, Android 13 or later). " +
+                "Otherwise use Developer options → Bluetooth audio codec."
         private const val DEBOUNCE_MS = 700L
         private const val LATE_REFRESH_MS = 3_500L
         private const val LATE_VERIFY_POLLS = 2

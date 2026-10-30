@@ -3,6 +3,7 @@ package dev.earshot.shortcut
 import android.content.Context
 import android.util.Log
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -15,8 +16,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
-// File-private delegate: exactly one DataStore per process for this file.
-private val Context.shortcutDataStore: DataStore<Preferences> by preferencesDataStore(name = "headset_shortcuts")
+// File-private delegate: exactly one DataStore per process for this file. A corrupt file is
+// replaced with an empty one, as for the other stores: without the handler every read and every
+// save throws CorruptionException, so the Controls settings could never be changed again until
+// the app's data was cleared. Losing it costs the shortcut choices, which go back to defaults.
+private val Context.shortcutDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "headset_shortcuts",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 /**
  * Controls screen settings: default action, per-headset choices, spoken feedback, whether a real

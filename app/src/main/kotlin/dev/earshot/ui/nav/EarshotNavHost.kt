@@ -17,6 +17,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import dev.earshot.ui.backup.BackupScreen
 import dev.earshot.ui.home.HomeScreen
 import dev.earshot.ui.modes.ModesScreen
 import dev.earshot.ui.more.AboutScreen
@@ -128,6 +129,7 @@ fun EarshotNavHost(
                     onOpenAutomations = { navController.navigate(Routes.AUTOMATIONS) },
                     onOpenPreferences = { navController.navigate(Routes.PREFERENCES) },
                     onOpenAbout = { navController.navigate(Routes.ABOUT) },
+                    onOpenBackup = { navController.navigate(Routes.BACKUP) },
                 )
             }
             composable(Routes.DEVICES) { DevicesScreen(onBack = navController::popBackStack) }
@@ -145,6 +147,7 @@ fun EarshotNavHost(
             }
             composable(Routes.PREFERENCES) { PreferencesScreen(onBack = navController::popBackStack) }
             composable(Routes.ABOUT) { AboutScreen(onBack = navController::popBackStack) }
+            composable(Routes.BACKUP) { BackupScreen(onBack = navController::popBackStack) }
         }
     }
 

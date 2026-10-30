@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exported entry points (MainActivity, the headset trigger): what a refused request says. -->
+<resources>
+    <!-- Toast: another app (not the headset's button) tried to start a voice memo through Earshot. -->
+    <string name="shortcut_memo_not_from_headset">Voice memo not started: the request didn\'t come from your headset</string>
+</resources>

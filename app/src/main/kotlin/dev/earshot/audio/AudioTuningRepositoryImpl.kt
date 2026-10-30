@@ -8,8 +8,10 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -44,8 +46,100 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
-/** One DataStore file for the whole sound engine; the delegate must be top-level (one per process). */
-private val Context.tuningDataStore: DataStore<Preferences> by preferencesDataStore(name = "audio_tuning")
+/**
+ * One DataStore file for the whole sound engine; the delegate must be top-level (one per process).
+ * A corrupt file is replaced with an empty one: without the handler [AudioTuningRepositoryImpl.restore]
+ * starts fresh but every later edit rethrows the CorruptionException, so nothing the user changes
+ * would ever be saved again.
+ */
+private val Context.tuningDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "audio_tuning",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
+
+/**
+ * A tuning repository whose saved presets load asynchronously after it is built. Until
+ * [awaitRestored] returns, [AudioTuningRepository.presets] holds only the built-ins, so a user
+ * preset can't yet be told apart from a deleted one ([HeadsetEqMemory] waits for it).
+ */
+interface TuningRestore {
+    suspend fun awaitRestored()
+}
+
+/**
+ * When to forget the announced sessions after Bluetooth media went away ([AudioTuningRepositoryImpl]).
+ * Players the OS kills never send CLOSE, so losing the headphones is the moment to forget them; but
+ * a player that keeps playing through a short drop or a tap on the output switcher keeps its session
+ * and never announces it again. So the sessions are forgotten only once the loss has lasted longer
+ * than [graceMillis]: at the first check after that, or when Bluetooth comes back too late.
+ * Not thread-safe; the repository calls it under its mutex.
+ */
+internal class BluetoothLossGrace(private val graceMillis: Long) {
+    private var wasPresent = false
+    private var lostAtMillis: Long? = null
+
+    /** Feed the current state; true means "forget every session now". */
+    fun shouldForgetSessions(present: Boolean, nowMillis: Long): Boolean {
+        if (wasPresent && !present) lostAtMillis = nowMillis
+        wasPresent = present
+        val lostAt = lostAtMillis ?: return false
+        if (nowMillis - lostAt <= graceMillis) {
+            if (present) lostAtMillis = null // back in time: keep every session
+            return false
+        }
+        lostAtMillis = null
+        return true
+    }
+}
+
+/**
+ * Which announced sessions stay listed ([AudioTuningRepositoryImpl.reconcile]): [BluetoothLossGrace]
+ * decides when a loss forgets them all, and [prune] drops the ones past their age limit.
+ *
+ * A session that has carried our effect keeps the longer [carriedMaxAgeMillis] even while that
+ * effect is released. A sleep-sound or audiobook app announces once (say at 23:00) and plays all
+ * night; a one-second drop or a tap on the output switcher at 05:30 releases every effect
+ * (`engine.retain(emptySet())`), so "holds an effect right now" would prune it at [maxAgeMillis]
+ * during the grace, and the EQ would stay off when the headset returns until playback restarts.
+ * [carriedMaxAgeMillis] still bounds players that died without CLOSE; a loss longer than the grace
+ * forgets the sessions and what they carried.
+ *
+ * Not thread-safe; the repository calls it under its mutex.
+ */
+internal class SessionAging(
+    graceMillis: Long,
+    private val maxAgeMillis: Long,
+    private val carriedMaxAgeMillis: Long,
+) {
+    private val btLoss = BluetoothLossGrace(graceMillis)
+
+    /** Listed sessions that have held our effect at some point, whether or not they hold it now. */
+    private val carriedEffect = HashSet<Int>()
+
+    /**
+     * Before the attach pass. [elapsedMillis] is the monotonic clock the grace runs on;
+     * [wallMillis] is the clock [SessionRegistry] stamps announcements with.
+     */
+    fun prune(btPresent: Boolean, elapsedMillis: Long, wallMillis: Long = System.currentTimeMillis()) {
+        if (btLoss.shouldForgetSessions(btPresent, elapsedMillis)) {
+            SessionRegistry.clear()
+            carriedEffect.clear()
+        }
+        SessionRegistry.pruneOlderThan(
+            maxAgeMillis,
+            wallMillis,
+            attached = carriedEffect.toSet(),
+            attachedMaxAgeMillis = carriedMaxAgeMillis,
+        )
+    }
+
+    /** After the attach pass: remember what holds an effect now, forget what the registry no longer lists. */
+    fun noteAttached(attached: Set<Int>) {
+        carriedEffect += attached
+        // A closed or pruned session leaves the set, so a later session reusing its id starts on the normal limit.
+        carriedEffect.retainAll(SessionRegistry.sessions.value.mapTo(HashSet()) { it.sessionId })
+    }
+}
 
 /**
  * Real [AudioTuningRepository]: persists settings, user presets and per-app profiles, watches the
@@ -70,7 +164,7 @@ private val Context.tuningDataStore: DataStore<Preferences> by preferencesDataSt
 class AudioTuningRepositoryImpl(
     context: Context,
     private val scope: CoroutineScope,
-) : AudioTuningRepository {
+) : AudioTuningRepository, TuningRestore {
 
     private val appContext = context.applicationContext
     private val dataStore = appContext.tuningDataStore
@@ -97,8 +191,8 @@ class AudioTuningRepositoryImpl(
     val useGlobalSession: StateFlow<Boolean> = _useGlobalSession
 
     private val bluetoothOutputPresent = MutableStateFlow(false)
-    /** Last value [reconcile] saw, to spot the present→absent edge that clears the session registry. */
-    private var btWasPresent = false
+    /** Decides in [reconcile] which announced sessions are forgotten (a long Bluetooth loss, age). */
+    private val sessionAging = SessionAging(BT_LOSS_GRACE_MS, SESSION_MAX_AGE_MS, ATTACHED_SESSION_MAX_AGE_MS)
     private val mutex = Mutex()
     private val restored = CompletableDeferred<Unit>()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -132,7 +226,13 @@ class AudioTuningRepositoryImpl(
 
     override suspend fun setEnabled(enabled: Boolean) = mutate { s -> s.copy(enabled = enabled) }
 
+    override suspend fun awaitRestored() = restored.await()
+
     override suspend fun applyPreset(presetId: String?) {
+        // Until restore() has published the user presets only the built-ins are known, so an
+        // automation or HeadsetEqMemory applying a user preset at process start would be told
+        // "no longer exists". edit() waits for the restore too, but only after this lookup.
+        restored.await()
         val preset = presetId?.let { id ->
             presetById(id) ?: throw HeadphoneCommandException("That preset no longer exists")
         }
@@ -187,6 +287,7 @@ class AudioTuningRepositoryImpl(
     }
 
     override suspend fun setAppProfile(profile: AppSoundProfile) {
+        restored.await() // as in applyPreset: a user preset is unknown until restore() has run
         if (presetById(profile.presetId) == null) throw HeadphoneCommandException("That preset no longer exists")
         edit { _appProfiles.update { list -> list.filterNot { it.packageName == profile.packageName } + profile } }
     }
@@ -260,12 +361,15 @@ class AudioTuningRepositoryImpl(
     private suspend fun reconcile() {
         val settings = _state.value.settings
         val btPresent = bluetoothOutputPresent.value
-        // Players the OS kills never send CLOSE. Losing the headphones is the natural moment to
-        // forget every session (live players re-announce on their next start), and anything older
-        // than SESSION_MAX_AGE_MS is stale regardless. Both are no-ops on the flow when nothing changes.
-        if (btWasPresent && !btPresent) SessionRegistry.clear()
-        btWasPresent = btPresent
-        SessionRegistry.pruneOlderThan(SESSION_MAX_AGE_MS)
+        // Players the OS kills never send CLOSE. Losing the headphones for longer than a blip is the
+        // natural moment to forget every session (live players re-announce on their next start).
+        // Anything older than SESSION_MAX_AGE_MS is stale regardless, except a session that has
+        // carried our effect: an audiobook or sleep-sound app announces once and may play all night,
+        // and dropping its effect mid-playback changes its loudness (preamp, boost, limiter). That
+        // holds through a short Bluetooth drop too, when every effect is released (SessionAging).
+        // ATTACHED_SESSION_MAX_AGE_MS still bounds effects parked on sessions of players that died
+        // without CLOSE. Both are no-ops on the flow when nothing changes.
+        sessionAging.prune(btPresent, SystemClock.elapsedRealtime())
         val sessions = SessionRegistry.sessions.value
         val shouldRun = settings.enabled && btPresent
 
@@ -275,9 +379,11 @@ class AudioTuningRepositoryImpl(
         }
 
         withContext(Dispatchers.IO) {
-            for (id in engine.attached - targets.keys) engine.detach(id)
+            // Also stops retrying sessions whose effect another app took over once they are gone.
+            engine.retain(targets.keys)
             for ((id, planner) in targets) engine.attach(id, planner, enabled = true)
         }
+        sessionAging.noteAttached(engine.attached)
 
         val es = engine.status.value
         val activePackage = sessions.asReversed().firstNotNullOfOrNull { s ->
@@ -371,6 +477,10 @@ class AudioTuningRepositoryImpl(
         const val MIN_PREAMP_DB = -30.0
         /** Sessions older than this are assumed to belong to a player the OS has long since killed. */
         const val SESSION_MAX_AGE_MS = 6L * 60 * 60 * 1000
+        /** The age limit for a session that still carries a working effect: longer than any night of playback. */
+        const val ATTACHED_SESSION_MAX_AGE_MS = 24L * 60 * 60 * 1000
+        /** A Bluetooth loss shorter than this (a drop, the output switcher) keeps the announced sessions. */
+        const val BT_LOSS_GRACE_MS = 2L * 60 * 1000
         val KEY_SETTINGS = stringPreferencesKey("settings_json")
         val KEY_PRESETS = stringPreferencesKey("user_presets_json")
         val KEY_PROFILES = stringPreferencesKey("app_profiles_json")

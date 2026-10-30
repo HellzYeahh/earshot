@@ -177,16 +177,23 @@ class SleepHeadsetActions(
         return r
     }
 
-    /** The end of the timer: disconnect or switch off; STOP_SOUNDS does nothing here. */
-    suspend fun endAction(action: SleepEndAction, s: HeadphoneState, notes: MutableList<StepNote>) {
+    /**
+     * The end of the timer: disconnect or switch off; STOP_SOUNDS does nothing here. True when the
+     * headset was sent away (switched off, or Earshot's link dropped and Android asked to
+     * disconnect), so the caller keeps the morning restore from connecting it straight back
+     * ([RestoreConnect.Hold]).
+     */
+    suspend fun endAction(action: SleepEndAction, s: HeadphoneState, notes: MutableList<StepNote>): Boolean {
         val address = s.connection.deviceAddress
-        when (action) {
-            SleepEndAction.STOP_SOUNDS -> Unit
+        return when (action) {
+            SleepEndAction.STOP_SOUNDS -> false
             SleepEndAction.DISCONNECT -> disconnect(address, notes)
             SleepEndAction.POWER_OFF -> {
                 val off = s.isConnected && s.capabilities.ownSettings && attempt { headphones.powerOff() }
-                if (off) notes += StepNote(text.get(R.string.sleep_rt_log_powered_off))
-                else {
+                if (off) {
+                    notes += StepNote(text.get(R.string.sleep_rt_log_powered_off))
+                    true
+                } else {
                     notes += StepNote(text.get(R.string.sleep_rt_log_power_off_refused))
                     disconnect(address, notes)
                 }
@@ -194,10 +201,11 @@ class SleepHeadsetActions(
         }
     }
 
-    private fun disconnect(address: String?, notes: MutableList<StepNote>) {
+    /** False when nothing was disconnected (no link to do it with); true once Earshot's own link dropped. */
+    private fun disconnect(address: String?, notes: MutableList<StepNote>): Boolean {
         if (address == null || !link.canConnect || !link.isLinked(address)) {
             notes += StepNote(text.get(if (address != null && !link.canConnect) R.string.sleep_rt_note_disconnect_android17 else R.string.sleep_rt_note_disconnect_link), isProblem = true)
-            return
+            return false
         }
         // Earshot's own control link first, as a user disconnect: otherwise its retry loop could
         // see the audio link still up for a moment and page the headset straight back.
@@ -205,6 +213,8 @@ class SleepHeadsetActions(
         runCatching { link.disconnect(address) }
             .onSuccess { notes += StepNote(text.get(R.string.sleep_rt_log_disconnected)) }
             .onFailure { notes += StepNote(text.get(R.string.sleep_rt_log_disconnect_failed, it.message.orEmpty()), isProblem = true) }
+        // Even if Android refused, Earshot's link went down as a user disconnect: a restore connect would undo it.
+        return true
     }
 
     /** Pages a headset that was disconnected for the night (before an earbud alarm), then lets Earshot reconnect. Best effort. */

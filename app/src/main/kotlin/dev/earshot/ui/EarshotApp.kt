@@ -45,6 +45,7 @@ import dev.earshot.ui.nav.EarshotNavHost
 import dev.earshot.ui.nav.NavRequest
 import dev.earshot.ui.nav.Tab
 import dev.earshot.ui.nav.navigateToTab
+import dev.earshot.ui.onboarding.NotificationPromptStore
 import dev.earshot.ui.onboarding.OnboardingScreen
 import dev.earshot.ui.onboarding.Permissions
 import dev.earshot.ui.theme.EarshotTheme
@@ -52,10 +53,35 @@ import dev.earshot.ui.theme.dotGrid
 import dev.earshot.ui.whatsnew.WhatsNew
 import dev.earshot.ui.whatsnew.WhatsNewSheet
 import dev.earshot.ui.whatsnew.WhatsNewStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * The root's own connect runs once per process. Every new Activity composes the root again: a
+ * rotation or fold (MainActivity handles no configuration changes), or a tap on the Sleep or
+ * headphones notification after the app was swiped from Recents while the service kept the
+ * process alive. Connecting each time paged back a headset that the notification's Disconnect,
+ * the universal remote or the Sleep end action had dropped on purpose, at night too: a connect
+ * clears the user stop and the loop opens the saved headset whether or not it is linked. Later
+ * Activities leave the link as it is: the connect loop has its own wake-ups (link-up, audio,
+ * Bluetooth on, companion presence) and Connect is one tap away.
+ */
+internal class AutoConnectOnce {
+    private val done = AtomicBoolean(false)
+
+    /** True exactly once: the caller connects now. */
+    fun claim(): Boolean = done.compareAndSet(false, true)
+
+    companion object {
+        /** The running app's one instance; it lives as long as the process. */
+        val process = AutoConnectOnce()
+    }
+}
 
 /**
  * Root of the Compose UI. Hosted by MainActivity; [tabRequests] carries the
@@ -90,13 +116,8 @@ fun EarshotRoot(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> 
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(hasBluetooth) { if (hasBluetooth) deps.headphones.connect() }
-    // Nearby-devices scan rides on the connect grant (same permission group: no dialog), for the
-    // AirPods per-bud battery. Asked once per launch at most; a refusal changes nothing else.
-    val scanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    LaunchedEffect(hasBluetooth) {
-        if (hasBluetooth && !Permissions.has(context, Permissions.bluetoothScan)) Permissions.bluetoothScan?.let(scanLauncher::launch)
-    }
+    // Once per process, not once per Activity: see AutoConnectOnce.
+    LaunchedEffect(hasBluetooth) { if (hasBluetooth && AutoConnectOnce.process.claim()) deps.headphones.connect() }
     // Set after a denied request when Android will no longer show the dialog; only app settings can help then.
     var bluetoothDeniedForGood by rememberSaveable { mutableStateOf(false) }
 
@@ -109,20 +130,63 @@ fun EarshotRoot(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> 
     }
     val openAppSettingsLabel = stringResource(R.string.action_open_app_settings)
     val notificationsDeniedText = stringResource(R.string.notifications_denied)
-    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted && Permissions.isPermanentlyDenied(context, Permissions.postNotifications)) {
-            scope.launch {
-                val result = snackbarHostState.showSnackbar(notificationsDeniedText, actionLabel = openAppSettingsLabel, duration = SnackbarDuration.Long)
-                if (result == SnackbarResult.ActionPerformed) Permissions.openAppSettings(context)
+
+    // ---- Start-up permission requests --------------------------------------------------------
+    // Nearby-devices scan rides on the connect grant (same permission group: no dialog), for the
+    // AirPods per-bud battery; a refusal changes nothing else. Notifications are asked once per
+    // install, not once per Activity: after two refusals Android denies without a dialog, and the
+    // "Notifications are off" snackbar then came back on every cold start (NotificationPromptStore).
+    //
+    // Both go out as ONE request. An Activity runs one permission request at a time and answers a
+    // second one sent while the first is open at once, with empty arrays and no dialog
+    // (Activity.requestPermissions: "Can request only one set of permissions at a time"). With a
+    // launcher each, the notification ask sent a few ms after the scan ask on a fresh install was
+    // cancelled that way: RequestPermission read it as "denied", the snackbar showed and the
+    // once-per-install flag was spent without the user ever seeing the dialog.
+    // RequestMultiplePermissions keeps that cancellation visible as an empty map.
+    val notificationPrompt = remember(context) { NotificationPromptStore(context) }
+    // Saved across a rotation or fold, so the recreated Activity doesn't send a second request
+    // while the first one's dialog is still open (that one would be cancelled the same way).
+    var startupAskSent by rememberSaveable { mutableStateOf(false) }
+    // True while the request in flight carries a notification ask claimed from the store.
+    var notificationAskInFlight by rememberSaveable { mutableStateOf(false) }
+    val startupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+        val claimed = notificationAskInFlight
+        notificationAskInFlight = false
+        val notifications = Permissions.postNotifications
+        if (claimed && notifications != null) {
+            if (results.isEmpty()) {
+                // Cancelled before anything was shown: not an answer, so no snackbar. Re-arm the
+                // ask for the next start.
+                scope.launch(Dispatchers.IO) { notificationPrompt.release() }
+            } else if (results[notifications] == false && Permissions.isPermanentlyDenied(context, notifications)) {
+                scope.launch {
+                    val result = snackbarHostState.showSnackbar(notificationsDeniedText, actionLabel = openAppSettingsLabel, duration = SnackbarDuration.Long)
+                    if (result == SnackbarResult.ActionPerformed) Permissions.openAppSettings(context)
+                }
             }
         }
     }
-    var askedForNotifications by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(hasBluetooth) {
-        if (hasBluetooth && !askedForNotifications) {
-            askedForNotifications = true
-            Permissions.postNotifications?.takeIf { !Permissions.has(context, it) }?.let(notificationLauncher::launch)
+        if (!hasBluetooth || startupAskSent) return@LaunchedEffect
+        val scan = Permissions.bluetoothScan?.takeUnless { Permissions.has(context, it) }
+        val notifications = Permissions.postNotifications?.takeUnless { Permissions.has(context, it) }
+        var claimed = false
+        if (notifications != null) {
+            try {
+                withContext(Dispatchers.IO) { claimed = notificationPrompt.claimFirstAsk() }
+            } catch (e: CancellationException) {
+                // The claim may have been stored just before this effect was cancelled (root left
+                // the composition): nothing was asked, so give the ask back to the next start.
+                if (claimed) withContext(NonCancellable + Dispatchers.IO) { notificationPrompt.release() }
+                throw e
+            }
         }
+        val ask = listOfNotNull(scan, notifications?.takeIf { claimed })
+        if (ask.isEmpty()) return@LaunchedEffect
+        startupAskSent = true
+        notificationAskInFlight = claimed
+        startupLauncher.launch(ask.toTypedArray())
     }
 
     // ---- Messages ----------------------------------------------------------------------------

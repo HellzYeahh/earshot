@@ -2,12 +2,14 @@ package dev.earshot.sleep
 
 import android.app.NotificationManager
 import android.content.Context
+import android.os.PowerManager
 import android.os.UserManager
 import android.util.Log
 import androidx.core.content.edit
 import dev.earshot.R
 import dev.earshot.core.AlarmOutput
 import dev.earshot.core.SleepSession
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,6 +55,8 @@ object LockedAlarms {
     private const val KEY_SNOOZE = "snooze"
     private const val RING_LIMIT_MS = 15 * 60_000L
     private const val START_GAIN = 0.08f
+    /** Covers opening the tone off the main thread, until the player holds its own wake lock. */
+    private const val OPEN_WAKE_MS = 30_000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _state = MutableStateFlow<SleepSession>(SleepSession.Idle)
@@ -105,7 +109,7 @@ object LockedAlarms {
         runCatching { prefs(context).edit { putString(KEY_RANG, SleepStore.json.encodeToString(MapSerializer(String.serializer(), Long.serializer()), rang)) } }
     }
 
-    /** A wake alarm fired while the phone is still locked. */
+    /** A wake alarm fired while the phone is still locked. Called on the main thread, by the receiver. */
     @Synchronized
     fun ring(context: Context, alarmId: String) {
         val app = context.applicationContext
@@ -127,16 +131,50 @@ object LockedAlarms {
             val notifications = SleepNotifications(app).also { it.ensureChannels() }
             runCatching { app.getSystemService(NotificationManager::class.java)?.notify(SleepNotifications.ID_ALARM, notifications.alarm(session)) }
         }
-        val fadeMs = ring.fadeInSeconds.coerceAtLeast(1) * 1_000L
-        player = AlarmPlayer(app).also {
-            it.start(ring.toneId, headset = null, speaker = null, playOnSpeaker = true, holdWake = true) { elapsed ->
-                START_GAIN + (1f - START_GAIN) * Fades.fadeIn(elapsed, fadeMs)
-            }
-            if (ring.vibrate) it.vibrate(true)
-        }
+        openPlayer(app, ring)
         limit = scope.launch {
             delay(RING_LIMIT_MS)
             stop(app)
+        }
+    }
+
+    /**
+     * Opening the tone can decode a whole recording (birdsong, a sleep sound as the alarm) or
+     * prepare the system alarm sound: up to a second or two on a phone that has just restarted. So
+     * not on the main thread this broadcast arrives on, where it would hold up the ring and the
+     * service's startForeground, and not under this object's lock, which Stop and Snooze need
+     * (audit R19). A Stop that lands while it opens silences it as soon as it is open.
+     */
+    private fun openPlayer(app: Context, ring: MirroredRing) {
+        // The alarm's own wake lock ends with onReceive, before the player takes one.
+        val bridge = runCatching {
+            app.getSystemService(PowerManager::class.java)?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Earshot:locked-alarm")?.apply {
+                setReferenceCounted(false)
+                acquire(OPEN_WAKE_MS)
+            }
+        }.getOrNull()
+        val fadeMs = ring.fadeInSeconds.coerceAtLeast(1) * 1_000L
+        scope.launch {
+            val opened = AlarmPlayer(app)
+            try {
+                opened.start(ring.toneId, headset = null, speaker = null, playOnSpeaker = true, holdWake = true) { elapsed ->
+                    START_GAIN + (1f - START_GAIN) * Fades.fadeIn(elapsed, fadeMs)
+                }
+                if (ring.vibrate) opened.vibrate(true)
+                val kept = synchronized(this@LockedAlarms) {
+                    // Identity: a later ring of the same alarm (a snooze) is another object.
+                    (current === ring && player == null).also { if (it) player = opened }
+                }
+                if (!kept) opened.stop()
+            } catch (e: CancellationException) {
+                opened.stop()
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "locked ring: tone failed: ${e.javaClass.simpleName}")
+                opened.stop()
+            } finally {
+                bridge?.let { runCatching { if (it.isHeld) it.release() } }
+            }
         }
     }
 

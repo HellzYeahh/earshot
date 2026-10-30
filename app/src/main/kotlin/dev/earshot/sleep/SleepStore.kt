@@ -41,6 +41,12 @@ data class ActiveNight(
     val soundOnHeadset: Boolean = false,
     /** The sounds stopped for good tonight (the headset went away); recovery must not restart them. */
     val soundsStopped: Boolean = false,
+    /**
+     * The night was rebuilt in the background after Android closed Earshot, where Android 17
+     * (target 37) silences playback: the sounds wait for a tap on "Tap to resume sounds" or for
+     * Earshot to be opened ([SleepRepositoryImpl.resumeSounds]). Unlike [soundsStopped] they come back.
+     */
+    val soundsWaitForTap: Boolean = false,
 ) {
     val timeline: SleepTimeline get() = SleepTimeline(startedAtMillis, endsAtMillis, fadeOutStartsAtMillis, noiseOffAtMillis)
 
@@ -82,6 +88,13 @@ data class RestoreRecord(
      * controls connect again.
      */
     val due: Boolean = false,
+    /**
+     * This restore has had its one connect ([RestoreConnect]): Earshot opened its control link for
+     * it, or the restore already ran on the connected headset. What is left (a refused command)
+     * waits for a connect the user or auto-connect makes; the Sleep runtime never connects for it
+     * again. A new night starts it afresh.
+     */
+    val connectTried: Boolean = false,
 ) {
     val headsetPart: Boolean get() = mode != null || ancEnabled != null || touchControlsEnabled != null || voicePromptsEnabled != null || vendorPrompts.isNotEmpty()
     val phonePart: Boolean get() = interruptionFilter != null || musicVolume != null

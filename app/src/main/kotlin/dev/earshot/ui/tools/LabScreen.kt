@@ -31,7 +31,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,15 +49,19 @@ import dev.earshot.core.LabProfile
 import dev.earshot.core.LabReading
 import dev.earshot.core.RawFrame
 import dev.earshot.core.fake.FakeHeadphoneRepository
+import dev.earshot.ui.LocalUiDependencies
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.FieldProgressBar
 import dev.earshot.ui.common.InfoBanner
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.SectionCard
 import dev.earshot.ui.common.SubScreenScaffold
+import dev.earshot.ui.common.UiMessenger
 import dev.earshot.ui.common.earshotViewModel
 import dev.earshot.ui.theme.JetBrainsMono
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -69,15 +76,23 @@ fun LabScreen(onBack: () -> Unit, onOpenTimeline: () -> Unit = {}) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val messenger = LocalUiDependencies.current.messenger
     // Every finished scan is also written to the app's external files folder
-    // (Android/data/dev.earshot/files/lab/), so it can be pulled with adb or shared from a file manager.
+    // (Android/data/<package>/files/lab/: dev.earshot on Play, dev.earshot.foss on GitHub), so it can
+    // be pulled with adb or shared from a file manager. The deep-scan hint names the same folder.
+    // Once per scan (LabScanFile): the effect also runs when the screen comes back with the results
+    // still in the ViewModel, which used to write another identical file each time.
+    var scanPending by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.scanning) {
-        if (!state.scanning && state.readings.isNotEmpty()) {
-            withContext(Dispatchers.IO) {
+        val step = LabScanFile.step(pending = scanPending, scanning = state.scanning, hasReadings = state.readings.isNotEmpty())
+        scanPending = step.pending
+        if (step.write) {
+            val text = vm.exportText()
+            // The flag is already cleared: a rotation right now must not lose this scan's file.
+            withContext(Dispatchers.IO + NonCancellable) {
                 runCatching {
                     val dir = File(context.getExternalFilesDir(null), "lab").apply { mkdirs() }
-                    val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-                    File(dir, "lab-scan-$stamp.txt").writeText(vm.exportText())
+                    File(dir, LabScanFile.name(Date())).writeText(text)
                 }
             }
         }
@@ -89,12 +104,49 @@ fun LabScreen(onBack: () -> Unit, onOpenTimeline: () -> Unit = {}) {
         onStart = vm::startScan,
         onDeepScan = vm::startDeepScan,
         onStop = vm::stopScan,
-        onCopy = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Earshot Lab", vm.exportText()))) } },
-        onCopyReport = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Earshot connection report", DiagnosticsReport.build(context)))) } },
+        onCopy = { scope.launch { copyOrReport(messenger) { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Earshot Lab", vm.exportText()))) } } },
+        onCopyReport = {
+            scope.launch {
+                copyOrReport(messenger) { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Earshot connection report", DiagnosticsReport.build(context)))) }
+            }
+        },
         onConsoleSend = vm::sendConsole,
         onConsoleClear = vm::clearConsole,
         onOpenTimeline = onOpenTimeline,
     )
+}
+
+/**
+ * When a scan goes to a file: once, on the scanning → idle edge (a stopped scan included), never
+ * just because the screen came back with old results (a rotation, a trip to Bluetooth history,
+ * a tab switch). The pending flag is saved with the screen, so a scan that ended while the screen
+ * was away is still written when it returns. Pure, so it is unit-tested.
+ */
+internal object LabScanFile {
+    /** The new pending flag, and whether the scan the screen holds is to be written now. */
+    data class Step(val pending: Boolean, val write: Boolean)
+
+    fun step(pending: Boolean, scanning: Boolean, hasReadings: Boolean): Step = when {
+        scanning -> Step(pending = true, write = false)
+        pending -> Step(pending = false, write = hasReadings)
+        else -> Step(pending = false, write = false)
+    }
+
+    fun name(at: Date): String = "lab-scan-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(at) + ".txt"
+}
+
+/**
+ * A copy that fails (a deep scan's clip over the binder limit, a report read that threw) becomes
+ * a Snackbar line instead of crashing the app from the screen's coroutine scope.
+ */
+private suspend fun copyOrReport(messenger: UiMessenger, copy: suspend () -> Unit) {
+    try {
+        copy()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        messenger.report(e)
+    }
 }
 
 @Composable
@@ -243,7 +295,7 @@ private fun ScannerControls(
                 Text(stringResource(R.string.lab_deep_scan, profile.deepReadCount))
             }
             Text(
-                stringResource(R.string.lab_deep_scan_hint, profile.deepScanDescription),
+                stringResource(R.string.lab_deep_scan_hint, profile.deepScanDescription, LocalContext.current.packageName),
                 style = MaterialTheme.typography.bodySmall,
                 color = muted,
                 modifier = Modifier.padding(top = 4.dp),

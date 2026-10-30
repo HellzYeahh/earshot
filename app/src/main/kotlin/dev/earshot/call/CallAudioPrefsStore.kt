@@ -2,6 +2,7 @@ package dev.earshot.call
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -14,8 +15,14 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
-// File-private delegate: exactly one DataStore per process for this file.
-private val Context.callAudioDataStore: DataStore<Preferences> by preferencesDataStore(name = "call_audio")
+// File-private delegate: exactly one DataStore per process for this file. A corrupt file is
+// replaced with an empty one, as for the other stores: without the handler every read and every
+// save throws CorruptionException, so the call-boost settings could never be changed again until
+// the app's data was cleared. Losing it costs only these few switches (back to their defaults).
+private val Context.callAudioDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "call_audio",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 internal class CallAudioPrefsStore(context: Context) {
     private val store = context.applicationContext.callAudioDataStore

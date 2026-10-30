@@ -7,6 +7,7 @@ import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneEq
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.NoiseSettings
+import dev.earshot.core.SupportTier
 import dev.earshot.protocol.soundcore.SoundcoreCommands
 import dev.earshot.protocol.soundcore.SoundcoreModel
 import dev.earshot.protocol.soundcore.SoundcorePacket
@@ -126,6 +127,26 @@ class SoundcoreRepositoryTest {
         assertTrue(error.message.startsWith("Connected, but reading the earbuds failed: "), error.message)
         assertEquals(HeadphoneEvent.Connected, r.events.last())
         assertTrue(r.conn.isOpen, "Soundcore never closes a silent link itself")
+        r.conn.close()
+    }
+
+    @Test fun `silent Sleep A30 - the failed read still publishes its identity, and it stays Tested`() = runTest {
+        val r = connected { SoundcoreConnection(SilentTransport(), it.backgroundScope, minWriteGapMs = 0) }
+        assertTrue(r.events.any { it is HeadphoneEvent.Error }, "the read failed")
+        val s = r.repo.state.value
+        assertEquals(SoundcoreModel.SLEEP_A30.displayName, s.info?.productName)
+        assertEquals(SupportTier.TESTED, SupportTier.of(s))
+        r.conn.close()
+    }
+
+    @Test fun `silent newer model - the failed read still shows the Experimental tier, so the report button is there`() = runTest {
+        val r = connected { SoundcoreConnection(SilentTransport(), it.backgroundScope, minWriteGapMs = 0, model = SoundcoreModel.LIBERTY_4_NC) }
+        assertTrue(r.events.any { it is HeadphoneEvent.Error }, "the read failed")
+        val s = r.repo.state.value
+        assertEquals(SoundcoreModel.LIBERTY_4_NC.displayName, s.info?.productName)
+        val tier = assertNotNull(SupportTier.of(s), "a connected headset whose read failed still has a tier")
+        assertEquals(SupportTier.EXPERIMENTAL, tier)
+        assertTrue(tier.wantsReports)
         r.conn.close()
     }
 

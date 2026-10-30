@@ -11,12 +11,15 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import dev.earshot.R
 import dev.earshot.core.CallAudioPreferences
 import dev.earshot.core.CallAudioRepository
 import dev.earshot.core.CallAudioState
+import dev.earshot.core.ConnectionStatus
 import dev.earshot.core.HFP_GAIN_MAX
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneRepository
+import dev.earshot.sleep.BackgroundAudio
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +56,15 @@ import java.util.concurrent.Executor
  *
  * The process must be alive for any of this to happen: the integrator creates this eagerly (the
  * foreground HeadphoneService keeps the process up while the headphones are connected).
+ *
+ * Android 17 ignores the volume call while Earshot is closed and the headset service has no
+ * while-in-use status, which at target 37 is the usual case: that service starts from a Bluetooth
+ * connect or companion presence, in the background ([BackgroundAudio]). Below target 37 the
+ * service being in the foreground is enough, so only a call without it counts. The read-back catches it
+ * ([CallVolumeBoost.refusedInBackground]): the boost is marked in [CallAudioState.lastError], a
+ * "Tap to boost" notification goes up once per call, and the boost runs as soon as an Earshot
+ * screen starts. The headset-side boost ([maybeRaiseHeadset]) is a Bluetooth command, not an
+ * audio call, and still goes out.
  */
 class CallAudioRepositoryImpl(
     context: Context,
@@ -76,6 +88,7 @@ class CallAudioRepositoryImpl(
     override val preferences: StateFlow<CallAudioPreferences> = _preferences
 
     private val scheduler = CallStartBoostScheduler(work) { attempt -> autoBoost(attempt) }
+    private val boostNotification = CallBoostNotification(appContext)
 
     private data class RouteInfo(val route: CallRoute, val address: String?, val name: String?)
 
@@ -89,6 +102,10 @@ class CallAudioRepositoryImpl(
     private var lastLoggedGain: Int? = null
     private var lastLoggedNrec: Boolean? = null
     private var lastVolumeReports: Int? = null
+    /** This call's automatic boost was ignored by Android 17 (Earshot closed): boost once a screen starts. */
+    private var boostBlocked = false
+    /** The "Tap to boost" notification went up for this call. Once per call, not per scheduled fire. */
+    private var boostNotified = false
 
     /** Absolute-volume value Android is actually using: the one read when the headphones last connected. */
     private var absoluteVolumeInEffect: Boolean? = null
@@ -109,6 +126,13 @@ class CallAudioRepositoryImpl(
         work.launch {
             headphones.state.map { it.isConnected }.distinctUntilChanged().collect { connected ->
                 if (connected) refreshAbsoluteVolume(atConnect = true)
+            }
+        }
+        // An Earshot screen started (the "Tap to boost" notification, or the user opened the app):
+        // a visible app may change volumes, so the boost Android ignored can run now.
+        work.launch {
+            BackgroundAudio.visibleScreens.map { it > 0 }.distinctUntilChanged().collect { visible ->
+                if (visible && boostBlocked) boostAfterOpen()
             }
         }
     }
@@ -180,7 +204,9 @@ class CallAudioRepositoryImpl(
                 work.launch { updateSignals() }
             }
             audioManager.addOnCommunicationDeviceChangedListener(direct) { device ->
-                Log.d(TAG, "communication device → ${device?.let { "${typeName(it.type)} ${it.productName}" } ?: "none"}")
+                // The type only: the product name may be a car's or someone else's headset name, and
+                // next to call times that is personal data (no PII in logs beyond the headphones' address).
+                Log.d(TAG, "communication device → ${device?.let { typeName(it.type) } ?: "none"}")
                 work.launch { updateSignals() }
             }
         }.onFailure { Log.w(TAG, "audio listeners unavailable: $it") }
@@ -205,20 +231,26 @@ class CallAudioRepositoryImpl(
         }
         if (inCall != prev.inCall) {
             if (inCall) {
-                Log.i(TAG, "call started (${modeName(mode)}), route ${newRoute.route}${newRoute.name?.let { " \"$it\"" } ?: ""}, volume ${_state.value.callVolume}/${_state.value.callVolumeMax}")
+                // Route type only, never the device's name (see the communication-device listener).
+                Log.i(TAG, "call started (${modeName(mode)}), route ${newRoute.route}, volume ${_state.value.callVolume}/${_state.value.callVolumeMax}")
                 diagnosticsLoggedThisCall = false
                 routeWaitLogged = false
                 lastLoggedGain = null
                 lastLoggedNrec = null
                 lastVolumeReports = null
+                boostBlocked = false
+                boostNotified = false
                 startInCallLoop()
             } else {
                 Log.i(TAG, "call ended, last codec ${prev.callCodec ?: "unknown"}")
                 inCallJob?.cancel()
                 inCallJob = null
+                // lastError stays: it tells the call screen afterwards why this call wasn't boosted.
+                boostBlocked = false
+                boostNotification.cancel()
             }
         } else if (inCall && onHeadphones != prev.onHeadphones) {
-            Log.i(TAG, "call route → ${newRoute.route}${newRoute.name?.let { " \"$it\"" } ?: ""}")
+            Log.i(TAG, "call route → ${newRoute.route}")
         }
         scheduler.update(inCall, onHeadphones)
     }
@@ -280,6 +312,24 @@ class CallAudioRepositoryImpl(
         }
     }
 
+    /** The boost Android 17 ignored while Earshot was closed, now that a screen is visible. */
+    private suspend fun boostAfterOpen() {
+        val prefs = _preferences.value
+        updateSignals()
+        val s = _state.value
+        if (!prefs.boostEnabled || !s.inCall || !s.onHeadphones) {
+            boostBlocked = false
+            boostNotification.cancel()
+            return
+        }
+        if (voiceRoutedToHeadset() == false) return
+        try {
+            applyBoost(prefs, onlyRaise = true, reason = "boost once Earshot was opened")
+        } catch (e: HeadphoneCommandException) {
+            Log.w(TAG, "boost after opening Earshot failed: ${e.message}")
+        }
+    }
+
     /**
      * Where Android sends call audio right now (API 33+: the audio policy's own answer for voice
      * communication). True for Bluetooth SCO or an LE Audio headset, false for anything else, null
@@ -314,18 +364,44 @@ class CallAudioRepositoryImpl(
             }
         }
         val after = audioManager.getStreamVolume(stream)
+        // Android 17 says nothing when it ignores the call; the read-back is the only sign. Counted
+        // as a refusal only where Android really requires more than Earshot has: below target 37
+        // the headset service (foreground while a headset is linked) is enough, so a volume that
+        // didn't move there is a cap and gets the "kept the call volume" warning below instead.
+        val targetSdk = appContext.applicationInfo.targetSdkVersion
+        val refused = changed && CallVolumeBoost.refusedInBackground(
+            before, after, target,
+            sdk = Build.VERSION.SDK_INT,
+            targetSdk = targetSdk,
+            appVisible = BackgroundAudio.isAppVisible,
+            foregroundService = headsetServiceForeground(),
+        )
+        if (refused) changed = false
         // Six checks per call: only a change (or a manual boost) is worth an info line.
-        val line = "$reason: call volume $before → $after (target $target, range $min..$max), output ${voiceOutputName()}${if (!changed) ", already loud enough" else ""}"
-        if (changed || !onlyRaise) Log.i(TAG, line) else Log.d(TAG, line)
-        if (changed && after < target) Log.w(TAG, "Android kept the call volume at $after < $target; One UI or another app may be capping it")
+        val line = "$reason: call volume $before → $after (target $target, range $min..$max), output ${voiceOutputName()}${if (!changed && !refused) ", already loud enough" else ""}"
+        if (changed || refused || !onlyRaise) Log.i(TAG, line) else Log.d(TAG, line)
+        if (refused) {
+            Log.w(TAG, "Android ignored the call-volume change: Earshot isn't visible and has no foreground service with the status Android ${Build.VERSION.SDK_INT} needs at target $targetSdk")
+        } else if (changed && after < target) {
+            Log.w(TAG, "Android kept the call volume at $after < $target; One UI or another app may be capping it")
+        }
 
         val headsetSent = maybeRaiseHeadset(prefs, reason)
+        boostBlocked = refused
+        if (refused) {
+            if (!boostNotified) {
+                boostNotified = true
+                boostNotification.show()
+            }
+        } else {
+            boostNotification.cancel()
+        }
         _state.update {
             it.copy(
                 callVolume = after,
                 callVolumeMax = max,
                 lastBoostAppliedAt = if (changed || headsetSent) System.currentTimeMillis() else it.lastBoostAppliedAt,
-                lastError = null,
+                lastError = if (refused) appContext.getString(R.string.a17_call_boost_blocked) else null,
             )
         }
         // Read back the HFP gain the headset now has (Android sends +VGS when the index changes), so
@@ -335,6 +411,16 @@ class CallAudioRepositoryImpl(
             delay(GAIN_CHECK_DELAY_MS)
             if (_state.value.inCall) refreshCodec(gainCause = reason)
         }
+    }
+
+    /**
+     * Is the headset service in the foreground? It mirrors HeadphoneService's own rule: it stays up
+     * while the control link is up or connecting, or the headset is linked for audio. Erring
+     * towards true only turns a refusal at target 36 into the milder "kept the call volume" log.
+     */
+    private fun headsetServiceForeground(): Boolean {
+        val hp = headphones.state.value
+        return hp.isAudioActive || hp.connection.status == ConnectionStatus.CONNECTING
     }
 
     private suspend fun maybeRaiseHeadset(prefs: CallAudioPreferences, reason: String): Boolean {

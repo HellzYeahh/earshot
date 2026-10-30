@@ -1,6 +1,5 @@
 package dev.earshot.bt
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
@@ -8,12 +7,11 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import dev.earshot.protocol.apple.AppleModels
 import dev.earshot.protocol.apple.ContinuityAdvert
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -28,29 +26,38 @@ import kotlinx.coroutines.launch
  * addresses, so ours is told apart by its model fitting the Bluetooth name and by being the
  * nearest ([MIN_RSSI]): a stranger's AirPods across the room don't count.
  *
- * Needs BLUETOOTH_SCAN (declared `neverForLocation`); without it nothing happens.
+ * Needs BLUETOOTH_SCAN (declared `neverForLocation`) on Android 12+, and on Android 9–11 the
+ * location permission with location turned on ([BleScanAccess]); without them the bursts are
+ * skipped (nothing is scanned) until they are given.
  */
 class AppleAdvertScanner(private val context: Context, private val scope: CoroutineScope) {
 
     private var job: Job? = null
 
-    fun hasPermission(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+    fun hasPermission(): Boolean = BleScanAccess.missing(context) == null
 
-    /** Scan in bursts while running, reporting the best advert of each burst that fits [bluetoothName]. */
+    /**
+     * Scan in bursts while running, reporting the best advert of each burst that fits [bluetoothName].
+     *
+     * The loop runs even while [BleScanAccess] says a scan would come back empty: the access is
+     * checked before each burst instead of once here. The caller starts the scanner only when the
+     * headset connects, and the Home banner asks for the location grant (or for location to be
+     * switched on) after that, so a one-off check would leave per-bud battery empty until the
+     * AirPods reconnect. While access is missing it is re-checked every [RECHECK_MS], so a grant
+     * shows results within about [RECHECK_MS] plus one burst.
+     */
     @Synchronized
     fun start(bluetoothName: String?, onAdvert: (ContinuityAdvert) -> Unit) {
         stop()
-        if (!hasPermission()) {
-            BtLog.d("Apple adverts: no BLUETOOTH_SCAN, per-bud battery unavailable")
-            return
-        }
         job = scope.launch {
-            while (isActive) {
-                burst(bluetoothName)?.let(onAdvert)
-                delay(PERIOD_MS - SCAN_MS)
-            }
+            scanInBursts(
+                missingAccess = { BleScanAccess.missing(context) },
+                burst = { burst(bluetoothName) },
+                onResult = onAdvert,
+                log = BtLog::d,
+                pauseMs = PERIOD_MS - SCAN_MS,
+                recheckMs = RECHECK_MS,
+            )
         }
     }
 
@@ -60,7 +67,7 @@ class AppleAdvertScanner(private val context: Context, private val scope: Corout
         job = null
     }
 
-    @SuppressLint("MissingPermission") // checked in hasPermission()
+    @SuppressLint("MissingPermission") // checked before each burst (scanInBursts)
     private suspend fun burst(bluetoothName: String?): ContinuityAdvert? {
         val scanner = context.getSystemService(BluetoothManager::class.java)?.adapter?.bluetoothLeScanner ?: return null
         var best: Pair<Int, ContinuityAdvert>? = null
@@ -102,7 +109,41 @@ class AppleAdvertScanner(private val context: Context, private val scope: Corout
         const val SCAN_MS = 6_000L
         const val PERIOD_MS = 60_000L
 
+        /** How often a missing permission or location switch is looked at again (no scan, no radio). */
+        const val RECHECK_MS = 10_000L
+
         /** Roughly "on you or on the table next to you". */
         const val MIN_RSSI = -70
+    }
+}
+
+/**
+ * [AppleAdvertScanner]'s loop without Android, for the tests: until cancelled, run [burst] and
+ * pass what it found to [onResult], then wait [pauseMs]. Before each burst [missingAccess] says
+ * what a scan with results still needs; while something is missing no burst runs (no radio) and
+ * the access is looked at again after [recheckMs], so a grant given while the loop runs takes
+ * effect without a restart. Each missing reason is logged once, not at every check.
+ */
+internal suspend fun <T : Any> scanInBursts(
+    missingAccess: () -> String?,
+    burst: suspend () -> T?,
+    onResult: (T) -> Unit,
+    log: (String) -> Unit,
+    pauseMs: Long,
+    recheckMs: Long,
+) {
+    var loggedMissing: String? = null
+    while (currentCoroutineContext().isActive) {
+        val missing = missingAccess()
+        if (missing != null) {
+            if (missing != loggedMissing) log("Apple adverts: a BLE scan needs $missing; per-bud battery unavailable for now")
+            loggedMissing = missing
+            delay(recheckMs)
+            continue
+        }
+        if (loggedMissing != null) log("Apple adverts: BLE scan access granted, scanning")
+        loggedMissing = null
+        burst()?.let(onResult)
+        delay(pauseMs)
     }
 }

@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import dev.earshot.LaunchOrigin
 import dev.earshot.R
 import dev.earshot.appContainer
 import kotlinx.coroutines.launch
@@ -20,7 +21,9 @@ import kotlinx.coroutines.launch
  * screen). It works out which headset pressed, runs that headset's action, and finishes. Being in
  * the foreground for that moment is what allows the actions to open apps and start the microphone
  * service. It never forwards to itself: [ShortcutEngine] only sends explicit components that are
- * not Earshot.
+ * not Earshot. Any app can start the exported aliases, so a voice memo starts only when Android
+ * names the Bluetooth stack, the system or its app chooser as the caller
+ * ([LaunchOrigin.PRESS_SOURCES]); any other app, preinstalled or not, is refused.
  */
 class ShortcutTriggerActivity : ComponentActivity() {
 
@@ -30,9 +33,11 @@ class ShortcutTriggerActivity : ComponentActivity() {
             // Recreated (rotation, fold) while waiting for the unlock prompt: the press was handled.
             finish(); return
         }
-        logTrigger()
-        val engine = appContainer.shortcuts
         val trigger = intent
+        // Read now, in onCreate, while `trigger` is the current intent (see LaunchOrigin.of).
+        val origin = LaunchOrigin.of(this, trigger)
+        logTrigger(origin)
+        val engine = appContainer.shortcuts
         val wired = trigger?.action == WiredTrigger.ACTION_VOICE_SEARCH_HANDS_FREE
         val headsetPress = TriggerCaller.isHeadsetPress(
             referrerPackage = runCatching { referrer?.takeIf { it.scheme == "android-app" }?.host }.getOrNull(),
@@ -64,13 +69,21 @@ class ShortcutTriggerActivity : ComponentActivity() {
             val headset = if (needsHeadset) runCatching { engine.headsets.resolve(trigger, engine.savedAddress()) }.getOrNull() else null
             Log.i(TAG, "headset ${headset?.address ?: "unknown"} via ${headset?.source ?: if (wired) "wired" else "-"}")
             val action = settings.actionFor(headset?.address)
-            if (action == ShortcutAction.VoiceMemo && VoiceMemoService.state.value == VoiceMemoService.MemoState.IDLE &&
-                !headsetPresent(engine, wired, headset)
-            ) {
-                // An exported activity anyone can start: only begin recording when a headset is
-                // really there, so another app can't use Earshot to record.
-                engine.feedback.toast(getString(R.string.shortcut_no_headset))
-                finish(); return@launch
+            if (action == ShortcutAction.VoiceMemo && VoiceMemoService.state.value == VoiceMemoService.MemoState.IDLE) {
+                // The aliases are exported, so another app could start this one and have Earshot
+                // record with its microphone grant. A press reaches us from Android's Bluetooth
+                // stack (or the system, for a wired headset), so only those start a recording.
+                // Stopping a running memo stays open to anyone: it records nothing.
+                if (!LaunchOrigin.mayStartVoiceMemo(origin.caller)) {
+                    Log.w(TAG, "voice memo refused: started by ${origin.packageName ?: "an unknown app"} (${origin.caller})")
+                    engine.feedback.toast(getString(R.string.shortcut_memo_not_from_headset))
+                    finish(); return@launch
+                }
+                // Even then, only begin recording when a headset is really there.
+                if (!headsetPresent(engine, wired, headset)) {
+                    engine.feedback.toast(getString(R.string.shortcut_no_headset))
+                    finish(); return@launch
+                }
             }
             // The saved headphones are only a guess for overrides; the voice request belongs to a real presser.
             val presser = headset?.takeIf { it.source != HeadsetSource.SAVED }?.address
@@ -87,10 +100,13 @@ class ShortcutTriggerActivity : ComponentActivity() {
         else -> true
     }
 
-    /** Extras keys only (no values): enough to learn what the Bluetooth stack sends on each phone. */
-    private fun logTrigger() {
+    /**
+     * Extras keys only (no values): enough to learn what the Bluetooth stack sends on each phone.
+     * The caller is a package name (the Bluetooth app on a real press), never a person's data.
+     */
+    private fun logTrigger(origin: LaunchOrigin.Origin) {
         val keys = runCatching { intent?.extras?.keySet()?.sorted() }.getOrNull()
-        Log.i(TAG, "trigger action=${intent?.action} extras=${keys ?: "none"}")
+        Log.i(TAG, "trigger action=${intent?.action} extras=${keys ?: "none"} caller=${origin.packageName ?: "unknown"} (${origin.caller})")
     }
 
     private companion object {

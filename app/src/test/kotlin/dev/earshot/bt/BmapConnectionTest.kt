@@ -164,7 +164,9 @@ class BmapConnectionTest {
     @Test
     fun `timeout throws a no-reply command exception and clears partial frames`() = runTest {
         val t = FakeTransport()
-        val c = BmapConnection(t, backgroundScope, minWriteGapMs = 0)
+        // Virtual clock: the leftover bytes count as stale because they sat through the timeout
+        // (bytes that came in right before the next chunk are a frame still arriving, see BmapConnectionAuditTest).
+        val c = BmapConnection(t, backgroundScope, minWriteGapMs = 0, clock = { testScheduler.currentTime })
         t.onWrite = { t.deliver("0202") } // half a header, then silence
 
         val e = assertFailsWith<HeadphoneCommandException> {

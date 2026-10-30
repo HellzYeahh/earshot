@@ -169,9 +169,10 @@ class SleepHeadsetActionsTest {
         val hp = TestHeadphones(a30Like)
         val link = TestLink()
         val notes = mutableListOf<StepNote>()
-        SleepHeadsetActions(hp, link, text).endAction(SleepEndAction.POWER_OFF, hp.state.value, notes)
+        val sentAway = SleepHeadsetActions(hp, link, text).endAction(SleepEndAction.POWER_OFF, hp.state.value, notes)
         assertEquals(listOf("power off"), hp.calls)
         assertEquals(listOf("disconnect"), link.calls)
+        assertTrue(sentAway)
     }
 
     @Test
@@ -179,8 +180,22 @@ class SleepHeadsetActionsTest {
         val hp = TestHeadphones(generic)
         val link = TestLink(linked = false)
         val notes = mutableListOf<StepNote>()
-        SleepHeadsetActions(hp, link, text).endAction(SleepEndAction.DISCONNECT, hp.state.value, notes)
+        val sentAway = SleepHeadsetActions(hp, link, text).endAction(SleepEndAction.DISCONNECT, hp.state.value, notes)
         assertTrue(link.calls.isEmpty())
         assertTrue(notes.single().isProblem)
+        // Nothing went away, so the morning restore may still connect it (RestoreConnect.Hold).
+        assertFalse(sentAway)
+    }
+
+    @Test
+    fun `the end action says when it sent the headset away`() = runTest {
+        val hp = TestHeadphones(boseLike, refusePowerOff = false)
+        val actions = SleepHeadsetActions(hp, TestLink(), text)
+        assertFalse(actions.endAction(SleepEndAction.STOP_SOUNDS, hp.state.value, mutableListOf()))
+        assertTrue(actions.endAction(SleepEndAction.POWER_OFF, hp.state.value, mutableListOf()))
+        assertEquals(listOf("power off"), hp.calls)
+        val link = TestLink()
+        assertTrue(SleepHeadsetActions(hp, link, text).endAction(SleepEndAction.DISCONNECT, hp.state.value, mutableListOf()))
+        assertEquals(listOf("disconnect"), link.calls)
     }
 }

@@ -1,0 +1,99 @@
+# The release gate (docs/roadmap.md, 1.0 plan item 2): every push and pull request runs the tests,
+# lint and both release builds, then tools/release/check_release.py on the APKs and on the bundle
+# that is uploaded to Google Play (docs/research/play-readiness.md F1-F3). A release is made
+# only from a commit whose gate is green; on a v* tag the release-only checks run too (version
+# matches the tag, What's New and CHANGELOG written). Signing stays on the developer's PC
+# (docs/release-signing.md), so the APKs built here are unsigned and never published from CI; the
+# certificate checks run there, on the signed asset that is published.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The project's gradle.properties keeps the daemons small so several checkouts can build at
+      # once on the developer's PC. The runner has 16 GB: the user-level gradle.properties wins over
+      # the project's, so CI gets room for R8 (inside the Gradle daemon) and the Kotlin daemon. The
+      # project sets no JDK, so Gradle uses setup-java's JAVA_HOME.
+      - name: Gradle heaps for the runner
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
+          echo "kotlin.daemon.jvmargs=-Xmx4g" >> ~/.gradle/gradle.properties
+          chmod +x gradlew
+
+      # One app variant per Gradle run (CLAUDE.md, Build): two app compiles at once share one Kotlin
+      # daemon and run it out of memory, and two R8 runs share one Gradle daemon.
+      - name: Unit tests (protocol, dsp)
+        run: ./gradlew :protocol:test :dsp:test --console=plain
+
+      - name: Unit tests (app, foss)
+        run: ./gradlew :app:testFossDebugUnitTest --console=plain
+
+      - name: Unit tests (app, play)
+        run: ./gradlew :app:testPlayDebugUnitTest --console=plain
+
+      - name: Lint
+        run: ./gradlew :app:lintFossDebug --console=plain
+
+      - name: Release build, foss (unsigned)
+        run: ./gradlew :app:assembleFossRelease --console=plain
+
+      - name: Release build, play (unsigned)
+        run: ./gradlew :app:assemblePlayRelease :app:bundlePlayRelease --console=plain
+
+      # The gate's own rules (flavour, bridge, permissions, Shizuku in the Play build, 16 KB
+      # alignment, certificates, --installs-over, --aab) against canned aapt2/apksigner/zipalign/
+      # bundletool output: the signed branches never run on CI's unsigned APKs otherwise.
+      - name: Release gate self-test
+        run: python3 -B -m unittest discover -s tools/release -p 'test_*.py'
+
+      # check_release.py takes each APK's flavour from its app ID and prints its full permission
+      # list. These APKs are -unsigned, so it skips the certificate and zipalign checks here; they
+      # run on the developer's PC against the signed asset (docs/release-signing.md, step 4). The
+      # .aab is what Google Play gets: its base manifest gets the same checks, read with the SDK's
+      # aapt2 (ANDROID_HOME on the runner), else with the bundletool that the bundle build left in
+      # the Gradle cache.
+      - name: Release gate checks
+        run: |
+          TAG=""
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then TAG="--tag ${GITHUB_REF#refs/tags/}"; fi
+          python3 tools/release/check_release.py \
+            --apk app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk \
+            --apk app/build/outputs/apk/play/release/app-play-release-unsigned.apk \
+            --aab app/build/outputs/bundle/playRelease/app-play-release.aab \
+            --lint app/build/reports/lint-results-fossDebug.xml $TAG
+
+      - name: Keep reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            **/build/reports/
+            **/build/test-results/
+          retention-days: 7

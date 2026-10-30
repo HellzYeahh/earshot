@@ -9,10 +9,11 @@ import rikka.shizuku.Shizuku
 import kotlin.coroutines.resume
 
 /**
- * Translates Shizuku's state into [PrivilegeState] and runs the permission dialog.
+ * Translates Shizuku's state into [PrivilegeState] and runs the permission dialog. GitHub build only
+ * (B8, docs/research/play-readiness.md): the Google Play build has no Shizuku at all.
  *
  * Shizuku delivers its binder to us asynchronously through the `ShizukuProvider` declared in the
- * manifest, so right after process start [Shizuku.pingBinder] is false even when Shizuku is up;
+ * foss manifest, so right after process start [Shizuku.pingBinder] is false even when Shizuku is up;
  * callers re-evaluate on [Shizuku.addBinderReceivedListenerSticky].
  */
 internal object ShizukuPrivilege {
@@ -36,7 +37,9 @@ internal object ShizukuPrivilege {
     }
 
     fun isManagerInstalled(context: Context): Boolean = try {
-        // QUERY_ALL_PACKAGES is in the manifest (needed elsewhere), so this is visible on Android 11+.
+        // Visible on Android 11+ only through the <queries> <package> entry for MANAGER_PACKAGE in
+        // app/src/foss/AndroidManifest.xml (no QUERY_ALL_PACKAGES); without it this always says
+        // "not installed" (ShizukuManifestTest).
         context.packageManager.getPackageInfo(MANAGER_PACKAGE, 0)
         true
     } catch (_: PackageManager.NameNotFoundException) {

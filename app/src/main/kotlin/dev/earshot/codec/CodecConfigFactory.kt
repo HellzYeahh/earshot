@@ -1,4 +1,4 @@
-package dev.earshot.codec.shizuku
+package dev.earshot.codec
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothCodecConfig
@@ -6,14 +6,13 @@ import android.bluetooth.BluetoothCodecType
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
-import dev.earshot.codec.CodecMasks
-import dev.earshot.codec.CodecNames
-import dev.earshot.codec.CodecRequest
 
 /**
- * Builds the `BluetoothCodecConfig` for a [CodecRequest]: inside the Shizuku user service, and in
- * the app process for the experimental companion-link path (`codec/AssociationCodecPath`, Android
- * 13+ only, so it never takes the hidden-constructor branch).
+ * Builds the `BluetoothCodecConfig` for a [CodecRequest]: in the app process for the experimental
+ * companion-link path ([AssociationCodecPath], Android 13+ only, so it never takes the
+ * hidden-constructor branch), and in the GitHub build also inside the Shizuku user service
+ * (`app/src/foss/.../codec/shizuku/CodecUserService`). Shared by both flavours, so it lives here and
+ * not with the Shizuku code (B8, docs/research/play-readiness.md).
  *  - Android 15+: codecs are objects; vendor codecs (Samsung Scalable, aptX Adaptive) only work
  *    through the `BluetoothCodecType` the stack advertises, so that is looked up by name first;
  *  - Android 13–14 (or no advertised type): the public Builder with `setCodecType(int)`;
@@ -25,7 +24,7 @@ internal object CodecConfigFactory {
      * @param supportedTypes lazily fetches `getSupportedCodecTypes()` (Android 15+ only).
      * @param tag the caller's log tag, so a log line says which process built the config.
      */
-    fun build(request: CodecRequest, tag: String = SVC_TAG, supportedTypes: () -> List<Any>): Any {
+    fun build(request: CodecRequest, tag: String, supportedTypes: () -> List<Any>): Any {
         val channel = 0 // CHANNEL_MODE_NONE: never force mono
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return buildModern(request, channel, tag, supportedTypes)
         val type = requireType(request)

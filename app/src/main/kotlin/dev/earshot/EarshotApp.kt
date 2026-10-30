@@ -5,6 +5,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
+import android.os.StrictMode
 import androidx.core.content.ContextCompat
 import dev.earshot.extras.ExtrasInitializer
 import dev.earshot.sleep.LockedAlarms
@@ -15,6 +17,7 @@ class EarshotApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        logNonSdkApiUseInDebugBuilds()
         container = AppContainer(this)
         // Direct boot: the Sleep tab's alarm components can start the process after an overnight
         // restart, before the first unlock. Everything below reads credential-encrypted storage,
@@ -34,7 +37,31 @@ class EarshotApp : Application() {
             }
             return
         }
+        // Settings restore (Back up and restore): only at a fresh unlocked process start, before
+        // any DataStore or SharedPreferences opens (the container's repositories are lazy). After a
+        // late unlock some store may already be open, so a staged restore waits for the next start.
+        dev.earshot.backup.BackupStaging.applyIfReady(this)
         startUnlocked()
+    }
+
+    /**
+     * Debuggable builds only: a reflective call to a member that is not on the SDK list (today the
+     * Bose path's `createInsecureRfcommSocket`) lands in logcat as a StrictMode
+     * `NonSdkApiUsedViolation` with the exact member. `getBatteryLevel` and the A2DP codec calls are
+     * "sdk,system-api" (DeviceBattery, AssociationCodecPath) and show up only if a new list moves
+     * them off the SDK list, so the phone pass before the target-37 bump sees exactly what a new
+     * restriction list blocks (play-readiness.md A3).
+     * Log only: a crash or dialog penalty would break the very paths being checked. Release builds
+     * are never debuggable, so they keep the platform's default policy.
+     */
+    private fun logNonSdkApiUseInDebugBuilds() {
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) return
+        StrictMode.setVmPolicy(
+            StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy())
+                .detectNonSdkApiUsage()
+                .penaltyLog()
+                .build(),
+        )
     }
 
     private val started = java.util.concurrent.atomic.AtomicBoolean(false)

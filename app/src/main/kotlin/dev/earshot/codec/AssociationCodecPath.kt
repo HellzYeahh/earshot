@@ -7,7 +7,6 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import dev.earshot.bt.CompanionRemote
-import dev.earshot.codec.shizuku.CodecConfigFactory
 import java.lang.reflect.InvocationTargetException
 
 /**
@@ -20,7 +19,9 @@ import java.lang.reflect.InvocationTargetException
  * reflection is not blocked and only that runtime check applies (desk answer, D4).
  *
  * Unverified on hardware. An OEM stack may still demand the privileged permission: the call then
- * throws [SecurityException], [works] turns false for the process and Shizuku stays the only path.
+ * throws [SecurityException], [works] turns false for the process and Shizuku (GitHub build only)
+ * stays the only path. In the Google Play build, which has no Shizuku (B8), this is the only
+ * switch Earshot has; Developer options always remains.
  */
 internal class AssociationCodecPath(private val context: Context) {
     private val remote by lazy { CompanionRemote(context) }
@@ -74,7 +75,7 @@ internal class AssociationCodecPath(private val context: Context) {
 
     private fun <T> refused(what: String, t: Throwable): T? {
         works = false
-        Log.i(TAG, "$what through the companion link refused (${t.javaClass.simpleName}); Shizuku stays the codec path")
+        Log.i(TAG, "$what through the companion link refused (${t.javaClass.simpleName}); off for this process")
         return null
     }
 

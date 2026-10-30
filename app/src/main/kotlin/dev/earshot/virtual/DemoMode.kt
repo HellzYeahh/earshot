@@ -2,18 +2,26 @@ package dev.earshot.virtual
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import java.io.IOException
 
-// File-private delegate: exactly one DataStore for this file per process.
-private val Context.demoModeDataStore: DataStore<Preferences> by preferencesDataStore(name = "demo_mode")
+// File-private delegate: exactly one DataStore for this file per process. A corrupt file is
+// replaced with an empty one (demo mode off), so it can't keep failing every connect attempt.
+private val Context.demoModeDataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "demo_mode",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
 
 /**
  * Which virtual headphones demo mode talks to. [displayName] is what the Preferences chips show;
@@ -109,17 +117,25 @@ object DemoPresses {
  * [VirtualTransport.factory] instead of opening an RFCOMM socket, so the app can be shown (and
  * exercised on an emulator) without the headphones. Off by default; survives restarts.
  */
-class DemoMode(context: Context) {
-    private val store = context.applicationContext.demoModeDataStore
+class DemoMode internal constructor(private val store: DataStore<Preferences>) {
+    constructor(context: Context) : this(context.applicationContext.demoModeDataStore)
 
-    val isEnabled: Flow<Boolean> = store.data.map { it[KEY_ENABLED] ?: false }
+    /**
+     * The stored switches, or none when the file can't be read (full storage, a corrupt file the
+     * handler couldn't replace). The blocking reads below run inside the connection loop and the
+     * family routing, where a thrown IOException would end the loop or crash the process; reading
+     * "demo mode off" is the safe answer there.
+     */
+    private val prefs: Flow<Preferences> = store.data.catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+
+    val isEnabled: Flow<Boolean> = prefs.map { it[KEY_ENABLED] ?: false }
 
     suspend fun set(enabled: Boolean) {
         store.edit { it[KEY_ENABLED] = enabled }
     }
 
     /** The virtual device demo mode uses; the QC Ultra 2 unless the user picked the Crusher. */
-    val device: Flow<DemoDevice> = store.data.map { prefs -> prefs[KEY_DEVICE]?.let { k -> DemoDevice.entries.firstOrNull { it.name == k } } ?: DemoDevice.QC_ULTRA }
+    val device: Flow<DemoDevice> = prefs.map { p -> p[KEY_DEVICE]?.let { k -> DemoDevice.entries.firstOrNull { it.name == k } } ?: DemoDevice.QC_ULTRA }
 
     suspend fun setDevice(device: DemoDevice) {
         store.edit { it[KEY_DEVICE] = device.name }

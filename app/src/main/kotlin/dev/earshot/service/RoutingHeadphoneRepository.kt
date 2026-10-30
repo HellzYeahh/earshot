@@ -1,6 +1,7 @@
 package dev.earshot.service
 
 import dev.earshot.bt.AudioLinkMonitor
+import dev.earshot.bt.BtLog
 import dev.earshot.bt.DeviceFamily
 import dev.earshot.bt.DeviceFinder
 import dev.earshot.bt.DevicePrefs
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.io.IOException
 
 /**
  * The [HeadphoneRepository] the rest of the app sees. It owns one repository per [DeviceFamily] and
@@ -137,9 +139,23 @@ class RoutingHeadphoneRepository(
      * Pick the family and start connecting, completing only once that has started. The link-up
      * receiver awaits this so the foreground service starts and the manager launches before the
      * receiver's short lifetime ends.
+     *
+     * Picking the family reads DataStore (the saved headset, its "Headphone type"), which throws
+     * IOException on an unreadable file or a full disk. Every caller runs this in a scope without
+     * an exception handler ([connect] in the application scope, [HeadsetPresenceService], the
+     * link-up receiver, the service's sticky restart), so it is caught here, once: the stack
+     * already in charge connects instead, and its own read of the same store fails the same way
+     * and shows the storage-failed message (ConnectionManager, [GenericHeadphoneRepository]),
+     * rather than the process crashing on every link-up. Cancellation is not an IOException.
      */
     suspend fun connectNow() {
-        select(resolveFamily())
+        val family = try {
+            resolveFamily()
+        } catch (e: IOException) {
+            BtLog.w("router: the saved headphones can't be read (${e.javaClass.simpleName}); keeping the ${active.value.name.lowercase()} stack")
+            null
+        }
+        family?.let { select(it) }
         current.connect()
     }
 

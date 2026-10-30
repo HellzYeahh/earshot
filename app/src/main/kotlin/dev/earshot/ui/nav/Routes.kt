@@ -47,6 +47,7 @@ object Routes {
     const val AUTOMATION_EDIT = "more/automations/edit?id={id}"
     const val PREFERENCES = "more/preferences"
     const val ABOUT = "more/about"
+    const val BACKUP = "more/backup"
 
     fun automationEdit(id: String?): String = if (id == null) "more/automations/edit" else "more/automations/edit?id=$id"
     fun sleepAlarm(id: String?): String = if (id == null) "sleep/alarm" else "sleep/alarm?id=$id"

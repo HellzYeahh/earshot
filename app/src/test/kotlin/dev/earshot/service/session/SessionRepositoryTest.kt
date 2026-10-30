@@ -3,11 +3,14 @@ package dev.earshot.service.session
 import dev.earshot.bt.DeviceCandidate
 import dev.earshot.bt.DeviceFamily
 import dev.earshot.core.ConnectionStatus
+import dev.earshot.core.DeviceInfo
 import dev.earshot.core.HeadphoneCandidate
+import dev.earshot.core.HeadphoneCapabilities
 import dev.earshot.core.HeadphoneCommandException
 import dev.earshot.core.HeadphoneEvent
 import dev.earshot.core.HeadphoneState
 import dev.earshot.core.NoiseSettings
+import dev.earshot.core.SupportTier
 import dev.earshot.service.VendorDriver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -64,6 +67,8 @@ class SessionRepositoryTest {
 
         fun setBattery(percent: Int) = mutableState.update { it.copy(batteryPercent = percent) }
         fun link(checkOpen: Boolean = true): FakeLink = requireConnection(checkOpen)
+        fun identify(conn: FakeLink, name: String?, capabilities: HeadphoneCapabilities? = null) =
+            identifyIfUnread(conn, name, capabilities = capabilities)
 
         override fun unsupportedMessage(feature: String): String = message?.invoke(feature) ?: super.unsupportedMessage(feature)
         override suspend fun refresh() { requireConnection() }
@@ -239,6 +244,36 @@ class SessionRepositoryTest {
         driver.release()
         assertEquals(1, r.link.disconnects)
         assertEquals(0, r.foreground.stops)
+    }
+
+    @Test fun `after the first read an identity is published once, never over a real one or onto a closed link`() = runTest {
+        val r = rig()
+        val conn = FakeLink()
+        r.link.open(conn)
+        runCurrent()
+        assertNull(SupportTier.of(r.repo.state.value), "no identity yet: no tier")
+
+        r.repo.identify(conn, "Headset X")
+        assertEquals(DeviceInfo(productName = "Headset X"), r.repo.state.value.info)
+        assertEquals(SupportTier.EXPERIMENTAL, SupportTier.of(r.repo.state.value), "the default capabilities say Experimental")
+
+        r.repo.identify(conn, "Other", HeadphoneCapabilities(tested = true))
+        assertEquals("Headset X", r.repo.state.value.info?.productName, "an identity already there stays")
+        assertEquals(SupportTier.EXPERIMENTAL, SupportTier.of(r.repo.state.value))
+
+        r.link.drop()
+        runCurrent()
+        conn.close()
+        r.repo.identify(conn, "Late")
+        assertNull(r.repo.state.value.info, "a closed link leaves the reset state alone, so the next link starts clean")
+
+        val next = FakeLink()
+        r.link.open(next)
+        runCurrent()
+        assertNull(r.repo.state.value.info)
+        r.repo.identify(next, "Sleep buds", HeadphoneCapabilities(tested = true))
+        assertEquals(SupportTier.TESTED, SupportTier.of(r.repo.state.value), "a driver's own capabilities come with the identity")
+        next.close()
     }
 
     @Test fun `start runs once`() = runTest {

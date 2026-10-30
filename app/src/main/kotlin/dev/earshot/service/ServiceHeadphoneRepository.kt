@@ -189,16 +189,23 @@ class ServiceHeadphoneRepository internal constructor(
     override suspend fun transport(control: TransportControl) = command("transport") { c, s -> protocol.transport(c, s, control) }
 
     /** Serialised with the other commands but never touches [state]. */
-    override suspend fun printConsole(command: String): String = commands.withLock {
-        val conn = requireConnection()
-        try {
-            protocol.printConsole(conn, command)
-        } catch (e: BmapException) {
-            throw e.toCommandException()
-        } finally {
-            // Pushes parked while the console held the lock (a volume swipe, say).
-            pushes.drain()
+    override suspend fun printConsole(command: String): String = try {
+        commands.withLock {
+            val conn = requireConnection()
+            try {
+                protocol.printConsole(conn, command)
+            } catch (e: BmapException) {
+                throw e.toCommandException()
+            } finally {
+                // Pushes parked while the console held the lock (a volume swipe, say).
+                pushes.drain()
+            }
         }
+    } finally {
+        // A push that landed after the drain above but before the unlock found the lock taken and
+        // was parked; without this it would wait for the next push or command (audit R27). Same
+        // hand-off as at the end of StateCommands.run.
+        pushes.drainIfFree()
     }
 
     override suspend fun enterPairingMode() {

@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import dev.earshot.core.ConnectionProblem
 import dev.earshot.core.ConnectionState
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
 
 /**
  * What a repository needs from the connection policy: the state to show, the open session to
@@ -182,7 +184,16 @@ class ConnectionManager<C : ManagedLink>(
         }
         var attempt = 0
         while (true) {
-            val found = finder.find()
+            // The finder reads the saved device from DataStore, which throws IOException on a full
+            // or unreadable disk. This loop runs in the application scope, where an uncaught
+            // exception kills the process (on every link-up, boot and launch, for a corrupt file).
+            val found = try {
+                finder.find()
+            } catch (e: IOException) {
+                BtLog.w("could not read the saved headphones: ${e.message}")
+                setState(ConnectionStatus.DISCONNECTED, message = MESSAGE_STORAGE_FAILED)
+                return
+            }
             val device = when (found) {
                 FindResult.NoPermission -> {
                     setState(ConnectionStatus.NO_PERMISSION, message = "Allow Earshot to connect to nearby devices")
@@ -204,14 +215,26 @@ class ConnectionManager<C : ManagedLink>(
             // The same rule the router uses (DevicePrefs.familyFor: the device's own "Headphone type",
             // then what answered on it before, then its name), so exactly one stack drives a device,
             // a renamed one is not left with nobody, and nothing else ever gets this stack's probe.
-            if (prefs.familyFor(address, name) != factory.family) {
+            val family = try {
+                prefs.familyFor(address, name)
+            } catch (e: IOException) {
+                BtLog.w("could not read the headphone type of $address: ${e.message}")
+                setState(ConnectionStatus.DISCONNECTED, name, address, message = MESSAGE_STORAGE_FAILED)
+                return
+            }
+            if (family != factory.family) {
                 BtLog.d("the ${factory.family.name.lowercase()} stack does not drive \"$name\"; standing down")
                 return
             }
             currentAddress = address
             // Remember an auto-pick so later runs and the manifest receiver recognise the device, and
             // keep the saved name current (the router resolves the family from it before connecting).
-            if (!found.candidate.isSaved || prefs.savedDevice()?.name != name) prefs.save(address, name)
+            // Bookkeeping only: a full disk must not stop the connect (nor crash the process).
+            try {
+                if (!found.candidate.isSaved || prefs.savedDevice()?.name != name) prefs.save(address, name)
+            } catch (e: IOException) {
+                BtLog.w("could not save $address as the headphones: ${e.message}")
+            }
             setState(ConnectionStatus.CONNECTING, name, address, message = null)
 
             var connection: C? = null
@@ -225,15 +248,14 @@ class ConnectionManager<C : ManagedLink>(
                 runCatching { prefs.rememberFamily(address, factory.family) }.onFailure { BtLog.w("could not remember the family of $address: ${it.message}") }
                 val attemptsBefore = attempt
                 attempt = 0
+                val upAt = SystemClock.elapsedRealtime()
                 val cause = connection.awaitClosed()
                 _connection.value = null
                 BtLog.i("session ended: ${cause?.message ?: "closed locally"}")
                 val end = SessionEnd.classify(cause, userStopped, linked = if (userStopped) null else finder.isAudioConnected(address))
                 setState(ConnectionStatus.DISCONNECTED, name, address, message = localized(end.message))
                 if (userStopped) return
-                // The watchdog closed a half-dead session: it never really worked, so it costs a
-                // backoff step like a failed connect instead of resetting the schedule.
-                if (end.countsAsFailedAttempt) attempt = attemptsBefore
+                attempt = attemptAfterSession(attemptsBefore, end, upForMs = SystemClock.elapsedRealtime() - upAt)
             } catch (e: CancellationException) {
                 connection?.close()
                 _connection.value = null
@@ -357,7 +379,14 @@ class ConnectionManager<C : ManagedLink>(
         if (userStopped || !autoConnect()) return
         if (_state.value.status == ConnectionStatus.CONNECTED) return
         scope.launch {
-            if (!isOurDevice(address)) return@launch
+            // isOurDevice reads DataStore; an IOException here would crash the process (application scope).
+            val ours = try {
+                isOurDevice(address)
+            } catch (e: IOException) {
+                BtLog.w("could not read the saved headphones: ${e.message}")
+                false
+            }
+            if (!ours) return@launch
             BtLog.i("audio state changed on $address, re-arming the connect loop")
             connect()
         }
@@ -385,8 +414,27 @@ class ConnectionManager<C : ManagedLink>(
 
         /** The vendor-neutral busy signal [SessionEnd] reports; [localized] swaps in the factory's own wording. */
         const val MESSAGE_CHANNEL_BUSY = "Close the $GENERIC_COMPETING_APP app, then try again"
+        /** Shown when the saved headphones can't be read from storage (full or unreadable). */
+        const val MESSAGE_STORAGE_FAILED = "Earshot couldn't read its saved headphones from the phone's storage"
         const val DEMO_NAME = "Virtual QC Ultra (demo)"
         const val DEMO_ADDRESS = "00:00:00:DE:40:01"
         private const val DEMO_RECONNECT_MS = 3_000L
     }
 }
+
+/**
+ * A session shorter than this never really worked: it costs a backoff step like a failed connect
+ * instead of resetting the schedule. Long enough for connect, the `[9.2]` subscription and the
+ * first refresh; a multipoint blip after real use still gets the 1 s retry.
+ */
+internal const val MIN_HEALTHY_SESSION_MS = 30_000L
+
+/**
+ * The reconnect schedule's position after a session that opened and later ended (not by the
+ * user). A healthy session resets it to 0. One the watchdog closed as half-dead, or one that ended
+ * within [MIN_HEALTHY_SESSION_MS] (a headset that answers the `[0.1]` probe and then drops the link
+ * during the refresh), keeps [attemptsBefore], so the waits grow to the slow pulse instead of
+ * reconnecting every second for as long as the audio link stays up.
+ */
+internal fun attemptAfterSession(attemptsBefore: Int, end: SessionEnd, upForMs: Long): Int =
+    if (end.countsAsFailedAttempt || upForMs < MIN_HEALTHY_SESSION_MS) attemptsBefore else 0

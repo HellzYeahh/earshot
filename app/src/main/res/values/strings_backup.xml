@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Back up and restore (More → App). Plain words: no "zip", "manifest" or "DataStore" on screen. -->
+<resources>
+    <string name="backup_title">Back up and restore</string>
+    <string name="backup_entry_subtitle">Save your settings to a file, or bring them back</string>
+    <string name="backup_intro">Save Earshot\'s settings in one file. Open that file in Earshot on a new phone, or after installing Earshot again, and everything is set up the way you left it.</string>
+
+    <!-- Save -->
+    <string name="backup_export_title">Save a backup</string>
+    <string name="backup_export_button">Save backup file</string>
+    <string name="backup_saving">Saving…</string>
+    <string name="backup_own_sounds">Include my own sounds (%1$s)</string>
+    <string name="backup_own_sounds_none">Include my own sounds</string>
+    <plurals name="backup_own_sounds_subtitle">
+        <item quantity="one">%1$d sound you added to the Sleep tab</item>
+        <item quantity="other">%1$d sounds you added to the Sleep tab</item>
+    </plurals>
+    <string name="backup_own_sounds_empty">You haven\'t added any sounds of your own</string>
+    <string name="backup_saved">Backup saved. Keep the file somewhere safe, for example on a computer or in your own cloud storage.</string>
+    <!-- %2$s and %3$s: the caps as file sizes, such as "256 MB" and "1.0 GB" -->
+    <plurals name="backup_saved_left_out">
+        <item quantity="one">%1$d of your own sounds was left out: a backup holds sounds of up to %2$s each and %3$s in all.</item>
+        <item quantity="other">%1$d of your own sounds were left out: a backup holds sounds of up to %2$s each and %3$s in all.</item>
+    </plurals>
+    <string name="backup_saved_left_out_names">Left out: %1$s.</string>
+
+    <!-- Restore -->
+    <string name="backup_import_title">Restore</string>
+    <string name="backup_import_body">Replaces Earshot\'s settings on this phone with the ones in a backup file. Earshot restarts to finish.</string>
+    <string name="backup_import_button">Restore from a file</string>
+    <string name="backup_checking">Checking the file…</string>
+    <string name="backup_import_confirm_title">Restore settings?</string>
+    <string name="backup_import_confirm_text">Earshot\'s settings on this phone will be replaced by the ones in the backup. Your own sleep sounds stay: any in the backup are added to them. If a sleep timer is running, it carries on after the restart.</string>
+    <string name="backup_import_confirm_action">Choose file</string>
+    <string name="backup_ready_title">Ready to restore</string>
+    <string name="backup_ready_text">The backup from %1$s checked out. Earshot restarts now to finish restoring it.</string>
+    <string name="backup_ready_text_version">The backup from %1$s (Earshot %2$s) checked out. Earshot restarts now to finish restoring it.</string>
+    <plurals name="backup_ready_sounds">
+        <item quantity="one">It has %1$d sound of your own, which is added to the ones on this phone. None of this phone\'s sounds are removed.</item>
+        <item quantity="other">It has %1$d sounds of your own, which are added to the ones on this phone. None of this phone\'s sounds are removed.</item>
+    </plurals>
+    <string name="backup_ready_no_sounds">Your own sounds on this phone stay as they are.</string>
+    <string name="backup_restart_now">Restart now</string>
+    <string name="backup_discard">Discard</string>
+    <string name="backup_waiting">A checked backup from %1$s is waiting. Nothing changes until you restart Earshot to restore it.</string>
+    <string name="backup_restart_failed">Earshot couldn\'t start the restore. Restore from the file again.</string>
+    <string name="backup_restore_failed">The restore didn\'t finish; your previous settings are back.</string>
+    <string name="backup_restore_failed_partly">The restore didn\'t finish, and some settings may not be as they were. Restore from the backup file again to finish it.</string>
+    <!-- A restore stopped part-way and couldn't be undone: the next start of Earshot finishes it. -->
+    <string name="backup_restore_failed_restart">The restore didn\'t finish, and some settings may not be as they were. Restart Earshot to finish it.</string>
+    <string name="backup_restore_cancelled">Restore cancelled. Nothing was changed.</string>
+    <string name="backup_restored">Settings restored from your backup.</string>
+    <string name="backup_restored_from">Settings restored from the backup made on %1$s.</string>
+    <string name="backup_ok">OK</string>
+
+    <!-- What's in it -->
+    <string name="backup_contents_title">What\'s in the file</string>
+    <string name="backup_included">Included: sound settings and EQ presets, app profiles, automations and the quick settings tile, the headset shortcut, call settings, your headsets\' saved choices (such as Headphone type), the Sleep tab\'s timer, alarms and mixes, and the app\'s look.</string>
+    <string name="backup_excluded">Not included: Bluetooth pairings and links (on a new phone you pair and link your headsets again), the Bluetooth history, demo mode, and permissions, which you allow again. Lab scans, and voice memos on Android 9, sit in Earshot\'s own folder and are deleted with the app: copy them out first if you want to keep them.</string>
+    <string name="backup_private">Nothing leaves your phone except the file you save. Earshot has no internet access. The file isn\'t encrypted, so keep it somewhere you trust.</string>
+
+    <!-- Errors -->
+    <string name="backup_error_not_backup">This file isn\'t an Earshot backup.</string>
+    <string name="backup_error_newer">This backup was made by a newer version of Earshot. Update Earshot first, then try again.</string>
+    <string name="backup_error_damaged">This backup file is damaged, so nothing was restored.</string>
+    <string name="backup_error_unexpected">This backup holds files Earshot doesn\'t restore, so nothing was restored.</string>
+    <string name="backup_error_too_large">This backup is too large to restore.</string>
+    <string name="backup_error_no_space">There isn\'t enough free space on the phone.</string>
+    <string name="backup_error_read">Earshot couldn\'t read that file. Nothing was changed.</string>
+    <string name="backup_error_write">Earshot couldn\'t save the file there. Try another folder.</string>
+    <string name="backup_error_overwrite">Earshot couldn\'t save the backup, and the file you chose to replace may now be incomplete. Save a new backup under another name.</string>
+    <string name="backup_error_changed">Your own sounds changed while saving. Try again.</string>
+    <string name="backup_error_busy">Earshot is still checking another backup file. Try again in a moment.</string>
+    <string name="backup_error_unfinished">An earlier restore hasn\'t finished yet. Restart Earshot to finish it, then try again.</string>
+    <!-- GitHub build only: the pre-1.0 Earshot (dev.earshot, debug key, up to 0.9.1) is still installed -->
+    <string name="backup_legacy_app">The older Earshot is still on this phone. If it\'s version 0.9.1 or later, open More, Back up and restore in it, save your settings, and import that file here. Older versions don\'t have Back up and restore: set things up again here instead. When you\'re done, remove the old app so the two don\'t compete for your headset.</string>
+    <string name="backup_legacy_open">Old app\'s info</string>
+    <!-- GitHub build only: the current Google Play build (dev.earshot, Play-signed) is installed too. Also on Home. -->
+    <string name="backup_other_earshot">Earshot from Google Play is also on this phone. Only one of them should control your headset.</string>
+    <string name="backup_other_earshot_open">Play app\'s info</string>
+    <!-- Home, GitHub build only: the short form of backup_legacy_app, until dismissed for this run of the app -->
+    <string name="home_legacy_app">The older Earshot is still on this phone and may hold your headset. Move your settings over in More, Back up and restore, then remove the old app.</string>
+</resources>
