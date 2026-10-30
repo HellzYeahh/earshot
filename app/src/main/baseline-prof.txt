@@ -1,0 +1,172 @@
+# Earshot's own ART baseline profile (hand-written, 1.0 performance pass CO1 / ST1).
+# =============================================
+# Why: the libraries (Compose, navigation, lifecycle, ...) ship their own rules, but no rule
+# covered dev/earshot, so every Earshot class on the start path ran in the interpreter or the
+# JIT until the phone's background dexopt reached it. That happens about a day after each
+# install or update. Sideloaded GitHub / F-Droid installs never get Play cloud profiles, and
+# the Play closed test has too few users for one to form. AGP merges this file with the
+# library rules for both flavours. In release builds R8 expands the wildcards and rewrites the
+# names it obfuscates; the result ships as assets/dexopt/baseline.prof. On a Play install ART
+# compiles it at install time. On a sideload ProfileInstaller (already in the APK through
+# Compose, activity, lifecycle and navigation) hands it to ART at the first start, and it is
+# compiled at the next idle dexopt. Debug builds are never profile-compiled.
+#
+# It only changes what ART compiles ahead of time (H), marks as startup (S) or post-startup (P) code and puts in
+# the app image (class lines). It never changes behaviour. A stale rule is harmless: a class
+# that moved simply stops matching.
+#
+# Scope: the process start, the root composable and the first screens, nothing else. Left out
+# on purpose: the vendor wire stacks (BMAP, Bragi, Soundcore, ...). A connect is waiting on
+# Bluetooth there, not on the CPU. Also left out: Sound, Tools, More, the Lab, demo devices
+# and the night-time Sleep runtime. Add them only after measuring, because every rule makes
+# the on-device odex and the install-time dexopt bigger.
+# Generating the profile with a Macrobenchmark module (ST1 / SI0) would replace this file.
+#
+# Syntax (one rule per line, '#' starts a comment line):
+#   method rule:  FLAGS + class descriptor, an arrow, then name(params)return
+#   class rule:   the class descriptor alone (L, slash-separated name, semicolon)
+#   FLAGS:        H hot (compiled ahead of time), S used during startup, P used after startup
+#   wildcards:    two stars = any characters including the package slash;
+#                 one star  = any characters except the slash. That still takes Kotlin's
+#                 $-nested classes, Compose lambdas and the FooKt file classes.
+# A mistyped rule is dropped silently, so check the build output after changing this file:
+#   app/build/intermediates/merged_art_profile/<variant>/merge<Variant>ArtProfile/baseline-prof.txt
+#     must contain these dev/earshot lines;
+#   app/build/intermediates/r8_art_profile/<variant>/expand<Variant>ArtProfileWildcards/baseline-prof.txt
+#     must list concrete dev/earshot methods and classes;
+#   the release APK's assets/dexopt/baseline.prof must grow (9.2 KB before this file).
+
+# Process start: EarshotApp.onCreate, the container and what startUnlocked creates
+# =============================================
+# EarshotApp also takes EarshotAppKt (the appContainer extension) and the unlock receiver.
+HSPLdev/earshot/EarshotApp*;->**(**)**
+HSPLdev/earshot/AppContainer*;->**(**)**
+HSPLdev/earshot/MainActivity*;->**(**)**
+
+Ldev/earshot/EarshotApp*;
+Ldev/earshot/AppContainer*;
+Ldev/earshot/MainActivity*;
+
+# The contract models (HeadphoneState, ConnectionState, SleepState, ...). Every StateFlow
+# emission compares them and every screen reads them. One star keeps core/fake out.
+HSPLdev/earshot/core/*;->**(**)**
+
+Ldev/earshot/core/*;
+
+# The repository the app sees, the session base under every vendor stack, the connection loop,
+# device pick and family routing. They run at every start (the router builds every driver)
+# and on every connect.
+HSPLdev/earshot/service/RoutingHeadphoneRepository*;->**(**)**
+HSPLdev/earshot/service/VendorDriver*;->**(**)**
+HSPLdev/earshot/service/session/**->**(**)**
+HSPLdev/earshot/bt/ConnectionManager*;->**(**)**
+HSPLdev/earshot/bt/LinkSource*;->**(**)**
+HSPLdev/earshot/bt/DeviceFinder*;->**(**)**
+HSPLdev/earshot/bt/DeviceCandidate*;->**(**)**
+HSPLdev/earshot/bt/FindResult*;->**(**)**
+HSPLdev/earshot/bt/DeviceSelection*;->**(**)**
+HSPLdev/earshot/bt/DevicePick*;->**(**)**
+HSPLdev/earshot/bt/AudioClass*;->**(**)**
+HSPLdev/earshot/bt/DevicePrefs*;->**(**)**
+HSPLdev/earshot/bt/DeviceFamily*;->**(**)**
+HSPLdev/earshot/bt/AudioLinkMonitor*;->**(**)**
+# DeviceFinder's held Bluetooth profile proxies (ProfileProxyCache.kt, new in 1.0).
+HSPLdev/earshot/bt/ProfileProxy*;->**(**)**
+HSPLdev/earshot/bt/HeldProfileProxies*;->**(**)**
+
+Ldev/earshot/service/RoutingHeadphoneRepository*;
+Ldev/earshot/service/VendorDriver*;
+Ldev/earshot/service/session/**;
+Ldev/earshot/bt/ConnectionManager*;
+Ldev/earshot/bt/LinkSource*;
+Ldev/earshot/bt/DeviceFinder*;
+Ldev/earshot/bt/DeviceCandidate*;
+Ldev/earshot/bt/FindResult*;
+Ldev/earshot/bt/DeviceSelection*;
+Ldev/earshot/bt/DevicePick*;
+Ldev/earshot/bt/AudioClass*;
+Ldev/earshot/bt/DevicePrefs*;
+Ldev/earshot/bt/DeviceFamily*;
+Ldev/earshot/bt/AudioLinkMonitor*;
+Ldev/earshot/bt/ProfileProxy*;
+Ldev/earshot/bt/HeldProfileProxies*;
+
+# ExtrasInitializer starts the automation engine, the low-battery alert and the surface
+# refresher at every process start. The tile service, the widget receiver and the schedule
+# receiver can be the component that starts the process, so all of extras counts as start code.
+HSPLdev/earshot/extras/**->**(**)**
+
+Ldev/earshot/extras/**;
+
+# The rest of EarshotApp.startUnlocked and UiDependencies.from: created at every start, before
+# Home draws (call listeners, Shortcuts remapper, per-headset EQ, timeline, presence, tuning,
+# codec, mic check).
+HSPLdev/earshot/audio/AudioTuningRepositoryImpl*;->**(**)**
+HSPLdev/earshot/audio/HeadsetEqMemory*;->**(**)**
+HSPLdev/earshot/call/CallAudioRepositoryImpl*;->**(**)**
+HSPLdev/earshot/codec/CodecRepositoryImpl*;->**(**)**
+HSPLdev/earshot/mic/MicCheckRepositoryImpl*;->**(**)**
+HSPLdev/earshot/shortcut/ShortcutEngine*;->**(**)**
+HSPLdev/earshot/shortcut/ShortcutPrefs*;->**(**)**
+HSPLdev/earshot/bt/TimelineRecorder*;->**(**)**
+HSPLdev/earshot/bt/TimelineStore*;->**(**)**
+HSPLdev/earshot/bt/CompanionPresence*;->**(**)**
+
+Ldev/earshot/audio/AudioTuningRepositoryImpl*;
+Ldev/earshot/audio/HeadsetEqMemory*;
+Ldev/earshot/call/CallAudioRepositoryImpl*;
+Ldev/earshot/codec/CodecRepositoryImpl*;
+Ldev/earshot/mic/MicCheckRepositoryImpl*;
+Ldev/earshot/shortcut/ShortcutEngine*;
+Ldev/earshot/shortcut/ShortcutPrefs*;
+Ldev/earshot/bt/TimelineRecorder*;
+Ldev/earshot/bt/TimelineStore*;
+Ldev/earshot/bt/CompanionPresence*;
+
+# The Sleep runtime the container creates at start: it re-arms the wake alarms and picks up a
+# night in progress. LockedAlarms is the first call in onCreate (direct boot check) and
+# SleepShortcut publishes the launcher shortcut. Its night-time players stay out.
+HSPLdev/earshot/sleep/SleepRepositoryImpl*;->**(**)**
+HSPLdev/earshot/sleep/SleepStore*;->**(**)**
+HSPLdev/earshot/sleep/SleepScheduler*;->**(**)**
+HSPLdev/earshot/sleep/LockedAlarms*;->**(**)**
+HSPLdev/earshot/sleep/SleepShortcut*;->**(**)**
+
+Ldev/earshot/sleep/SleepRepositoryImpl*;
+Ldev/earshot/sleep/SleepStore*;
+Ldev/earshot/sleep/SleepScheduler*;
+Ldev/earshot/sleep/LockedAlarms*;
+Ldev/earshot/sleep/SleepShortcut*;
+
+# First frame: root composable, navigation, theme, shared components, Home
+# =============================================
+# One star keeps this to the root package: EarshotAppKt (EarshotRoot, its lambdas),
+# ComposableSingletons$EarshotAppKt, AutoConnectOnce and UiDependencies.
+HSPLdev/earshot/ui/*;->**(**)**
+HSPLdev/earshot/ui/nav/**->**(**)**
+HSPLdev/earshot/ui/theme/**->**(**)**
+HSPLdev/earshot/ui/common/**->**(**)**
+HSPLdev/earshot/ui/home/**->**(**)**
+
+Ldev/earshot/ui/*;
+Ldev/earshot/ui/nav/**;
+Ldev/earshot/ui/theme/**;
+Ldev/earshot/ui/common/**;
+Ldev/earshot/ui/home/**;
+
+# The first launch after an install shows onboarding. The first launch after an update shows
+# What's New. A Play install compiles the profile at install time, so these two gain most there;
+# a sideload compiles it only at the next idle dexopt, after both screens are gone.
+HSPLdev/earshot/ui/onboarding/**->**(**)**
+HSPLdev/earshot/ui/whatsnew/**->**(**)**
+
+Ldev/earshot/ui/onboarding/**;
+Ldev/earshot/ui/whatsnew/**;
+
+# Sleep tab
+# =============================================
+# The tab's first open builds the carousel, the sound library and the night cards. The
+# launcher's "Start sleep" shortcut also opens it at launch, so it keeps the start flags.
+HSPLdev/earshot/ui/sleep/**->**(**)**
+
+Ldev/earshot/ui/sleep/**;

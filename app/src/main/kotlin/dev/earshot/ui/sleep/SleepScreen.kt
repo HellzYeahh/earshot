@@ -3,14 +3,12 @@ package dev.earshot.ui.sleep
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -169,60 +168,82 @@ fun SleepContent(ui: SleepUiState, actions: SleepActions, contentPadding: Paddin
 }
 
 /**
- * Idle, top to bottom (the user's order): the headset, the alarms (with the accesses that would
- * make them late), tonight's timers and Start, the sounds, and last the switches for the night.
+ * Idle, top to bottom (the user's order, [SleepSetupCard]): the headset, the alarms (with the
+ * accesses that would make them late), tonight's timers and Start, the sounds, and last the
+ * switches for the night.
+ *
+ * A LazyColumn with one keyed item per card, so the tab's first frame (inside the 180 ms tab fade)
+ * composes only the cards on screen; on the cover screen the sound library and the night
+ * switches below the fold were about half of that frame's composables (the list prefetches the
+ * next card in idle time). Spacing and padding are the old scrolling Column's.
+ *
+ * A card that scrolls far off is disposed and composed again on the way back. Its lasting
+ * choices are `rememberSaveable` (sound group, the open custom-timer and save-mix dialogs, the
+ * carousels' scroll), which a lazy item keeps by its key; only short-lived `remember` state (a
+ * slider mid-drag, an open delete confirmation) would reset, and neither can be scrolled away
+ * while in use. A carousel scrolls its chosen tile into view again when its card comes back, as
+ * on every first composition. The file picker for own sounds is registered by [SleepScreen],
+ * outside the list, so its result never depends on a card being composed.
  */
 @Composable
 private fun SleepSetup(ui: SleepUiState, actions: SleepActions, contentPadding: PaddingValues) {
     val now = rememberNow(30_000)
     val check = SleepLogic.batteryCheck(ui.headset, ui.plan, ui.state.nextAlarm, ui.alarms, now)
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(contentPadding)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+    val cards = sleepSetupCards(ui.permissions)
+    val layoutDirection = LocalLayoutDirection.current
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = contentPadding.calculateStartPadding(layoutDirection) + 16.dp,
+            top = contentPadding.calculateTopPadding() + 8.dp,
+            end = contentPadding.calculateEndPadding(layoutDirection) + 16.dp,
+            // 8 dp edge plus the Column's end space: a 12 dp gap and an 8 dp spacer after the last card.
+            bottom = contentPadding.calculateBottomPadding() + 28.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SleepHeaderCard(
-            headset = ui.headset,
-            check = check,
-            onUseTimer = { actions.onPlanChange(ui.plan.copy(durationMinutes = it)) },
-            onRingOnPhone = actions.onRingOnPhone,
-        )
-        AlarmCard(
-            alarms = ui.alarms,
-            nextAlarm = ui.state.nextAlarm,
-            nowMillis = now,
-            onOpenAlarm = actions.onOpenAlarm,
-            onAlarmChange = actions.onAlarmChange,
-        )
-        SleepPermissionBanners(ui.permissions, actions.onOpenSettings)
-        TonightCard(
-            plan = ui.plan,
-            headset = ui.headset,
-            powerOffMovesAlarm = SleepLogic.powerOffMovesAlarmToPhone(ui.plan, ui.state.nextAlarm, ui.alarms),
-            nowMillis = now,
-            onPlanChange = actions.onPlanChange,
-            onStart = actions.onStart,
-        )
-        SoundLibrarySection(
-            plan = ui.plan,
-            mixes = ui.mixes,
-            previewing = ui.state.previewing,
-            onPlanChange = actions.onPlanChange,
-            actions = actions.sounds,
-            customSounds = ui.customSounds,
-            importing = ui.importing,
-        )
-        NightOptionsCard(
-            plan = ui.plan,
-            headset = ui.headset,
-            permissions = ui.permissions,
-            onPlanChange = actions.onPlanChange,
-            onOpenSettings = actions.onOpenSettings,
-        )
-        Spacer(Modifier.height(8.dp))
+        items(cards, key = { it.name }, contentType = { it }) { card ->
+            when (card) {
+                SleepSetupCard.HEADSET -> SleepHeaderCard(
+                    headset = ui.headset,
+                    check = check,
+                    onUseTimer = { actions.onPlanChange(ui.plan.copy(durationMinutes = it)) },
+                    onRingOnPhone = actions.onRingOnPhone,
+                )
+                SleepSetupCard.ALARMS -> AlarmCard(
+                    alarms = ui.alarms,
+                    nextAlarm = ui.state.nextAlarm,
+                    nowMillis = now,
+                    onOpenAlarm = actions.onOpenAlarm,
+                    onAlarmChange = actions.onAlarmChange,
+                )
+                SleepSetupCard.PERMISSIONS -> SleepPermissionBanners(ui.permissions, actions.onOpenSettings)
+                SleepSetupCard.TONIGHT -> TonightCard(
+                    plan = ui.plan,
+                    headset = ui.headset,
+                    powerOffMovesAlarm = SleepLogic.powerOffMovesAlarmToPhone(ui.plan, ui.state.nextAlarm, ui.alarms),
+                    nowMillis = now,
+                    onPlanChange = actions.onPlanChange,
+                    onStart = actions.onStart,
+                )
+                SleepSetupCard.SOUNDS -> SoundLibrarySection(
+                    plan = ui.plan,
+                    mixes = ui.mixes,
+                    previewing = ui.state.previewing,
+                    onPlanChange = actions.onPlanChange,
+                    actions = actions.sounds,
+                    customSounds = ui.customSounds,
+                    importing = ui.importing,
+                )
+                SleepSetupCard.NIGHT_OPTIONS -> NightOptionsCard(
+                    plan = ui.plan,
+                    headset = ui.headset,
+                    permissions = ui.permissions,
+                    onPlanChange = actions.onPlanChange,
+                    onOpenSettings = actions.onOpenSettings,
+                )
+            }
+        }
     }
 }
 

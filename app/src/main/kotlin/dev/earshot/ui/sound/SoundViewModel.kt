@@ -14,25 +14,34 @@ import dev.earshot.dsp.Headroom
 import dev.earshot.dsp.ParametricBand
 import dev.earshot.ui.common.EarshotViewModel
 import dev.earshot.ui.common.UiMessenger
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import dev.earshot.audio.HeadsetEqMemory
 import java.util.UUID
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class SoundViewModel(
     private val headphones: HeadphoneRepository,
     private val tuning: AudioTuningRepository,
     messenger: UiMessenger,
     /** Remembers the picked preset for the headset in use; null in previews. */
     private val headsetEq: HeadsetEqMemory? = null,
+    /** Where the Pro EQ curve maths runs ([curve]); tests pass their own. */
+    curveDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : EarshotViewModel(messenger) {
 
     val headphoneState: StateFlow<HeadphoneState> = headphones.state
@@ -56,6 +65,19 @@ class SoundViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), tuning.state.value.settings.bands)
 
     fun setBands(bands: List<ParametricBand>) { bandsDraft.value = bands }
+
+    // ---- Pro EQ curve: the drawing, the recommended preamp and the boost overshoot ---------------
+    /**
+     * Worked out on [curveDispatcher], once per change of the bands or the preamp. In composition
+     * it was 128 + 2 x 512 response points per band on the main thread, every frame of a slider
+     * drag. mapLatest drops a result the finger has already moved past, so the curve may trail
+     * the slider by a frame; the Auto preamp button still computes from [bands] itself. The first
+     * value is computed right here so the tab's first frame already has its curve.
+     */
+    val curve: StateFlow<EqCurveData> =
+        combine(bands, tuning.state.map { it.settings.preampDb }.distinctUntilChanged()) { b, preamp -> b to preamp }
+            .mapLatest { (b, preamp) -> withContext(curveDispatcher) { EqCurveData(b, preamp) } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EqCurveData(bands.value, tuning.state.value.settings.preampDb))
 
     init {
         viewModelScope.launch {

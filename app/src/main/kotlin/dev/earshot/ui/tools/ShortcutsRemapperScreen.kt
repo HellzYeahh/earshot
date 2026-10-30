@@ -85,7 +85,6 @@ import dev.earshot.ui.common.SectionCard
 import dev.earshot.ui.common.SubScreenScaffold
 import dev.earshot.ui.common.SwitchRow
 import dev.earshot.ui.common.earshotViewModel
-import dev.earshot.ui.common.rememberInstalledApps
 import dev.earshot.ui.more.SettingsViewModel
 import dev.earshot.ui.onboarding.Permissions
 import kotlinx.coroutines.Dispatchers
@@ -332,9 +331,8 @@ fun ShortcutsRemapperContent(
         )
     }
     if (pickingApp) {
-        val apps by rememberInstalledApps()
+        // Loads the list itself, with a spinner meanwhile (it used to show the typing form until then).
         AppPickerDialog(
-            apps = apps,
             onPick = { label, pkg -> pickingApp = false; callbacks.onChoose(ShortcutAction.LaunchApp(pkg, label)) },
             onDismiss = { pickingApp = false },
         )

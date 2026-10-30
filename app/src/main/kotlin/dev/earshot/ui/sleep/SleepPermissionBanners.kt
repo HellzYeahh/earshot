@@ -59,7 +59,8 @@ object SleepSettings {
  */
 @Composable
 fun SleepPermissionBanners(permissions: SleepPermissions, onOpen: (SleepSettingsPage) -> Unit, modifier: Modifier = Modifier) {
-    if (permissions.exactAlarms && permissions.fullScreenAlarm && permissions.notifications) return
+    // The same test the tab uses to leave this card out of its list (sleepSetupCards).
+    if (!permissions.hasBanner) return
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!permissions.exactAlarms) {
             InfoBanner(

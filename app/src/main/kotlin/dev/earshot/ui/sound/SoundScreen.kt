@@ -80,7 +80,6 @@ import dev.earshot.ui.common.SegmentedChoice
 import dev.earshot.ui.common.SwitchRow
 import dev.earshot.ui.common.ValueSlider
 import dev.earshot.ui.common.earshotViewModel
-import dev.earshot.ui.common.rememberInstalledApps
 import dev.earshot.ui.common.rememberSettingsLoaded
 import kotlin.math.roundToInt
 
@@ -91,18 +90,18 @@ fun SoundScreen(contentPadding: PaddingValues) {
     val headphoneEq by vm.headphoneEq.collectAsStateWithLifecycle()
     val tuningState by vm.tuningState.collectAsStateWithLifecycle()
     val bands by vm.bands.collectAsStateWithLifecycle()
+    val curve by vm.curve.collectAsStateWithLifecycle()
     val presets by vm.presets.collectAsStateWithLifecycle()
     val profiles by vm.appProfiles.collectAsStateWithLifecycle()
-    val installedApps by rememberInstalledApps()
 
     SoundContent(
         headphoneState = headphoneState,
         headphoneEq = headphoneEq,
         tuningState = tuningState,
         bands = bands,
+        curve = curve,
         presets = presets,
         profiles = profiles,
-        installedApps = installedApps,
         contentPadding = contentPadding,
         callbacks = SoundCallbacks(
             onHeadphoneEq = vm::setHeadphoneEq,
@@ -149,9 +148,10 @@ fun SoundContent(
     headphoneEq: HeadphoneEq?,
     tuningState: TuningState,
     bands: List<ParametricBand>,
+    /** The curve, recommended preamp and overshoot for [bands]; may trail them by a frame. */
+    curve: EqCurveData,
     presets: List<EqPreset>,
     profiles: List<AppSoundProfile>,
-    installedApps: List<AppEntry>,
     contentPadding: PaddingValues,
     callbacks: SoundCallbacks,
 ) {
@@ -170,9 +170,9 @@ fun SoundContent(
         if (headphoneState.capabilities.ownSettings && (!settingsLoaded || headphoneState.eq != null)) item {
             HeadphoneEqSection(headphoneState, headphoneEq, callbacks.onHeadphoneEq)
         }
-        item { ProEqSection(tuningState, bands, presets, callbacks) }
-        item { BoostSection(tuningState.settings, bands, callbacks.onBoost, callbacks.onLimiter) }
-        item { AppProfilesSection(profiles, presets, installedApps, callbacks.onSetProfile, callbacks.onRemoveProfile) }
+        item { ProEqSection(tuningState, bands, curve, presets, callbacks) }
+        item { BoostSection(tuningState.settings, curve, callbacks.onBoost, callbacks.onLimiter) }
+        item { AppProfilesSection(profiles, presets, callbacks.onSetProfile, callbacks.onRemoveProfile) }
     }
 }
 
@@ -219,7 +219,7 @@ private fun HeadphoneBandSlider(label: String, value: Int, range: IntRange, enab
 // ---- B. Pro EQ ------------------------------------------------------------------------------
 
 @Composable
-private fun ProEqSection(state: TuningState, bands: List<ParametricBand>, presets: List<EqPreset>, callbacks: SoundCallbacks) {
+private fun ProEqSection(state: TuningState, bands: List<ParametricBand>, curve: EqCurveData, presets: List<EqPreset>, callbacks: SoundCallbacks) {
     val settings = state.settings
     val enabled = settings.enabled && state.isAvailable
     var mode by rememberSaveable { mutableStateOf(EditorMode.GRAPHIC) }
@@ -263,7 +263,7 @@ private fun ProEqSection(state: TuningState, bands: List<ParametricBand>, preset
             onLongPress = { if (!it.isBuiltIn) presetToDelete = it },
         )
         Spacer(Modifier.height(8.dp))
-        EqCurveCanvas(bands = bands, preampDb = settings.preampDb, enabled = enabled)
+        EqCurveCanvas(curve = curve, enabled = enabled)
         Spacer(Modifier.height(8.dp))
         SegmentedChoice(
             options = EditorMode.entries,
@@ -289,7 +289,8 @@ private fun ProEqSection(state: TuningState, bands: List<ParametricBand>, preset
             onValueChange = { preamp = it },
             onValueChangeFinished = { callbacks.onPreamp((preamp * 2).roundToInt() / 2.0) },
         )
-        val recommended = remember(bands) { Headroom.recommendedPreampDb(bands) }
+        // Read from the curve worked out off the main thread, not swept again here per drag frame.
+        val recommended = curve.recommendedPreampDb
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.sound_preamp_recommended, formatDb(recommended, 1)),
@@ -419,11 +420,12 @@ private fun ImportAutoEqDialog(onDismiss: () -> Unit, onImport: (text: String, n
 // ---- C. Volume boost ------------------------------------------------------------------------
 
 @Composable
-private fun BoostSection(settings: TuningSettings, bands: List<ParametricBand>, onBoost: (Double) -> Unit, onLimiter: (Boolean) -> Unit) {
+private fun BoostSection(settings: TuningSettings, curve: EqCurveData, onBoost: (Double) -> Unit, onLimiter: (Boolean) -> Unit) {
     // Without the limiter the DSP module caps the boost lower; the slider follows that cap.
     val cap = Headroom.effectiveBoostCapDb(settings.limiterEnabled)
     var boost by remember(settings.boostDb, cap) { mutableFloatStateOf(settings.boostDb.coerceAtMost(cap).toFloat()) }
-    val overshoot = remember(bands, settings.preampDb, settings.boostDb) { Headroom.worstCaseOvershootDb(bands, settings.preampDb, settings.boostDb) }
+    // The band peak is already in the curve; only the sum is left for here.
+    val overshoot = curve.overshootDb(settings.preampDb, settings.boostDb)
     val enabled = settings.enabled
     SectionCard(title = stringResource(R.string.sound_boost)) {
         if (!enabled) {
@@ -486,7 +488,6 @@ private fun BoostSection(settings: TuningSettings, bands: List<ParametricBand>, 
 private fun AppProfilesSection(
     profiles: List<AppSoundProfile>,
     presets: List<EqPreset>,
-    installedApps: List<AppEntry>,
     onSet: (AppSoundProfile) -> Unit,
     onRemove: (String) -> Unit,
 ) {
@@ -529,8 +530,8 @@ private fun AppProfilesSection(
     }
 
     if (showPicker) {
+        // The picker loads the app list itself, off the main thread, only when it opens.
         AppPickerDialog(
-            apps = installedApps,
             onPick = { label, pkg -> showPicker = false; pendingApp = label to pkg },
             onDismiss = { showPicker = false },
         )
@@ -567,9 +568,9 @@ private fun SoundPreview() {
             headphoneEq = HeadphoneEq(2, 0, -1),
             tuningState = TuningState(settings = TuningSettings(enabled = true, bands = presets[1].bands, preampDb = -4.0, boostDb = 7.0), activePreset = presets[1], attachedSessions = 1),
             bands = presets[1].bands,
+            curve = EqCurveData(presets[1].bands, preampDb = -4.0),
             presets = presets,
             profiles = listOf(AppSoundProfile("com.spotify.music", "Spotify", "bass")),
-            installedApps = emptyList(),
             contentPadding = PaddingValues(0.dp),
             callbacks = SoundCallbacks(),
         )

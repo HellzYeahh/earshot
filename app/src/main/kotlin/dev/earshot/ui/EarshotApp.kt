@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -84,6 +85,13 @@ internal class AutoConnectOnce {
 }
 
 /**
+ * The onboarding replaces the tabs until Earshot may use Bluetooth and there is a headset to talk to.
+ * Kept as a plain function so the rule doesn't depend on how the root reads the state.
+ */
+internal fun isOnboardingGate(hasBluetooth: Boolean, status: ConnectionStatus): Boolean =
+    !hasBluetooth || status == ConnectionStatus.NO_PERMISSION || status == ConnectionStatus.NO_PAIRED_DEVICE
+
+/**
  * Root of the Compose UI. Hosted by MainActivity; [tabRequests] carries the
  * `dev.earshot.EXTRA_OPEN_TAB` deep link from the notification, tile and widget.
  */
@@ -91,9 +99,11 @@ internal class AutoConnectOnce {
 fun EarshotApp(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> Unit) {
     val context = LocalContext.current
     val dependencies = remember { UiDependencies.from(context) }
-    val preferences by dependencies.automation.preferences.collectAsStateWithLifecycle()
+    val preferences = dependencies.automation.preferences.collectAsStateWithLifecycle()
+    // The theme needs only the appearance; any other saved preference must not restart this scope.
+    val appearance by remember(preferences) { derivedStateOf { preferences.value.appearance } }
     CompositionLocalProvider(LocalUiDependencies provides dependencies) {
-        EarshotTheme(appearance = preferences.appearance) {
+        EarshotTheme(appearance = appearance) {
             EarshotRoot(tabRequests = tabRequests, onTabRequestHandled = onTabRequestHandled)
         }
     }
@@ -103,7 +113,13 @@ fun EarshotApp(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> U
 fun EarshotRoot(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> Unit) {
     val deps = LocalUiDependencies.current
     val context = LocalContext.current
-    val headphoneState by deps.headphones.state.collectAsStateWithLifecycle()
+    // The headphone state is a new object on every push: each battery report, volume step, play
+    // state, button event and connect step. The root needs only the pairing request and the
+    // status, so it reads those through derivedStateOf and recomposes only when one of them
+    // changes, not the whole Scaffold per push. The onboarding reads the connection further down.
+    val headphones = deps.headphones.state.collectAsStateWithLifecycle()
+    val pairing by remember(headphones) { derivedStateOf { headphones.value.pairing } }
+    val status by remember(headphones) { derivedStateOf { headphones.value.connection.status } }
 
     // ---- Permissions -----------------------------------------------------------------------
     var hasBluetooth by remember { mutableStateOf(Permissions.has(context, Permissions.bluetoothConnect)) }
@@ -125,7 +141,7 @@ fun EarshotRoot(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> 
     val scope = rememberCoroutineScope()
 
     // A one-time pairing can start whichever tab is open (it runs while connecting), so the dialog lives here.
-    headphoneState.pairing?.let { request ->
+    pairing?.let { request ->
         PairingDialog(request) { accept -> scope.launch { runCatching { deps.headphones.answerPairing(accept) } } }
     }
     val openAppSettingsLabel = stringResource(R.string.action_open_app_settings)
@@ -207,8 +223,7 @@ fun EarshotRoot(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> 
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentTab = Tab.forRoute(backStackEntry?.destination?.route)
-    val status = headphoneState.connection.status
-    val gated = !hasBluetooth || status == ConnectionStatus.NO_PERMISSION || status == ConnectionStatus.NO_PAIRED_DEVICE
+    val gated = isOnboardingGate(hasBluetooth, status)
 
     // The dot grid is drawn once here, under everything; the sub-screen scaffolds stay transparent.
     Scaffold(
@@ -235,10 +250,13 @@ fun EarshotRoot(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> 
         },
     ) { padding: PaddingValues ->
         if (gated) {
+            // Read here, inside the content, so only the onboarding follows the live connection
+            // (device name, problem); while the tabs are shown nothing in the root reads it.
+            val connection by remember(headphones) { derivedStateOf { headphones.value.connection } }
             OnboardingScreen(
                 contentPadding = padding,
                 hasBluetoothPermission = hasBluetooth,
-                connection = headphoneState.connection,
+                connection = connection,
                 onBluetoothPermissionResult = { granted ->
                     hasBluetooth = granted || Permissions.has(context, Permissions.bluetoothConnect)
                     bluetoothDeniedForGood = !hasBluetooth && Permissions.isPermanentlyDenied(context, Permissions.bluetoothConnect)

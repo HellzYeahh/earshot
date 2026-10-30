@@ -12,9 +12,6 @@ import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.coroutines.resume
 
 /** A bonded device that might be the headphones, for the picker in the UI. */
 data class DeviceCandidate(
@@ -97,7 +94,8 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
      */
     @SuppressLint("MissingPermission")
     private suspend fun connectedCandidates(adapter: BluetoothAdapter, candidates: List<DeviceCandidate>): Set<String> {
-        val raw = buildSet { for (profile in audioProfiles()) connectedVia(adapter, profile)?.let(::addAll) }
+        val profiles = primedAudioProfiles()
+        val raw = buildSet { for (profile in profiles) connectedVia(profile)?.let(::addAll) }
         if (raw.isEmpty()) return emptySet()
         val bonded = try { adapter.bondedDevices.orEmpty() } catch (e: SecurityException) { return emptySet() }
         val names = bonded.associate { it.address to (try { it.name } catch (e: SecurityException) { null }) }
@@ -148,10 +146,10 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
         val adapter = adapter ?: return false
         if (!adapter.isEnabled) return false
         val addresses = setOf(address.uppercase()) + twinsOf(address).map { it.address.uppercase() }
-        val profiles = audioProfiles()
+        val profiles = primedAudioProfiles()
         var unknown = 0
         for (profile in profiles) {
-            when (connectedViaProfile(adapter, profile, addresses)) {
+            when (connectedViaProfile(profile, addresses)) {
                 true -> return true
                 null -> unknown++
                 false -> Unit
@@ -164,9 +162,20 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
     @SuppressLint("MissingPermission")
     suspend fun isLeAudioConnected(address: String): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !hasConnectPermission()) return false
-        val adapter = adapter ?: return false
+        if (adapter == null) return false
         val addresses = setOf(address.uppercase()) + twinsOf(address).map { it.address.uppercase() }
-        return connectedViaProfile(adapter, LE_AUDIO_PROFILE, addresses) == true
+        return connectedViaProfile(LE_AUDIO_PROFILE, addresses) == true
+    }
+
+    /**
+     * Binds the audio profile proxies ahead of the first lookup, without waiting for them (for a
+     * background start). Does nothing without the permission or with Bluetooth off; lookups bind
+     * on their own anyway, so calling it is optional.
+     */
+    fun warmProfileProxies() {
+        if (!hasConnectPermission() || !isBluetoothOn()) return
+        val proxies = proxies() ?: return
+        audioProfiles().forEach(proxies::prime)
     }
 
     /** The other half of an LE Audio / classic pair for [address] among the bonded devices (see [LeAudioTwins]). */
@@ -190,38 +199,26 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(LE_AUDIO_PROFILE)
     }
 
-    @SuppressLint("MissingPermission")
-    private suspend fun connectedViaProfile(adapter: BluetoothAdapter, profile: Int, addresses: Set<String>): Boolean? =
-        connectedVia(adapter, profile)?.any { it in addresses }
+    /**
+     * [audioProfiles], with every proxy that is not held yet already binding: the first lookup of
+     * the process then waits for one service callback instead of three in a row. The profiles
+     * are still asked one after the other, so the answers are the same.
+     */
+    private fun primedAudioProfiles(): List<Int> = audioProfiles().also { profiles ->
+        proxies()?.let { proxies -> profiles.forEach(proxies::prime) }
+    }
 
-    /** Upper-case addresses connected on [profile], or null when the proxy could not be queried in time. */
-    @SuppressLint("MissingPermission")
-    private suspend fun connectedVia(adapter: BluetoothAdapter, profile: Int): Set<String>? =
-        withTimeoutOrNull(PROFILE_PROXY_TIMEOUT_MS) {
-            suspendCancellableCoroutine { cont ->
-                val listener = object : BluetoothProfile.ServiceListener {
-                    override fun onServiceConnected(p: Int, proxy: BluetoothProfile) {
-                        val result: Set<String>? = try {
-                            proxy.connectedDevices.mapTo(HashSet()) { it.address.uppercase() }
-                        } catch (e: SecurityException) {
-                            null
-                        }
-                        adapter.closeProfileProxy(p, proxy)
-                        if (cont.isActive) cont.resume(result)
-                    }
+    private suspend fun connectedViaProfile(profile: Int, addresses: Set<String>): Boolean? =
+        connectedVia(profile)?.any { it in addresses }
 
-                    override fun onServiceDisconnected(p: Int) {
-                        if (cont.isActive) cont.resume(null)
-                    }
-                }
-                val started = try {
-                    adapter.getProfileProxy(context, listener, profile)
-                } catch (e: Exception) {
-                    false
-                }
-                if (!started && cont.isActive) cont.resume(null)
-            }
-        }
+    /**
+     * Upper-case addresses connected on [profile], or null when the proxy could not be queried in
+     * time. Since 1.0 the proxy is held for the process ([HeldProfileProxies]) and asked on the
+     * caller's thread; before, every lookup bound one, asked it on the main thread and closed it.
+     */
+    private suspend fun connectedVia(profile: Int): Set<String>? = proxies()?.connectedAddresses(profile)
+
+    private fun proxies(): ProfileProxyCache<BluetoothProfile>? = HeldProfileProxies.get(context)
 
     @SuppressLint("MissingPermission")
     private fun BluetoothDevice.toCandidate(savedAddress: String?): DeviceCandidate {
@@ -241,8 +238,6 @@ class DeviceFinder(private val context: Context, private val prefs: DevicePrefs)
     }
 
     companion object {
-        private const val PROFILE_PROXY_TIMEOUT_MS = 1_500L
-
         /** `BluetoothProfile.LE_AUDIO` (API 33); a literal so the constant is not inlined from a newer SDK unguarded. */
         private const val LE_AUDIO_PROFILE = 22
 

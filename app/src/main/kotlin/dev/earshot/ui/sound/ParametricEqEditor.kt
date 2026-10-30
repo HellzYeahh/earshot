@@ -21,6 +21,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -47,14 +50,27 @@ fun ParametricEqEditor(
     onBandsChange: (List<ParametricBand>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The cards' callbacks read the newest list when they fire instead of capturing it. A captured
+    // list made every card's lambdas new on each drag frame (the frequency and Q sliders have no
+    // steps, so every frame is a new list), and all cards recomposed, about 30 sliders with a
+    // 10-band AutoEq preset. Now the lambdas stay the same per position, the unchanged bands keep
+    // their instances, and only the card being dragged recomposes.
+    val latestBands by rememberUpdatedState(bands)
+    val latestOnBandsChange by rememberUpdatedState(onBandsChange)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         bands.forEachIndexed { index, band ->
+            val onChange: (ParametricBand) -> Unit = remember(index) {
+                { updated -> latestBands.withBand(index, updated)?.let { latestOnBandsChange(it) } }
+            }
+            val onRemove: () -> Unit = remember(index) {
+                { latestBands.withoutBand(index)?.let { latestOnBandsChange(it) } }
+            }
             ParametricBandCard(
                 index = index,
                 band = band,
                 enabled = enabled,
-                onChange = { updated -> onBandsChange(bands.toMutableList().also { it[index] = updated }) },
-                onRemove = { onBandsChange(bands.toMutableList().also { it.removeAt(index) }) },
+                onChange = onChange,
+                onRemove = onRemove,
                 removable = bands.size > 1,
             )
         }
@@ -151,6 +167,14 @@ private fun filterTypeLabel(type: FilterType): String = when (type) {
     FilterType.LOW_SHELF -> stringResource(R.string.sound_filter_low_shelf)
     FilterType.HIGH_SHELF -> stringResource(R.string.sound_filter_high_shelf)
 }
+
+/** [this] with band [index] replaced; null if that band is gone already (nothing to change). */
+internal fun List<ParametricBand>.withBand(index: Int, band: ParametricBand): List<ParametricBand>? =
+    if (index in indices) toMutableList().also { it[index] = band } else null
+
+/** [this] without band [index]; null if that band is gone already (a second tap on Remove). */
+internal fun List<ParametricBand>.withoutBand(index: Int): List<ParametricBand>? =
+    if (index in indices) toMutableList().also { it.removeAt(index) } else null
 
 /** Three significant figures is plenty for a centre frequency. */
 private fun roundHz(hz: Double): Double {

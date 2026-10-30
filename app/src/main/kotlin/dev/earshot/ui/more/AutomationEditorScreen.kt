@@ -74,7 +74,6 @@ import dev.earshot.ui.common.SectionCard
 import dev.earshot.ui.common.SegmentedChoice
 import dev.earshot.ui.common.SubScreenScaffold
 import dev.earshot.ui.common.earshotViewModel
-import dev.earshot.ui.common.rememberInstalledApps
 import dev.earshot.ui.home.NoiseControls
 import dev.earshot.ui.onboarding.Permissions
 import kotlinx.coroutines.Job
@@ -91,7 +90,8 @@ fun AutomationEditorScreen(ruleId: String?, onBack: () -> Unit) {
     val rules by vm.rules.collectAsStateWithLifecycle()
     val headphones by vm.headphoneState.collectAsStateWithLifecycle()
     val presets by vm.presets.collectAsStateWithLifecycle()
-    val installedApps by rememberInstalledApps()
+    // No app list here: the App trigger's picker loads it itself, only when it opens, instead of
+    // a package-manager query on every visit to the editor.
     val existing = remember(ruleId, rules) { rules.firstOrNull { it.id == ruleId } }
     // One save or delete at a time, and one pop for it: a double tap used to run both and pop past
     // the Automations list to More. Cleared again only when the command failed (its Snackbar said
@@ -118,7 +118,6 @@ fun AutomationEditorScreen(ruleId: String?, onBack: () -> Unit) {
         modes = headphones.modes,
         address = headphones.connection.deviceAddress,
         presets = presets,
-        installedApps = installedApps,
         hasUsageAccess = vm::hasUsageAccess,
         onOpenUsageAccess = vm::openUsageAccessSettings,
         onBack = onBack,
@@ -133,7 +132,6 @@ fun AutomationEditorContent(
     existing: AutomationRule?,
     modes: List<ListeningMode>,
     presets: List<EqPreset>,
-    installedApps: List<Pair<String, String>>,
     hasUsageAccess: () -> Boolean,
     onOpenUsageAccess: () -> Unit,
     onBack: () -> Unit,
@@ -183,7 +181,7 @@ fun AutomationEditorContent(
             OutlinedTextField(value = name, onValueChange = { draft = draft.copy(name = it) }, label = { Text(stringResource(R.string.automation_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
             SectionCard(title = stringResource(R.string.automation_when)) {
-                TriggerEditor(trigger, installedApps, hasUsageAccess, onOpenUsageAccess) { draft = draft.copy(trigger = it) }
+                TriggerEditor(trigger, hasUsageAccess, onOpenUsageAccess) { draft = draft.copy(trigger = it) }
             }
 
             SectionCard(title = stringResource(R.string.automation_then)) {
@@ -349,7 +347,6 @@ private fun WifiLocationBanner() {
 @Composable
 private fun TriggerEditor(
     trigger: Trigger,
-    installedApps: List<Pair<String, String>>,
     hasUsageAccess: () -> Boolean,
     onOpenUsageAccess: () -> Unit,
     onChange: (Trigger) -> Unit,
@@ -410,7 +407,7 @@ private fun TriggerEditor(
                 )
             }
             if (showPicker) {
-                AppPickerDialog(apps = installedApps, onPick = { label, pkg -> showPicker = false; onChange(Trigger.ForegroundApp(pkg, label)) }, onDismiss = { showPicker = false })
+                AppPickerDialog(onPick = { label, pkg -> showPicker = false; onChange(Trigger.ForegroundApp(pkg, label)) }, onDismiss = { showPicker = false })
             }
         }
         is Trigger.Schedule -> ScheduleEditor(trigger, onChange)
@@ -562,7 +559,6 @@ private fun AutomationEditorPreview() {
             modes = fake.modes,
             address = fake.connection.deviceAddress,
             presets = emptyList(),
-            installedApps = emptyList(),
             hasUsageAccess = { false }, onOpenUsageAccess = {}, onBack = {}, onSave = {}, onDelete = {},
         )
     }
