@@ -1,6 +1,6 @@
 # Build Earshot and install it on the connected phone (USB or wireless debugging).
-# Usage:  .\install.ps1                 (Play flavour, debug build: dev.earshot, the default)
-#         .\install.ps1 -Foss           (GitHub flavour, debug build: dev.earshot.foss)
+# Usage:  .\install.ps1                 (Play flavour, debug build: dev.earshot.foss, the default)
+#         .\install.ps1 -Foss           (GitHub flavour, debug build: dev.earshot.github)
 #         .\install.ps1 -Release        (minified release build; needs keystore.properties, see
 #                                        docs/release-signing.md, or it comes out unsigned)
 param([switch]$Release, [switch]$Foss)
@@ -12,7 +12,7 @@ $flavor = if ($Foss) { "foss" } else { "play" }
 $type   = if ($Release) { "release" } else { "debug" }
 $task   = ":app:assemble" + $flavor.Substring(0, 1).ToUpper() + $flavor.Substring(1) + $type.Substring(0, 1).ToUpper() + $type.Substring(1)
 $apk    = "app\build\outputs\apk\$flavor\$type\app-$flavor-$type.apk"
-$appId  = if ($Foss) { "dev.earshot.foss" } else { "dev.earshot" }
+$appId  = if ($Foss) { "dev.earshot.github" } else { "dev.earshot.foss" }
 
 Write-Host "Building ($task)..." -ForegroundColor Cyan
 & .\gw.cmd $task --console=plain -q

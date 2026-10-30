@@ -6,9 +6,10 @@
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
 
     <queries>
-        <!-- The pre-1.0 builds were dev.earshot signed with a debug key: this build can't update them,
-             so it looks for that one package to offer moving the settings over and removing it. -->
-        <package android:name="dev.earshot" />
+        <!-- The Google Play edition (app ID dev.earshot.foss): only one Earshot should drive a
+             headset, so this build notices it (distribution/LegacyApp). The pre-1.0 dev.earshot
+             query is in the main manifest, shared by both builds. -->
+        <package android:name="dev.earshot.foss" />
         <!-- Shizuku manager: "installed but not running" vs "not installed" (codec/ShizukuPrivilege). -->
         <package android:name="moe.shizuku.privileged.api" />
     </queries>

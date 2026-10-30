@@ -88,13 +88,63 @@ Aim for variety, because each kind of tester covers something we can't test ours
   others; at least one foldable or tablet.
 - **Android versions:** one or two on Android 9 to 11 (the location banner for AirPods and JBL), and
   some on 12 to 16 as well as 17.
-- **No headset:** fine. They test demo mode, Sleep on the phone, alarms, backups and the look.
-  Without a headset, Sleep sounds don't play in demo mode: they switch Bluetooth off, then turn
-  demo mode off (More, App preferences, Demo mode), and the sounds play on the phone's speaker.
-  (With Bluetooth on and no paired headset, the welcome screen comes back once demo mode is off.)
+- **No headset:** fine. They test demo mode, Sleep, alarms, backups and the look. In demo mode the
+  Sleep sounds play on the phone's speaker, because the demo headset has no real audio output.
 
 Where to find them (Google's own tips): friends, family and colleagues first, then communities that
 fit the app. People who opened GitHub issues already care; asking them is your call.
+
+### If you don't know 12 people: use a Google Group
+
+You don't have to type anyone's email. Play accepts a **Google Group** as the tester list, and
+anyone who joins the group becomes a tester:
+1. **Create the group.** At groups.google.com, choose **Create group**:
+   - name it "Earshot testers", with an email like `earshot-testers@googlegroups.com`;
+   - "Who can join": **Anyone on the web can ask** (you approve) or **Anyone can join**;
+   - "Who can view members": **Group managers only**, so testers don't see each other's emails.
+2. **Use it as the tester list.** Play Console → Testing → Closed testing → your track →
+   **Testers** → **Google Groups** → enter the group's email → Save.
+3. **Share two links:** the group's join link and the track's **opt-in link** (shown on the Testers
+   tab after Google approves the release). Testers join the group, open the opt-in link, accept,
+   then install from Play.
+
+Places to share the links:
+- **Earshot's own GitHub:**
+  - a pinned issue or Discussion, plus a line in the README;
+  - the five people who opened issues #1–#5 own Bose earbuds, other Bose models or have hit a
+    connect problem, which makes them the most useful testers there are.
+- **Test-swap communities:** many new developers have the same 12-tester problem. They trade
+  testing: you test their app for 14 days, they test yours. Common places are the subreddits
+  r/AndroidClosedTesting and r/TestersCommunity, and similar Discord servers. Stay in their
+  tests as long as they stay in yours.
+- **Headphone communities:** subreddits and forums for Bose, Soundcore, Sony and Sennheiser
+  owners. Check each place's self-promotion rules first.
+- **Friends and family:** any Android phone and Google account will do, even without headphones.
+
+Avoid paid "12 testers for 14 days" services. The production application asks how testers used the
+app and what you changed, and real feedback is what makes that answer convincing. Never use several
+Google accounts of your own as testers.
+
+### A recruiting post (for GitHub, Reddit or a forum)
+
+> **Help test Earshot on Google Play (14 days, free)**
+>
+> Earshot is a free, open-source companion app for Bluetooth headphones, a replacement for the
+> maker's app. It has no account, no ads, no analytics and no internet permission at all. It does
+> deep control of Bose QC Ultra headphones, works experimentally with Sony, Sennheiser, Soundcore,
+> Skullcandy and JBL, and has EQ, a Sleep tab with timers and alarms, and battery and codec tools
+> for any headset.
+>
+> Before it can go public on Google Play, a new developer has to run a 14-day closed test with at
+> least 12 testers. If you have an Android phone (Android 9 or newer):
+> 1. Join the tester group: <group join link>
+> 2. Open the opt-in link and accept: <opt-in link>
+> 3. Install Earshot from Google Play and stay in the test for 14 days. Uninstalling is OK; leaving
+>    the test resets the count.
+>
+> No headphones? Demo mode shows everything. Owners of Sony, Sennheiser, Soundcore, Skullcandy or
+> JBL headsets are especially welcome: your Tools → Lab → Connection report helps move those
+> headsets from Experimental to Tested. Source code: https://github.com/HellzYeahh/earshot
 
 Every tester needs a Google account on an Android phone (Android 9 or newer, with Bluetooth).
 

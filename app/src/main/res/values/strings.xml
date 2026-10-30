@@ -7,7 +7,7 @@
 
     <!-- Lab deep scan -->
     <string name="lab_deep_scan">Deep scan (%1$d reads)</string>
-    <!-- %2$s: this build's package (dev.earshot on Google Play, dev.earshot.foss on GitHub), so the folder is the real one -->
+    <!-- %2$s: this build's package (dev.earshot.foss on Google Play, dev.earshot.github on GitHub), so the folder is the real one -->
     <string name="lab_deep_scan_hint">%1$s Results are also saved under Android/data/%2$s/files/lab.</string>
 
     <!-- Appearance -->

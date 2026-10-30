@@ -49,6 +49,13 @@
     <!-- No QUERY_ALL_PACKAGES on purpose: Google Play allows it only for apps whose core purpose
          needs every installed app. Each app Earshot looks up is named by the <queries> below. -->
 
+    <!-- The pre-1.0 Earshot (dev.earshot, debug-signed, up to the 0.9.1 bridge): both builds look for
+         it to offer moving the settings over and removing it (distribution/LegacyApp). Each
+         build's manifest adds the other edition's package. -->
+    <queries>
+        <package android:name="dev.earshot" />
+    </queries>
+
     <!-- Shizuku (its permission, provider and <queries> entry) is in the GitHub build only:
          app/src/foss/AndroidManifest.xml (B8, docs/research/play-readiness.md). -->
 

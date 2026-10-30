@@ -49,6 +49,12 @@ android {
         versionName = "1.0.0-rc1"
     }
 
+    // Earshot is English only: drop the libraries' translations (AndroidX, Material) so menus
+    // don't mix languages and resources.arsc shrinks. Add a locale here when a translation ships.
+    androidResources {
+        localeFilters += listOf("en")
+    }
+
     signingConfigs {
         for (flavor in listOf("play", "foss")) {
             val storeFile = signingValue(flavor, "storeFile") ?: continue
@@ -64,25 +70,29 @@ android {
     /*
      * Two distributions from one codebase (docs/roadmap.md, 1.0 plan). Code for one of them only
      * lives in app/src/play/ or app/src/foss/, so the GitHub APK never carries store-only code.
-     * Debug builds keep the debug key: playDebug is dev.earshot, so it updates the debug-signed
-     * builds already on the developer's phone.
+     * App IDs (user decision 2026-10-30): the Play Console app was created as dev.earshot.foss,
+     * which Play registered permanently, so the play flavour is dev.earshot.foss and the GitHub
+     * build is dev.earshot.github. Plain dev.earshot stays the pre-1.0 builds' (and the 0.9.1
+     * bridge's) ID, which both builds spot (distribution/LegacyApp). Debug builds keep the debug key.
      */
     flavorDimensions += "distribution"
     productFlavors {
         // Google Play. The store holds the app-signing key; we sign uploads with the upload key.
         create("play") {
             dimension = "distribution"
+            applicationIdSuffix = ".foss"
             signingConfig = signingConfigs.findByName("playRelease")
         }
-        // GitHub, F-Droid, IzzyOnDroid: everything free. Its own app ID, so it can't clash with the
-        // Play install's signature. The legacy bridge (above) is the one build without it.
+        // GitHub, F-Droid, IzzyOnDroid: everything free. Its own app ID (dev.earshot.github), so it
+        // can't clash with the Play install's signature. The legacy bridge (above) is the one build
+        // without it.
         create("foss") {
             dimension = "distribution"
             if (legacyBridge) {
                 // Release only: the debug build type already uses the debug key.
                 signingConfig = signingConfigs.getByName("debug")
             } else {
-                applicationIdSuffix = ".foss"
+                applicationIdSuffix = ".github"
                 signingConfig = signingConfigs.findByName("fossRelease")
             }
         }

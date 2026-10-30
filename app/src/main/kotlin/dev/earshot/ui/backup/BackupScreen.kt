@@ -52,6 +52,7 @@ import dev.earshot.backup.BackupTransfer
 import dev.earshot.backup.OwnSoundsInfo
 import dev.earshot.backup.RestoreFailedNotice
 import dev.earshot.backup.RestoredNotice
+import dev.earshot.distribution.Distribution
 import dev.earshot.distribution.LegacyApp
 import dev.earshot.ui.common.BannerTone
 import dev.earshot.ui.common.ConfirmDialog
@@ -90,7 +91,7 @@ fun BackupScreen(onBack: () -> Unit) {
     BackupContent(
         state = state,
         otherEarshot = otherEarshot,
-        onOpenLegacy = { LegacyApp.openAppInfo(context) },
+        onOpenLegacy = { otherEarshot?.let { LegacyApp.openAppInfo(context, it) } },
         onBack = onBack,
         onIncludeOwnSounds = vm::setIncludeOwnSounds,
         onExport = { saveLauncher.launch(BackupTransfer.defaultFileName()) },
@@ -278,7 +279,7 @@ private fun RestoredBanner(notice: RestoredNotice, onDismiss: () -> Unit) {
 private fun OtherEarshotNote(kind: LegacyApp.Kind, onOpen: () -> Unit) {
     val legacy = kind == LegacyApp.Kind.LEGACY
     InfoBanner(
-        text = stringResource(if (legacy) R.string.backup_legacy_app else R.string.backup_other_earshot),
+        text = if (legacy) stringResource(R.string.backup_legacy_app) else stringResource(R.string.backup_other_earshot, Distribution.OTHER_EDITION_NAME),
         tone = if (legacy) BannerTone.WARNING else BannerTone.INFO,
         action = {
             TextButton(onClick = onOpen) { Text(stringResource(if (legacy) R.string.backup_legacy_open else R.string.backup_other_earshot_open)) }

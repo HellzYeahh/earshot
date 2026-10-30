@@ -45,7 +45,7 @@ analytics.
 | | Google Play | GitHub (also F-Droid / IzzyOnDroid) |
 |---|---|---|
 | Gradle flavour | `play` | `foss` |
-| Application ID | `dev.earshot` | `dev.earshot.foss` |
+| Application ID | `dev.earshot.foss` (the Play Console app was created with it; user decision 2026-10-30) | `dev.earshot.github` |
 | Signing | an upload key; Google keeps the app-signing key (Play App Signing) | our own release key, kept and backed up by the user |
 | Price | free download; later one $3.99 unlock for the Sleep features and extra themes | everything free; no billing code in the APK |
 

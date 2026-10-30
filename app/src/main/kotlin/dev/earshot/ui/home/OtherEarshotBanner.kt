@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import dev.earshot.R
+import dev.earshot.distribution.Distribution
 import dev.earshot.distribution.LegacyApp
 import dev.earshot.ui.common.BannerTone
 import dev.earshot.ui.common.InfoBanner
@@ -44,12 +45,12 @@ fun OtherEarshotBanner(modifier: Modifier = Modifier) {
     val found = kind ?: return
     val legacy = found == LegacyApp.Kind.LEGACY
     InfoBanner(
-        text = stringResource(if (legacy) R.string.home_legacy_app else R.string.backup_other_earshot),
+        text = if (legacy) stringResource(R.string.home_legacy_app) else stringResource(R.string.backup_other_earshot, Distribution.OTHER_EDITION_NAME),
         modifier = modifier,
         tone = if (legacy) BannerTone.WARNING else BannerTone.INFO,
         action = {
             TextButton(onClick = { OtherEarshotDismissal.dismissed = true }) { Text(stringResource(R.string.action_not_now)) }
-            TextButton(onClick = { LegacyApp.openAppInfo(context) }) {
+            TextButton(onClick = { LegacyApp.openAppInfo(context, found) }) {
                 Text(stringResource(if (legacy) R.string.backup_legacy_open else R.string.backup_other_earshot_open))
             }
         },

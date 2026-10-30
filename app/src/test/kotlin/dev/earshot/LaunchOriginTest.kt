@@ -49,9 +49,9 @@ class LaunchOriginTest {
 
     @Test
     fun `the own package is the running build's, so the foss build counts as itself`() {
-        assertEquals(Caller.OWN, classify("dev.earshot.foss", ownPackage = "dev.earshot.foss"))
+        assertEquals(Caller.OWN, classify("dev.earshot.github", ownPackage = "dev.earshot.github"))
         // The pre-1.0 dev.earshot next to the foss build is just another app.
-        assertEquals(Caller.OTHER, classify("dev.earshot", ownPackage = "dev.earshot.foss"))
+        assertEquals(Caller.OTHER, classify("dev.earshot", ownPackage = "dev.earshot.github"))
     }
 
     @Test

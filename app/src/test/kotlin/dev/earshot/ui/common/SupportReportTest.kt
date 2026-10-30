@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 class SupportReportTest {
 
     private val prompt = "What works on this headset, and what doesn't? Write it here, above the report:"
-    private val report = "Earshot connection report\nApp: 1.0.0 (foss, dev.earshot.foss)\nRecent log:\n"
+    private val report = "Earshot connection report\nApp: 1.0.0 (GitHub, dev.earshot.github)\nRecent log:\n"
 
     @Test fun `the prompt comes first, with room to answer, then the whole report`() {
         val text = SupportReport.text(prompt, report)

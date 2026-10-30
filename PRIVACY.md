@@ -1,7 +1,7 @@
 # Earshot privacy policy
 
-Last updated: 2026-10-28. Applies to Earshot from Google Play (`dev.earshot`) and from GitHub,
-F-Droid or IzzyOnDroid (`dev.earshot.foss`).
+Last updated: 2026-10-28. Applies to Earshot from Google Play (`dev.earshot.foss`) and from GitHub,
+F-Droid or IzzyOnDroid (`dev.earshot.github`).
 
 ## The short version
 

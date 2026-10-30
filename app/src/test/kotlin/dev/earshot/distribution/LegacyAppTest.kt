@@ -6,8 +6,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * `dev.earshot` next to the GitHub build is either the pre-1.0 app (debug key, up to the 0.9.1
- * bridge) or the current Google Play build; only the first may be called "the older Earshot".
+ * Since 2026-10-30 `dev.earshot` is only ever the pre-1.0 GitHub app (debug key, up to the 0.9.1
+ * bridge); Google Play is `dev.earshot.foss` and GitHub `dev.earshot.github`. A `dev.earshot`
+ * without both marks isn't ours and is ignored; the other edition is found by its own package.
  */
 class LegacyAppTest {
 
@@ -17,23 +18,28 @@ class LegacyAppTest {
     }
 
     @Test fun `a debug-signed build up to the bridge is the old app`() {
-        assertEquals(LegacyApp.Kind.LEGACY, LegacyApp.classify(versionCode = 1, debugSigned = true))
-        assertEquals(LegacyApp.Kind.LEGACY, LegacyApp.classify(versionCode = 10, debugSigned = true))
-        assertEquals(LegacyApp.Kind.LEGACY, LegacyApp.classify(versionCode = 11, debugSigned = true))
+        assertTrue(LegacyApp.isLegacy(versionCode = 1, debugSigned = true))
+        assertTrue(LegacyApp.isLegacy(versionCode = 10, debugSigned = true))
+        assertTrue(LegacyApp.isLegacy(versionCode = 11, debugSigned = true))
     }
 
-    @Test fun `a newer or store-signed build is the Play build, not the old app`() {
-        // The Play release: Play's signing key and a 1.0 version code.
-        assertEquals(LegacyApp.Kind.PLAY_BUILD, LegacyApp.classify(versionCode = 12, debugSigned = false))
-        // A developer's own playDebug of 1.0: debug key, but newer than any old release.
-        assertEquals(LegacyApp.Kind.PLAY_BUILD, LegacyApp.classify(versionCode = 12, debugSigned = true))
+    @Test fun `a newer or store-signed dev_earshot is not the old app`() {
+        assertFalse(LegacyApp.isLegacy(versionCode = 12, debugSigned = false))
+        assertFalse(LegacyApp.isLegacy(versionCode = 12, debugSigned = true))
         // Not debug-signed is never the old app, whatever its version code says.
-        assertEquals(LegacyApp.Kind.PLAY_BUILD, LegacyApp.classify(versionCode = 10, debugSigned = false))
+        assertFalse(LegacyApp.isLegacy(versionCode = 10, debugSigned = false))
     }
 
     @Test fun `an unreadable signer leaves the version code to decide`() {
-        assertEquals(LegacyApp.Kind.LEGACY, LegacyApp.classify(versionCode = 11, debugSigned = null))
-        assertEquals(LegacyApp.Kind.PLAY_BUILD, LegacyApp.classify(versionCode = 12, debugSigned = null))
+        assertTrue(LegacyApp.isLegacy(versionCode = 11, debugSigned = null))
+        assertFalse(LegacyApp.isLegacy(versionCode = 12, debugSigned = null))
+    }
+
+    @Test fun `each kind opens the right app`() {
+        assertEquals("dev.earshot", LegacyApp.packageOf(LegacyApp.Kind.LEGACY))
+        assertEquals(Distribution.OTHER_EDITION_PACKAGE, LegacyApp.packageOf(LegacyApp.Kind.OTHER_EDITION))
+        // The other edition is never this build's own ID or the legacy one.
+        assertTrue(Distribution.OTHER_EDITION_PACKAGE in setOf("dev.earshot.foss", "dev.earshot.github"))
     }
 
     @Test fun `the Android debug certificate is recognised by its subject`() {

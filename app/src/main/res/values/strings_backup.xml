@@ -72,12 +72,13 @@
     <string name="backup_error_changed">Your own sounds changed while saving. Try again.</string>
     <string name="backup_error_busy">Earshot is still checking another backup file. Try again in a moment.</string>
     <string name="backup_error_unfinished">An earlier restore hasn\'t finished yet. Restart Earshot to finish it, then try again.</string>
-    <!-- GitHub build only: the pre-1.0 Earshot (dev.earshot, debug key, up to 0.9.1) is still installed -->
+    <!-- Both builds: the pre-1.0 Earshot (dev.earshot, debug key, up to 0.9.1) is still installed -->
     <string name="backup_legacy_app">The older Earshot is still on this phone. If it\'s version 0.9.1 or later, open More, Back up and restore in it, save your settings, and import that file here. Older versions don\'t have Back up and restore: set things up again here instead. When you\'re done, remove the old app so the two don\'t compete for your headset.</string>
     <string name="backup_legacy_open">Old app\'s info</string>
-    <!-- GitHub build only: the current Google Play build (dev.earshot, Play-signed) is installed too. Also on Home. -->
-    <string name="backup_other_earshot">Earshot from Google Play is also on this phone. Only one of them should control your headset.</string>
-    <string name="backup_other_earshot_open">Play app\'s info</string>
-    <!-- Home, GitHub build only: the short form of backup_legacy_app, until dismissed for this run of the app -->
+    <!-- Both builds: the other current edition is installed too (Play dev.earshot.foss / GitHub dev.earshot.github). Also on Home. -->
+    <!-- %1$s: the other edition, "Google Play" or "GitHub" (Distribution.OTHER_EDITION_NAME) -->
+    <string name="backup_other_earshot">Earshot from %1$s is also on this phone. Only one of them should control your headset.</string>
+    <string name="backup_other_earshot_open">Its app info</string>
+    <!-- Home, both builds: the short form of backup_legacy_app, until dismissed for this run of the app -->
     <string name="home_legacy_app">The older Earshot is still on this phone and may hold your headset. Move your settings over in More, Back up and restore, then remove the old app.</string>
 </resources>

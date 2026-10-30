@@ -15,8 +15,8 @@ docs/roadmap.md, 1.0 plan item 2; docs/research/play-readiness.md F1-F3. Runs lo
     python tools/release/check_release.py --apk app/build/earshot-0.9.1.apk --tag v0.9.1 --bridge --installs-over app/build/earshot-0.9.0.apk
 
 Checks, per APK:
-  - the flavour comes from the application ID: dev.earshot.foss is the GitHub build (foss),
-    dev.earshot the Google Play build (play). Any other ID fails, and so does a build path or file
+  - the flavour comes from the application ID: dev.earshot.github is the GitHub build (foss),
+    dev.earshot.foss the Google Play build (play). Any other ID fails, and so does a build path or file
     name that names the other flavour. earshot-X.Y.Z.apk is the GitHub asset and must be the foss
     build, or the bridge with --bridge;
   - no INTERNET permission (Earshot's promise), no QUERY_ALL_PACKAGES (Google Play refuses it; the
@@ -53,8 +53,8 @@ And for the tree, on a tag: WhatsNew.RELEASE equals the version and CHANGELOG.md
 section for it. With --lint, the lint report must hold no errors.
 
 --bridge checks the one-time 0.9.1 bridge instead of a normal build: the foss flavour built with
--Pearshot.legacyBridge=true. Its app ID must be dev.earshot, its manifest must look up dev.earshot
-as only the foss flavour's does (so it isn't the play build), the GitHub billing check applies, and
+-Pearshot.legacyBridge=true. Its app ID must be dev.earshot, its manifest must look up dev.earshot.foss
+(the Play edition) as only the foss flavour's does (so it isn't the play build), the GitHub billing check applies, and
 on a tag it must be signed with a debug certificate, the key of every release up to 0.9.0
 (--installs-over with the published 0.9.0 proves it is that same key).
 """
@@ -76,15 +76,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-APP_IDS = {"play": "dev.earshot", "foss": "dev.earshot.foss"}
+# The Play Console app was created as dev.earshot.foss (registered permanently), so Play is
+# dev.earshot.foss and GitHub dev.earshot.github (user decision 2026-10-30, app/build.gradle.kts).
+APP_IDS = {"play": "dev.earshot.foss", "foss": "dev.earshot.github"}
 FLAVOUR_BY_APP_ID = {app_id: flavour for flavour, app_id in APP_IDS.items()}
 # The one-time bridge (--bridge): the foss flavour under the pre-1.0 app ID, debug-signed like every
 # release up to 0.9.0 so that it updates them in place.
 BRIDGE_APP_ID = "dev.earshot"
-# Only the foss flavour's manifest names this package in <queries> (app/src/foss/AndroidManifest.xml,
-# the old-install lookup). That's how the bridge, which has the play build's app ID, still shows that
-# it is the foss flavour.
-LEGACY_LOOKUP = "dev.earshot"
+# Only the foss flavour's manifest names this package in <queries> (app/src/foss/AndroidManifest.xml:
+# it looks for the Play edition; the play manifest looks for dev.earshot.github instead). That's how
+# the bridge, which has neither flavour's app ID, still shows that it is the foss flavour.
+FOSS_LOOKUP = "dev.earshot.foss"
 # The subject of the debug key that Android Studio / the Android Gradle plugin generates.
 DEBUG_CERT = "CN=Android Debug"
 SIZE_BUDGET_MB = 16.0  # 0.9.0 was 12.6 MB; the sleep recordings are most of it.
@@ -546,15 +548,15 @@ def check_apk(
         flavour: str | None = "foss"
         if m.app_id != BRIDGE_APP_ID:
             errors.append(f"{apk.name}: app ID {m.app_id}, but the bridge must be {BRIDGE_APP_ID} (build it with -Pearshot.legacyBridge=true)")
-        if named == "play" or LEGACY_LOOKUP not in m.looks_up:
+        if named == "play" or FOSS_LOOKUP not in m.looks_up:
             errors.append(f"{apk.name}: the bridge is the foss flavour (:app:assembleFossRelease), but this is the play build")
     else:
         flavour = FLAVOUR_BY_APP_ID.get(m.app_id)
         if flavour is None:
-            errors.append(f"{apk.name}: app ID {m.app_id} is neither {APP_IDS['foss']} (GitHub) nor {APP_IDS['play']} (Google Play)")
+            hint = " (pass --bridge for the 0.9.1 bridge)" if m.app_id == BRIDGE_APP_ID else ""
+            errors.append(f"{apk.name}: app ID {m.app_id} is neither {APP_IDS['foss']} (GitHub) nor {APP_IDS['play']} (Google Play){hint}")
         elif named and named != flavour:
-            hint = " (pass --bridge for the 0.9.1 bridge)" if named == "foss" and m.app_id == BRIDGE_APP_ID else ""
-            errors.append(f"{apk.name}: built as {named}, but its app ID {m.app_id} is the {flavour} build's{hint}")
+            errors.append(f"{apk.name}: built as {named}, but its app ID {m.app_id} is the {flavour} build's")
 
     errors += check_manifest(apk.name, m, flavour)
     errors += check_native_alignment(apk, "lib/")

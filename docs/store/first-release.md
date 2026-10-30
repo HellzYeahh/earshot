@@ -35,8 +35,10 @@ Source: https://support.google.com/googleplay/android-developer/answer/13628312
 
 ## 2. Set up the app in the Console (an evening, once the account is verified)
 
-1. **Create app:** name "Earshot", default language English, App, Free. Accept the declarations.
-   The package name `dev.earshot` gets fixed by your first upload and can never change.
+1. **Create app:** name "Earshot", default language English, App, Free. When it asks for the
+   **package name, enter `dev.earshot.foss`** (the Play build's ID since 2026-10-30; GitHub is
+   `dev.earshot.github`, and plain `dev.earshot` is the old pre-1.0 app). The Console registers it
+   to your account at once, and it can never change.
 2. **App content forms:** fill in every form in [play-console.md](play-console.md) section 2. The
    answers are written out to paste:
    - privacy policy, app access (demo mode), ads: none, content rating, target audience;
@@ -80,13 +82,13 @@ opted in to a closed test for 14 days in a row.** The full guide, with invitatio
 1. **The 0.9.1 bridge:** a last debug-signed `dev.earshot` with Back up and restore, so today's
    GitHub users can move their settings. The recipe is in
    [release-signing.md](../release-signing.md) under "Moving existing users".
-2. **Then 1.0:** `dev.earshot.foss` signed with your GitHub key, as `earshot-1.0.0.apk`.
-3. **Before 2027:** register `dev.earshot.foss` and the GitHub key in the Play Console's developer
+2. **Then 1.0:** `dev.earshot.github` signed with your GitHub key, as `earshot-1.0.0.apk`.
+3. **Before 2027:** register `dev.earshot.github` and the GitHub key in the Play Console's developer
    verification page, so phones in every country keep installing it.
 
 ## Things first-timers trip over
 
-- **The package name is permanent** after the first upload. Ours is `dev.earshot` for Play.
+- **The package name is permanent** after the first upload. Ours is `dev.earshot.foss` for Play.
 - **Keep the upload key backed up.** Google can reset a lost upload key, but it takes a support
   request and days.
 - **Every upload needs a higher `versionCode`** than the one before.

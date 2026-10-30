@@ -40,8 +40,8 @@ object DiagnosticsReport {
             appendLine("App: $versionName (${Distribution.NAME}, ${context.packageName})")
             // Two Earshots fight over the one control channel: the losing one only sees a busy headset.
             LegacyApp.find(context)?.let { other ->
-                val what = if (other == LegacyApp.Kind.LEGACY) "the pre-1.0 app" else "the Google Play build"
-                appendLine("Also installed: ${Distribution.LEGACY_PACKAGE} ($what)")
+                val what = if (other == LegacyApp.Kind.LEGACY) "the pre-1.0 app" else "the ${Distribution.OTHER_EDITION_NAME} edition"
+                appendLine("Also installed: ${LegacyApp.packageOf(other)} ($what)")
             }
             appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine()

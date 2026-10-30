@@ -5,8 +5,8 @@
 Roadmap "1.0 plan" (set 2026-10-27).
 
 ### Changed
-- **Two versions from one codebase:** `play` (Google Play, app ID `dev.earshot`) and `foss`
-  (GitHub, F-Droid and IzzyOnDroid, `dev.earshot.foss`, always everything free). The GitHub build
+- **Two versions from one codebase:** `play` (Google Play, app ID `dev.earshot.foss`) and `foss`
+  (GitHub, F-Droid and IzzyOnDroid, `dev.earshot.github`, always everything free). The GitHub build
   notices an older `dev.earshot` install and offers to open its App info page.
 - **Release signing:** release builds are signed only with the keys in `keystore.properties`
   (`docs/release-signing.md`), one per version; without it they come out unsigned, never with the

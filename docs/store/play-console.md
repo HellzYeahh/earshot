@@ -1,6 +1,6 @@
 # Google Play Console: every form for Earshot
 
-What to type into Play Console for the Google Play version (`play` flavour, `dev.earshot`), field by
+What to type into Play Console for the Google Play version (`play` flavour, `dev.earshot.foss`), field by
 field, with the reason for each answer. Written 2026-10-29 from
 [research/play-readiness.md](../research/play-readiness.md) (items B1, B2, B4, C, D1, D2) and
 checked against the code on that day. The store listing text is in [listing.md](listing.md); the
@@ -54,6 +54,7 @@ Play Console → Home → **Create app**.
 
 | Field | Answer | Why |
 |---|---|---|
+| **Package name** | **`dev.earshot.foss`** | Asked when you create the app (2026 Console), registered to your account at once and **permanent**. The app was created with this ID, so the Play build uses it (user decision 2026-10-30); GitHub is `dev.earshot.github`, and plain `dev.earshot` is the old pre-1.0 app. |
 | App name | `Earshot: Headset Companion` | No brand in the title (impersonation policy). Same as listing.md; 26 of 30 characters. |
 | Default language | English (United Kingdom), en-GB | The app's own text is British English ("colour", "recognises"). |
 | App or game | App | |
@@ -434,9 +435,9 @@ Google's 2026 developer verification requires apps on certified phones to come f
 developer and package. It started on 2026-09-30 for Brazil, Indonesia, Singapore and Thailand and
 goes global in 2027.
 
-- **`dev.earshot` (Play):** registered automatically when the app is created in Play Console. Nothing
+- **`dev.earshot.foss` (Play):** registered automatically when the app is created in Play Console. Nothing
   to do beyond checking the Home page for a registration task.
-- **`dev.earshot.foss` (GitHub, IzzyOnDroid, F-Droid):** register it by hand in the same Play Console
+- **`dev.earshot.github` (GitHub, IzzyOnDroid, F-Droid):** register it by hand in the same Play Console
   account (Google's path is "Distribute on and outside Google Play"), with proof that you own the
   **foss release key**. Do it before the 2027 rollout. Google's guide doesn't print the menu steps;
   follow the task the Console's Home page shows. The certificate's SHA-256 comes from

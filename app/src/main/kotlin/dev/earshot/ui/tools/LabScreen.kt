@@ -78,7 +78,7 @@ fun LabScreen(onBack: () -> Unit, onOpenTimeline: () -> Unit = {}) {
     val context = LocalContext.current
     val messenger = LocalUiDependencies.current.messenger
     // Every finished scan is also written to the app's external files folder
-    // (Android/data/<package>/files/lab/: dev.earshot on Play, dev.earshot.foss on GitHub), so it can
+    // (Android/data/<package>/files/lab/: dev.earshot.foss on Play, dev.earshot.github on GitHub), so it can
     // be pulled with adb or shared from a file manager. The deep-scan hint names the same folder.
     // Once per scan (LabScanFile): the effect also runs when the screen comes back with the results
     // still in the ViewModel, which used to write another identical file each time.

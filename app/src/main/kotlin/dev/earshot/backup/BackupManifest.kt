@@ -18,7 +18,7 @@ data class BackupManifest(
     val format: Int,
     /** Always [APP]: tells an Earshot backup from any other zip with a manifest. */
     val app: String,
-    /** The build that wrote it (`dev.earshot`, `dev.earshot.foss`, …); informative, never checked. */
+    /** The build that wrote it (`dev.earshot.foss`, `dev.earshot.github`, `dev.earshot`, …); informative, never checked. */
     val applicationId: String? = null,
     val versionCode: Long = 0,
     val versionName: String? = null,

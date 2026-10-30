@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <!-- The GitHub edition (app ID dev.earshot.github): only one Earshot should drive a
+             headset, so this build notices it (distribution/LegacyApp). -->
+        <package android:name="dev.earshot.github" />
+    </queries>
+</manifest>

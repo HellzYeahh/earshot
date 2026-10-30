@@ -4,8 +4,8 @@ Earshot ships two versions from one codebase (roadmap, "1.0 plan"):
 
 | Version | Gradle flavour | App ID | Signed with |
 |---|---|---|---|
-| Google Play | `play` | `dev.earshot` | the **Play upload key**. Google keeps the real app-signing key (Play App Signing) and re-signs what you upload. If the upload key is lost, Google can reset it. |
-| GitHub, IzzyOnDroid | `foss` | `dev.earshot.foss` | the **GitHub key**. Every future GitHub update must be signed with this exact key: lose it and nobody can update, ever. Back it up. |
+| Google Play | `play` | `dev.earshot.foss` | the **Play upload key**. Google keeps the real app-signing key (Play App Signing) and re-signs what you upload. If the upload key is lost, Google can reset it. |
+| GitHub, IzzyOnDroid | `foss` | `dev.earshot.github` | the **GitHub key**. Every future GitHub update must be signed with this exact key: lose it and nobody can update, ever. Back it up. |
 
 Debug builds (`assemblePlayDebug`, `assembleFossDebug`) still use the PC's debug key. A release
 build without its key comes out **unsigned**, never debug-signed, so a debug-key APK can't be
@@ -99,11 +99,11 @@ The certificate checks run only here. CI builds unsigned APKs and skips them. On
 - the APK isn't debug-signed.
 
 `--installs-over` checks that the new APK has the same app ID and key as the previous GitHub release
-and a higher versionCode, so it really updates it. Leave it out for the first `dev.earshot.foss`
+and a higher versionCode, so it really updates it. Leave it out for the first `dev.earshot.github`
 release. If apksigner can't find Java, run this first:
 `$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"`.
 
-For Play, create the app in the Play Console with package `dev.earshot`, keep Play App Signing on
+For Play, create the app in the Play Console with package `dev.earshot.foss`, keep Play App Signing on
 (the default) and let Google create the app-signing key, then upload the `.aab`.
 
 ## Moving existing users (once)
@@ -112,10 +112,11 @@ Builds up to 0.9.0 are `dev.earshot` signed with the debug key. Android refuses 
 when the signing key changes:
 - **GitHub users:** one last debug-signed `dev.earshot`, 0.9.1 (the bridge, below), updates them
   in place and adds **Back up and restore** (More). Export there, install the new
-  `dev.earshot.foss` build next to it, import, then remove the old app. The new build notices the
+  `dev.earshot.github` build next to it, import, then remove the old app. The new build notices the
   old one and offers to open its App info page.
-- **Play:** a phone that still has the GitHub `dev.earshot` can't install the Play version until
-  that is removed (same app ID, different key). Say so in the listing's first release notes.
+- **Play:** the Play version is `dev.earshot.foss`, a different app ID from the old `dev.earshot`, so it
+  installs next to it. The Play build notices the old app too and offers the same move (export in
+  the old one, import, remove it).
 
 ### The 0.9.1 bridge build
 
@@ -160,7 +161,7 @@ updates nobody.
    `--installs-over` proves that the bridge has 0.9.0's app ID and key and a higher versionCode.
 6. **Publish** `earshot-0.9.1.apk` on the `v0.9.1` GitHub release. CI's gate on that tag checks the
    normal unsigned builds instead; that is expected.
-7. **Afterwards:** build without the property again, which gives the normal `dev.earshot.foss`. Give
+7. **Afterwards:** build without the property again, which gives the normal `dev.earshot.github`. Give
    the next release a versionCode above 11.
 
 `playDebug` and `fossDebug` are never the bridge, nor any other release. `playDebug` is
@@ -171,5 +172,5 @@ unminified (see the top of this page).
 
 Google requires apps installed outside Play on certified phones to come from a verified developer.
 Some countries started in September 2026; the rest follow in 2027. Register the GitHub package
-(`dev.earshot.foss`) and the GitHub key's certificate when the developer console asks for them.
+(`dev.earshot.github`) and the GitHub key's certificate when the developer console asks for them.
 Play apps are covered by the Play Console account.

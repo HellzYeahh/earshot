@@ -1,6 +1,6 @@
 # Google Play store listing
 
-The text and images for Earshot's main store listing on Google Play (`dev.earshot`). Written
+The text and images for Earshot's main store listing on Google Play (`dev.earshot.foss`). Written
 2026-10-29 from [research/play-readiness.md](../research/play-readiness.md) E1 to E3, the README,
 PRIVACY.md and the app's own strings, and checked against the code on that day. The Console forms
 are in [play-console.md](play-console.md).

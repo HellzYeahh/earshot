@@ -45,10 +45,11 @@ class ShizukuManifestTest {
     }
 
     @Test
-    fun `the old install lookup is still there next to it`() {
-        // tools/release/check_release.py tells the foss flavour (and the 0.9.1 bridge) by this entry.
+    fun `the Play edition lookup is still there next to it`() {
+        // tools/release/check_release.py tells the foss flavour (and the 0.9.1 bridge) by this entry:
+        // only the GitHub build looks up the Play edition, dev.earshot.foss.
         val queried = root.children("queries").flatMap { it.children("package") }.map { it.name() }
-        assertTrue("dev.earshot" in queried)
+        assertTrue("dev.earshot.foss" in queried)
     }
 
     @Test

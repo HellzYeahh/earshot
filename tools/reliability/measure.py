@@ -9,7 +9,7 @@
 
 Read-only except `startup` and `cycles`, which restart Earshot. Nothing is reset on the phone:
 battery numbers are since the last full charge, as Android keeps them. Use `--serial` when more
-than one device is attached and `--package dev.earshot.foss` for the GitHub build.
+than one device is attached and `--package dev.earshot.github` for the GitHub build.
 """
 
 from __future__ import annotations
@@ -174,7 +174,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("what", choices=["connect", "battery", "alive", "startup", "cycles"])
     ap.add_argument("--serial")
-    ap.add_argument("--package", default="dev.earshot")
+    ap.add_argument("--package", default="dev.earshot.foss")
     ap.add_argument("--runs", type=int, default=5)
     ap.add_argument("--wait", type=int, default=12, help="seconds per cycle to wait for the connect")
     args = ap.parse_args()

@@ -27,8 +27,9 @@ from unittest import mock
 import check_release
 from check_release import Installed, Manifest, Permission
 
-FOSS = "dev.earshot.foss"
-PLAY = "dev.earshot"
+FOSS = "dev.earshot.github"
+PLAY = "dev.earshot.foss"
+BRIDGE = "dev.earshot"  # the pre-1.0 builds and the 0.9.1 bridge
 BILLING = "com.android.vending.BILLING"
 INTERNET = "android.permission.INTERNET"
 SHIZUKU = check_release.SHIZUKU_PERMISSION
@@ -301,8 +302,8 @@ class GateTestCase(unittest.TestCase):
         """A small zip at rel under the temp folder, with canned aapt2/apksigner/zipalign answers."""
         path = write_zip(self.root / rel, {"classes.dex": b"dex\n035\0", **(libs or {})})
         if foss_manifest is None:
-            foss_manifest = app_id == FOSS  # only the foss flavour's manifest looks up dev.earshot
-        looks_up = looks_up + ((check_release.LEGACY_LOOKUP,) if foss_manifest else ())
+            foss_manifest = app_id in (FOSS, BRIDGE)  # only the foss flavour's manifest looks up the Play edition
+        looks_up = looks_up + ((check_release.FOSS_LOOKUP,) if foss_manifest else ())
         self.fakes[str(path)] = FakeApk(
             badging(app_id, version_code, version_name, perms, debuggable), tree(app_id, looks_up, providers), verify_passes, certs, aligned, align_output
         )
@@ -376,7 +377,7 @@ class PathFlavourTest(unittest.TestCase):
 
 class ManifestReadingTest(unittest.TestCase):
     EXPECTED = Manifest(
-        app_id=PLAY,
+        app_id=BRIDGE,  # the canned aapt2/bundletool dumps below are of a dev.earshot build
         version_code="13",
         version_name="1.0.0",
         permissions=(
@@ -431,14 +432,18 @@ class FlavourFromAppIdTest(GateTestCase):
         self.assertEqual(self.check(foss), [])
         self.assertEqual(self.check(play), [])
 
-    def test_foss_path_with_the_play_app_id_fails_without_bridge(self) -> None:
+    def test_foss_path_with_the_play_app_id_fails(self) -> None:
         apk = self.apk("app/build/outputs/apk/foss/release/app-foss-release.apk", PLAY, foss_manifest=True)
-        self.assertFailsWith(self.check(apk), "built as foss, but its app ID dev.earshot is the play build's", "--bridge")
+        self.assertFailsWith(self.check(apk), "built as foss, but its app ID dev.earshot.foss is the play build's")
+
+    def test_the_bridge_id_needs_the_bridge_flag(self) -> None:
+        apk = self.apk("app/build/outputs/apk/foss/release/app-foss-release.apk", BRIDGE)
+        self.assertFailsWith(self.check(apk), "app ID dev.earshot is neither", "--bridge")
 
     def test_play_build_under_the_github_asset_name_fails(self) -> None:
         # The X05 case: a signed play build copied to the GitHub asset name, later with billing.
         apk = self.apk("app/build/earshot-1.0.0.apk", PLAY, perms=(BILLING,))
-        self.assertFailsWith(self.check(apk, tag="1.0.0"), "built as foss, but its app ID dev.earshot is the play build's")
+        self.assertFailsWith(self.check(apk, tag="1.0.0"), "built as foss, but its app ID dev.earshot.foss is the play build's")
 
     def test_foss_build_under_the_github_asset_name_passes(self) -> None:
         self.assertEqual(self.check(self.apk("app/build/earshot-1.0.0.apk", FOSS), tag="1.0.0"), [])
@@ -498,7 +503,7 @@ class ShizukuTest(GateTestCase):
         self.assertEqual(self.check(apk), [])
 
     def test_bridge_keeps_shizuku(self) -> None:
-        apk = self.apk("app/build/earshot-0.9.1.apk", PLAY, 11, "0.9.1", perms=(SHIZUKU,), providers=(SHIZUKU_PROVIDER,), certs=DEBUG_CERTS, foss_manifest=True)
+        apk = self.apk("app/build/earshot-0.9.1.apk", BRIDGE, 11, "0.9.1", perms=(SHIZUKU,), providers=(SHIZUKU_PROVIDER,), certs=DEBUG_CERTS, foss_manifest=True)
         self.assertEqual(self.check(apk, tag="0.9.1", bridge=True), [])
 
     def test_shizuku_manager_lookup_in_play_is_only_a_note(self) -> None:
@@ -564,14 +569,14 @@ class ZipAlignTest(GateTestCase):
 
 
 class BridgeTest(GateTestCase):
-    def bridge_apk(self, app_id: str = PLAY, **kw) -> Path:
+    def bridge_apk(self, app_id: str = BRIDGE, **kw) -> Path:
         """The 0.9.1 bridge as step 4 builds it, with kw changing one thing."""
         args = dict(version_code=11, version_name="0.9.1", certs=DEBUG_CERTS, foss_manifest=True)
         args.update(kw)
         return self.apk("app/build/earshot-0.9.1.apk", app_id, **args)
 
     def test_the_real_bridge_passes(self) -> None:
-        over = Installed("earshot-0.9.0.apk", PLAY, 10, frozenset({DEBUG_DIGEST}))
+        over = Installed("earshot-0.9.0.apk", BRIDGE, 10, frozenset({DEBUG_DIGEST}))
         self.assertEqual(self.check(self.bridge_apk(), tag="0.9.1", bridge=True, over=over), [])
 
     def test_bridge_needs_the_old_app_id(self) -> None:
@@ -591,7 +596,7 @@ class BridgeTest(GateTestCase):
         self.assertFailsWith(self.check(self.bridge_apk(certs=RELEASE_CERTS), tag="0.9.1", bridge=True), "must be signed with the debug key")
 
     def test_bridge_with_another_key_than_0_9_0_fails(self) -> None:
-        over = Installed("earshot-0.9.0.apk", PLAY, 10, frozenset({OTHER_DIGEST}))
+        over = Installed("earshot-0.9.0.apk", BRIDGE, 10, frozenset({OTHER_DIGEST}))
         self.assertFailsWith(self.check(self.bridge_apk(), tag="0.9.1", bridge=True, over=over), "signed with a different key than earshot-0.9.0.apk")
 
 
@@ -651,7 +656,7 @@ class InstallsOverTest(GateTestCase):
         self.assertEqual(self.check(apk, tag="1.0.1", over=self.previous()), [])
 
     def test_other_app_id_fails(self) -> None:
-        over = Installed("earshot-0.9.0.apk", PLAY, 10, frozenset({RELEASE_DIGEST}))
+        over = Installed("earshot-0.9.0.apk", BRIDGE, 10, frozenset({RELEASE_DIGEST}))
         apk = self.apk("app/build/earshot-1.0.1.apk", FOSS, version_code=13, version_name="1.0.1")
         self.assertFailsWith(self.check(apk, tag="1.0.1", over=over), "so it installs next to it, not over it")
 
@@ -692,7 +697,7 @@ class BundleTest(GateTestCase):
 
     def test_it_must_be_the_play_build(self) -> None:
         aab = self.aab("app/build/outputs/bundle/fossRelease/app-foss-release.aab", app_id=FOSS)
-        self.assertFailsWith(self.check_bundle(aab), "app ID dev.earshot.foss, but the bundle goes to Google Play")
+        self.assertFailsWith(self.check_bundle(aab), "app ID dev.earshot.github, but the bundle goes to Google Play")
         self.assertFailsWith(self.check_bundle(self.aab("out/other.aab", app_id="dev.example")), "must be the play build")
 
     def test_it_keeps_the_apk_permission_rules(self) -> None:
