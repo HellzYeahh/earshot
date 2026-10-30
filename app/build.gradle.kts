@@ -45,8 +45,8 @@ android {
         applicationId = "dev.earshot"
         minSdk = 28 // DynamicsProcessing (the pro EQ) needs Android 9+
         targetSdk = 37
-        versionCode = 10
-        versionName = "0.9.0"
+        versionCode = 12
+        versionName = "1.0.0-rc1"
     }
 
     signingConfigs {
