@@ -133,6 +133,50 @@ Research: [research/play-readiness.md](research/play-readiness.md).
 - **Play account:** new and personal, so a 14-day closed test with 12 testers comes before
   production (`docs/store/closed-test.md`).
 
+### Status (2026-10-30)
+
+Items 1–6 are done and checked; item 7 is this list. The full gate is green: protocol 320, dsp 89,
+app 1,433 (foss) / 1,429 (play), gate self-tests 73, lint 0 errors.
+- **1. Signing and identity:**
+  - Flavours, with app IDs switched on 2026-10-30: Play `dev.earshot.foss`, GitHub
+    `dev.earshot.github`, old builds `dev.earshot`.
+  - Signing from `keystore.properties` or `EARSHOT_*`; the user's keys exist.
+  - Back up and restore, hardened.
+  - The 0.9.1 bridge recipe.
+- **2. CI release gate:**
+  - It runs on every push.
+  - `check_release.py` checks the APKs and the `.aab`: permissions, IDs, signing and 16 KB pages.
+- **3. Reliability and audit:**
+  - 45 audit, 24 backup and 19 integration findings were fixed and reviewed.
+  - Measured on the Fold7: cold start 425–458 ms, connect 2.0–3.5 s, battery about 0.6 % a day
+    (`docs/reliability.md`).
+- **4. Honest support:** tier labels and a report share; the Sleep A30 counts as Tested.
+- **5. Play readiness:**
+  - The policy fixes, Shizuku GitHub-only and the store paperwork in `docs/store/`.
+  - **targetSdk 37** after a passing phone pass.
+- **6. Performance:**
+  - a baseline profile;
+  - smoother Pro EQ, lazier Sleep and picker;
+  - held Bluetooth proxies;
+  - APKs about 0.5 MB smaller.
+- **7. Kept out of 1.0:**
+  - new drivers;
+  - big new features (the rest of the 0.9 plan follows as 1.0.x);
+  - translations (the strings are ready for them);
+  - a generated (Macrobenchmark) baseline profile and re-encoding the sleep recordings: both
+    need the user (new libraries; a listening test).
+
+**Next, in order:**
+1. **Closed test on Play:** `1.0.0-rc1` (versionCode 12, `dev.earshot.foss`) was uploaded on
+   2026-10-30. 12 or more testers have to stay opted in for 14 days (`docs/store/closed-test.md`).
+2. **Still to measure:** the 20 reconnect cycles and one real overnight Sleep night.
+3. **Production application** after day 14.
+4. **GitHub releases:**
+   - First the 0.9.1 bridge (`dev.earshot`, debug-signed).
+   - Then 1.0.0 (`dev.earshot.github`, GitHub key).
+   - Register `dev.earshot.github` for developer verification before 2027.
+5. **Then the paid unlock** (below).
+
 ### After the release work: the paid unlock (Play only, not started)
 
 - **What it is:** a one-time $3.99 in-app product unlocks the Sleep tab's features and extra
