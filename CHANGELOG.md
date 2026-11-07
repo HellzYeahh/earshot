@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased — preparing 1.0 for Google Play
+## 0.9.1 — 2026-11-07
+
+Aurora, Back up and restore, honest support labels and a full code audit. This is the last `dev.earshot`
+build: it updates 0.9.0 in place, so save a backup here before moving to the next GitHub version.
 
 ### Changed
 - **Two versions from one codebase:** `play` (Google Play, app ID `dev.earshot.foss`) and `foss`

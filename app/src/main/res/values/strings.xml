@@ -636,14 +636,13 @@
     <string name="modes_not_editable">Earshot can\'t edit custom modes on this model yet. You can still switch to them.</string>
 
     <!-- What's new sheet (0.9.0; also carries 0.8, which shipped without a sheet) -->
-    <string name="whats_new_title">What\'s new in Earshot 0.9</string>
-    <string name="whats_new_subtitle">A Sleep tab, plus what came in 0.8.</string>
-    <string name="whats_new_sleep">New Sleep tab: a sleep timer with rain, ocean, fire or your own sounds, and noise cancelling off for the night</string>
-    <string name="whats_new_alarm">Wake-up alarms in the earbuds, on the phone or both, with the phone as a safety net</string>
-    <string name="whats_new_find">Find my earbuds: a chirp that gets louder in the earbud you lost</string>
-    <string name="whats_new_jbl">JBL earbuds and headphones from 2021–24 (experimental, over Bluetooth LE)</string>
-    <string name="whats_new_history">Bluetooth history in the Lab: when your headsets connected and why they dropped</string>
-    <string name="whats_new_linked">Linked headsets: codec switching without Shizuku, and Earshot starts when they connect</string>
+    <string name="whats_new_title">What\'s new in Earshot 0.9.1</string>
+    <string name="whats_new_subtitle">A new look, backups and a lot of fixes.</string>
+    <string name="whats_new_aurora">Aurora: a second look with frosted glass and a green-blue glow. Choose it in More, App preferences, Appearance.</string>
+    <string name="whats_new_backup">Back up and restore: save your settings to one file and bring them back on a new phone (More).</string>
+    <string name="whats_new_labels">Honest support labels: one tag says how well your headset is supported. Tap it to see what works.</string>
+    <string name="whats_new_dark">Headings are readable again in dark themes.</string>
+    <string name="whats_new_fixes">A full code audit: fixes for connections, alarms, the EQ, privacy and security.</string>
     <string name="whats_new_done">Got it</string>
 
     <!-- 0.75: universal remote (Companion Device Manager link, any headset) -->

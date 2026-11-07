@@ -18,6 +18,4 @@
     <string name="call_codec_unknown_hint">Android keeps the call codec from apps, so this version of Earshot can\'t show it.</string>
     <string name="call_abs_volume_needs_shizuku">Not available in this version</string>
 
-    <!-- The What's New sheet (0.8 highlight) -->
-    <string name="whats_new_linked">Linked headsets: codec switching through the headset\'s link, and Earshot starts when they connect</string>
 </resources>

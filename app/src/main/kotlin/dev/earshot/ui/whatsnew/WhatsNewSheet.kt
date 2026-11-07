@@ -18,13 +18,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Celebration
-import androidx.compose.material.icons.filled.Earbuds
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -58,12 +57,11 @@ fun WhatsNewSheet(onDismiss: () -> Unit) {
 private data class Highlight(val icon: ImageVector, val text: Int)
 
 private val HIGHLIGHTS = listOf(
-    Highlight(Icons.Default.Bedtime, R.string.whats_new_sleep),
-    Highlight(Icons.Default.Alarm, R.string.whats_new_alarm),
-    Highlight(Icons.Default.NotificationsActive, R.string.whats_new_find),
-    Highlight(Icons.Default.Earbuds, R.string.whats_new_jbl),
-    Highlight(Icons.Default.History, R.string.whats_new_history),
-    Highlight(Icons.Default.Link, R.string.whats_new_linked),
+    Highlight(Icons.Default.Palette, R.string.whats_new_aurora),
+    Highlight(Icons.Default.Backup, R.string.whats_new_backup),
+    Highlight(Icons.Default.Verified, R.string.whats_new_labels),
+    Highlight(Icons.Default.DarkMode, R.string.whats_new_dark),
+    Highlight(Icons.Default.BugReport, R.string.whats_new_fixes),
 )
 
 @Composable
