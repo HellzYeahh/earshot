@@ -149,8 +149,7 @@ fun PreferencesContent(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Below Android 12 there is no wallpaper palette, so the choice would be a no-op: hidden.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) SectionCard(title = stringResource(R.string.prefs_appearance)) {
+            SectionCard(title = stringResource(R.string.prefs_appearance)) {
                 Text(
                     stringResource(R.string.prefs_appearance_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
@@ -159,11 +158,19 @@ fun PreferencesContent(
                 )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
-                        selected = prefs.appearance == Appearance.FIELD,
+                        // Below Android 12 a stored System colours draws Field, and its chip is hidden.
+                        selected = prefs.appearance == Appearance.FIELD ||
+                            (prefs.appearance == Appearance.SYSTEM && Build.VERSION.SDK_INT < Build.VERSION_CODES.S),
                         onClick = { onChange(prefs.copy(appearance = Appearance.FIELD)) },
                         label = { Text(stringResource(R.string.prefs_appearance_field)) },
                     )
                     FilterChip(
+                        selected = prefs.appearance == Appearance.AURORA,
+                        onClick = { onChange(prefs.copy(appearance = Appearance.AURORA)) },
+                        label = { Text(stringResource(R.string.prefs_appearance_aurora)) },
+                    )
+                    // Below Android 12 there is no wallpaper palette, so this choice would be a no-op: hidden.
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) FilterChip(
                         selected = prefs.appearance == Appearance.SYSTEM,
                         onClick = { onChange(prefs.copy(appearance = Appearance.SYSTEM)) },
                         label = { Text(stringResource(R.string.prefs_appearance_system)) },

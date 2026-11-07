@@ -1,5 +1,6 @@
 package dev.earshot.ui.onboarding
 
+import dev.earshot.ui.theme.legend
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -136,7 +137,7 @@ fun OnboardingContent(
     ) {
         Spacer(Modifier.height(16.dp))
         Icon(Icons.Default.Headphones, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(56.dp))
-        Text(stringResource(R.string.onboarding_title).uppercase(), style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.onboarding_title).legend(), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(R.string.onboarding_body), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         if (!hasBluetoothPermission || connection.status == ConnectionStatus.NO_PERMISSION) {

@@ -62,10 +62,11 @@ data class AutomationRule(
 )
 
 /**
- * Where the app's colours come from. The Field look (type, shapes, the dot grid) stays either
- * way; [SYSTEM] only swaps the palette for the wallpaper-derived one on Android 12+.
+ * The app's look. [FIELD] is the default; [AURORA] is frosted glass with an emerald-to-cyan glow;
+ * [SYSTEM] keeps Field's type, shapes and dot grid and only swaps the palette for the
+ * wallpaper-derived one on Android 12+. Stored by name, so the order is free to change.
  */
-enum class Appearance { FIELD, SYSTEM }
+enum class Appearance { FIELD, AURORA, SYSTEM }
 
 /** App-wide preferences that are not headphone state. */
 data class AppPreferences(

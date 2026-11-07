@@ -5,6 +5,7 @@ package dev.earshot.ui.more
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.BorderStroke
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -169,7 +170,7 @@ private fun SmallBadge(text: String, tonal: Boolean) {
         contentColor = if (tonal) EarshotTheme.colors.onChip else MaterialTheme.colorScheme.onSurfaceVariant,
         border = if (tonal) null else BorderStroke(1.dp, EarshotTheme.colors.hairline),
     ) {
-        Text(text.uppercase(), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+        Text(text.legend(), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }
 

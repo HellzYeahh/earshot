@@ -27,6 +27,7 @@ import dev.earshot.R
 import dev.earshot.core.SleepAbility
 import dev.earshot.ui.common.FieldSwitch
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 
 /*
  * Rows for night settings the headset may not support. "Tools never hide settings" (user
@@ -49,7 +50,7 @@ fun UnavailableNote(ability: SleepAbility, modifier: Modifier = Modifier) {
         Spacer(Modifier.width(6.dp))
         Column {
             Text(
-                stringResource(R.string.sleep_not_on_this_headset).uppercase(),
+                stringResource(R.string.sleep_not_on_this_headset).legend(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.tertiary,
             )
@@ -82,7 +83,7 @@ fun WhenLine(icon: ImageVector, headline: String, detail: String?, modifier: Mod
 @Composable
 fun ChoiceHeading(text: String, modifier: Modifier = Modifier) {
     Text(
-        text.uppercase(),
+        text.legend(),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(top = 12.dp, bottom = 4.dp),

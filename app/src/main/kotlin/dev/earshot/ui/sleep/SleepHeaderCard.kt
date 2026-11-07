@@ -39,6 +39,7 @@ import dev.earshot.ui.common.SectionCard
 import dev.earshot.ui.home.BatteryRing
 import dev.earshot.ui.home.formFactorIcon
 import dev.earshot.ui.home.formFactorLabel
+import dev.earshot.ui.theme.legend
 
 /**
  * Top of the Sleep tab: which headset the night will use, its batteries (Home's dials) and how
@@ -75,13 +76,13 @@ fun SleepHeaderCard(
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    (headset.name ?: stringResource(R.string.sleep_no_headset)).uppercase(),
+                    (headset.name ?: stringResource(R.string.sleep_no_headset)).legend(),
                     style = MaterialTheme.typography.titleLarge,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    statusLine(headset).uppercase(),
+                    statusLine(headset).legend(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 3.dp),
@@ -138,7 +139,7 @@ private fun BudBattery(level: BatteryLevel?, label: String, description: String,
     Column(modifier.clearAndSetSemantics { contentDescription = description }, horizontalAlignment = Alignment.CenterHorizontally) {
         BatteryRing(percent = level?.percent, charging = false, size = 48.dp, stroke = 5.dp, textStyle = MaterialTheme.typography.labelMedium)
         Text(
-            label.uppercase(),
+            label.legend(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

@@ -60,7 +60,7 @@ Protocol knowledge builds on these MIT-licensed projects: [bosectl](https://gith
 [momentum4-control](https://github.com/Ariazonaa/momentum4-control), [momentumctl](https://codeberg.org/galen/momentumctl),
 [SonyHeadphonesClient](https://github.com/mos9527/SonyHeadphonesClient), [jbl-control](https://github.com/AhmadRun/jbl-control), and
 [AutoEq](https://github.com/jaakkopasanen/AutoEq) for the correction curves. OpenSCQ30 (GPL-3.0) and
-Gadgetbridge (AGPL-3.0) were read for protocol facts only. Fonts: Barlow and JetBrains Mono (SIL OFL
+Gadgetbridge (AGPL-3.0) were read for protocol facts only. Fonts: Barlow, JetBrains Mono, Sora and Plus Jakarta Sans (SIL OFL
 1.1). Sleep sounds: public-domain field recordings from [radio aporee ::: maps](https://aporee.org/maps/)
 (recordists named in the app's About screen and in `tools/sleep-sounds/sources.json`). Reference
 copies and licences: `docs/reference/`.

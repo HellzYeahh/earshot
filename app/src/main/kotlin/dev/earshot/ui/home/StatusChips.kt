@@ -42,6 +42,7 @@ import dev.earshot.core.SecureSessionStatus
 import dev.earshot.ui.common.BannerTone
 import dev.earshot.ui.common.InfoBanner
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 
 /**
  * Small status chips under the Home header: mic muted, charging, live updates. Renders nothing
@@ -92,11 +93,15 @@ fun StatusChips(state: HeadphoneState, modifier: Modifier = Modifier) {
     }
 }
 
-/** An inverted tag: ink on sand by day, sand on ink at night, monospace capitals. */
+/**
+ * Field: an inverted tag (ink on sand by day, sand on ink at night, monospace capitals).
+ * Aurora: a soft pill tinted with the accent.
+ */
 @Composable
 private fun StatusChip(label: String, icon: ImageVector? = null, dot: Boolean = false, description: String? = null) {
     Surface(
-        shape = RoundedCornerShape(4.dp),
+        // 14 dp on a 28 dp chip is a full pill, but a label that wraps at a large font scale keeps sane corners.
+        shape = RoundedCornerShape(if (EarshotTheme.style.squareControls) 4.dp else 14.dp),
         color = EarshotTheme.colors.chip,
         contentColor = EarshotTheme.colors.onChip,
         modifier = if (description != null) Modifier.semantics { contentDescription = "$label. $description" } else Modifier,
@@ -107,11 +112,11 @@ private fun StatusChip(label: String, icon: ImageVector? = null, dot: Boolean = 
                 Spacer(Modifier.width(7.dp))
             }
             if (dot) {
-                // The orange lamp: "live" without an icon that reads as a warning.
-                androidx.compose.foundation.layout.Box(Modifier.size(8.dp).background(EarshotTheme.colors.accent, CircleShape))
+                // The lamp: "live" without an icon that reads as a warning (orange in Field, the gradient in Aurora).
+                androidx.compose.foundation.layout.Box(Modifier.size(8.dp).background(EarshotTheme.colors.accentBrush, CircleShape))
                 Spacer(Modifier.width(7.dp))
             }
-            Text(label.uppercase(), style = MaterialTheme.typography.labelSmall)
+            Text(label.legend(), style = MaterialTheme.typography.labelSmall)
         }
     }
 }

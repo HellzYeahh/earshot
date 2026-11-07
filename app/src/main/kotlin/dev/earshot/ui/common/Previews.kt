@@ -14,26 +14,30 @@ import dev.earshot.ui.LocalUiDependencies
 import dev.earshot.ui.UiDependencies
 import dev.earshot.ui.fakeUiDependencies
 import dev.earshot.ui.theme.EarshotTheme
-import dev.earshot.ui.theme.dotGrid
+import dev.earshot.ui.theme.earshotBackdrop
 
 /** Light + dark phone previews in one annotation. */
 @Preview(name = "Light", showBackground = true, heightDp = 860)
 @Preview(name = "Dark", showBackground = true, heightDp = 860, uiMode = Configuration.UI_MODE_NIGHT_YES)
 annotation class LightDarkPreview
 
-/** Theme + fake dependencies for `@Preview`s. Always the Field palette, so previews are stable. */
+/**
+ * Theme + fake dependencies for `@Preview`s. Field unless a preview asks for another look, never
+ * the wallpaper palette, so previews are stable.
+ */
 @Composable
 fun EarshotPreview(
     dependencies: UiDependencies = fakeUiDependencies(),
+    appearance: Appearance = Appearance.FIELD,
     content: @Composable () -> Unit,
 ) {
     CompositionLocalProvider(LocalUiDependencies provides dependencies) {
-        EarshotTheme(appearance = Appearance.FIELD) {
+        EarshotTheme(appearance = appearance) {
             Box(
                 Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
-                    .dotGrid(EarshotTheme.colors.dotGrid),
+                    .earshotBackdrop(),
             ) { content() }
         }
     }

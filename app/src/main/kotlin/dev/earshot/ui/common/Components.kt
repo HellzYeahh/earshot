@@ -67,6 +67,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.style.TextAlign
 import dev.earshot.R
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 
 /*
  * Small, reused building blocks. Everything here keeps a 48 dp touch target and reads well in
@@ -92,7 +93,7 @@ fun SectionCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = EarshotTheme.cardFill),
         border = BorderStroke(1.dp, EarshotTheme.colors.hairline),
     ) {
         Column(Modifier.padding(contentPadding)) {
@@ -103,7 +104,7 @@ fun SectionCard(
                 ) {
                     if (title != null) {
                         Text(
-                            title.uppercase(),
+                            title.legend(),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f),
@@ -152,9 +153,10 @@ fun SwitchRow(
     }
 }
 
-/** A 1 dp dashed rule, for separating rows inside one card. */
+/** A 1 dp rule for separating rows inside one card: dashed in Field, solid in Aurora. */
 @Composable
 fun DashedDivider(modifier: Modifier = Modifier, color: Color = EarshotTheme.colors.hairline) {
+    val dashed = EarshotTheme.style.squareControls
     Canvas(modifier.fillMaxWidth().height(1.dp)) {
         val dash = 4.dp.toPx()
         drawLine(
@@ -162,7 +164,7 @@ fun DashedDivider(modifier: Modifier = Modifier, color: Color = EarshotTheme.col
             Offset(0f, center.y),
             Offset(size.width, center.y),
             strokeWidth = size.height,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash)),
+            pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(dash, dash)) else null,
         )
     }
 }
@@ -263,8 +265,8 @@ fun ValueSlider(
         )
         if (startLabel != null || endLabel != null) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(startLabel.orEmpty().uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(endLabel.orEmpty().uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(startLabel.orEmpty().legend(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(endLabel.orEmpty().legend(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -298,7 +300,7 @@ fun <T> SegmentedChoice(
                 ),
                 // No check mark: the filled segment is the state.
                 icon = {},
-                label = { Text(label(option).uppercase(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                label = { Text(label(option).legend(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             )
         }
     }
@@ -409,7 +411,7 @@ fun SubScreenScaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(title.uppercase(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(title.legend(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
@@ -440,7 +442,7 @@ fun EmptyHint(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun SectionHeading(text: String, modifier: Modifier = Modifier) {
     Text(
-        text.uppercase(),
+        text.legend(),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp),

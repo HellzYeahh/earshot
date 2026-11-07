@@ -95,6 +95,8 @@ fun AboutContent(version: String, onBack: () -> Unit, onOpenPrivacyPolicy: () ->
                 Text(stringResource(R.string.about_fonts_credit), style = MaterialTheme.typography.bodyMedium)
                 CreditLine("Barlow, Barlow Condensed", "github.com/jpt/barlow", "OFL 1.1")
                 CreditLine("JetBrains Mono", "github.com/JetBrains/JetBrainsMono", "OFL 1.1")
+                CreditLine("Sora", "github.com/sora-xor/sora-font", "OFL 1.1")
+                CreditLine("Plus Jakarta Sans", "github.com/tokotype/PlusJakartaSans", "OFL 1.1")
                 Spacer(Modifier.height(8.dp))
                 // tools/sleep-sounds/sources.json is the full list (titles, files, how each loop was cut).
                 Text(stringResource(R.string.about_sleep_sounds_credit), style = MaterialTheme.typography.bodyMedium)

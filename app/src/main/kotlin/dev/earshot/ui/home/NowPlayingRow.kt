@@ -1,5 +1,6 @@
 package dev.earshot.ui.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -42,7 +44,9 @@ import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.FieldSlider
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.SectionCard
+import dev.earshot.ui.common.glowShadow
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -68,9 +72,9 @@ fun NowPlayingRow(
     SectionCard(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.now_playing_title).uppercase(), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.now_playing_title).legend(), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    playbackLabel(playback?.state).uppercase(),
+                    playbackLabel(playback?.state).legend(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 3.dp),
@@ -84,15 +88,21 @@ fun NowPlayingRow(
             // One toggle covers play and pause; it needs whichever command the current state calls for.
             val toggle = if (playing) TransportControl.PAUSE else TransportControl.PLAY
             if (toggle in supportedControls) {
+                val colors = EarshotTheme.colors
+                val shape = MaterialTheme.shapes.medium
+                // Aurora's play button is the accent gradient with a glow (a disabled one stays Material's grey).
+                val lit = !EarshotTheme.style.squareControls && enabled
                 FilledIconButton(
                     onClick = { onTransport(toggle) },
                     enabled = enabled,
-                    shape = MaterialTheme.shapes.medium,
+                    shape = shape,
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = EarshotTheme.colors.control,
-                        contentColor = EarshotTheme.colors.onControl,
+                        containerColor = if (lit) Color.Transparent else colors.control,
+                        contentColor = colors.onControl,
                     ),
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .then(if (lit) Modifier.glowShadow(colors.glow, shape).background(colors.controlBrush, shape) else Modifier),
                 ) {
                     Icon(
                         if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,

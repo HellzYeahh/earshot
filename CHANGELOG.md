@@ -29,6 +29,9 @@ Roadmap "1.0 plan" (set 2026-10-27).
   developer's PC).
 
 ### New
+- **Aurora, a second look:** frosted glass, an emerald-to-cyan glow, round controls and the Sora and
+  Plus Jakarta Sans fonts, in light and dark. Choose it in More, App preferences, Appearance. Field
+  stays the default and looks as before.
 - **Back up and restore** (More). Save your settings to one file, or load them back.
   - **Included:** EQ and presets, automations, headset settings, Sleep plan, alarms and mixes;
     your own sleep sounds are optional.
@@ -51,6 +54,8 @@ Roadmap "1.0 plan" (set 2026-10-27).
     are Battery only.
 
 ### Fixed (full code audit before the store release)
+- Headings outside a card (Welcome, Tools, Modes and others) were almost invisible in dark themes:
+  they fell back to black. They now use the theme's text colour.
 - **Other apps can no longer drive Earshot:**
   - Only a real headset press can start a voice memo.
   - Only Earshot's own notification and shortcut can ring the earbuds or start a sleep night.

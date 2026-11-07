@@ -1,5 +1,6 @@
 package dev.earshot.ui.more
 
+import dev.earshot.ui.theme.legend
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -146,7 +147,7 @@ fun MoreContent(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.tab_more).uppercase(), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+        Text(stringResource(R.string.tab_more).legend(), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
 
         // A restore that finished without its manifest (the staging half cleaned up) has no date:
         // the plain line then, as on the Backup screen, never "the backup made on ."

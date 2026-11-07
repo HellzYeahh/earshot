@@ -44,6 +44,7 @@ import dev.earshot.ui.common.SectionCard
 import dev.earshot.ui.common.VendorControlsCard
 import dev.earshot.ui.common.earshotViewModel
 import dev.earshot.ui.tools.DiagnosticsReport
+import dev.earshot.ui.theme.legend
 import kotlinx.coroutines.launch
 
 @Composable
@@ -224,7 +225,7 @@ private fun ConnectedControls(
             customActive = state.noise != null && state.currentMode == null,
         )
         Text(
-            stringResource(if (caps.favoriteModes) R.string.home_modes_hint else R.string.home_modes_hint_tap).uppercase(),
+            stringResource(if (caps.favoriteModes) R.string.home_modes_hint else R.string.home_modes_hint_tap).legend(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 4.dp, top = 2.dp),

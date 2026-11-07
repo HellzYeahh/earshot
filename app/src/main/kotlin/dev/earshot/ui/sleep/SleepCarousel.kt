@@ -64,7 +64,7 @@ private fun CarouselTile(text: String, selected: Boolean, onClick: () -> Unit) {
     val colors = EarshotTheme.colors
     val container by animateColorAsState(if (selected) colors.accent else MaterialTheme.colorScheme.surfaceContainer, label = "tileBg")
     val content by animateColorAsState(if (selected) colors.onAccent else MaterialTheme.colorScheme.onSurface, label = "tileFg")
-    val outline by animateColorAsState(if (selected) MaterialTheme.colorScheme.onSurface else colors.hairline, label = "tileBorder")
+    val outline by animateColorAsState(if (selected) EarshotTheme.chosenOutline else colors.hairline, label = "tileBorder")
     Surface(
         color = container,
         contentColor = content,

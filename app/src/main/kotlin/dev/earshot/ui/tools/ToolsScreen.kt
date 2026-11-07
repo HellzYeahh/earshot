@@ -52,6 +52,7 @@ import dev.earshot.ui.LocalUiDependencies
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 
 /** Where the Tools tab's rows lead. */
 data class ToolsNavigation(
@@ -97,7 +98,7 @@ fun ToolsContent(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.tab_tools).uppercase(), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+        Text(stringResource(R.string.tab_tools).legend(), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
         ToolCard(
             icon = Icons.Default.TouchApp,
             title = stringResource(R.string.tools_shortcuts),
@@ -149,7 +150,7 @@ fun ToolsContent(
 private fun ToolCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Card(
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = EarshotTheme.cardFill),
         border = BorderStroke(1.dp, EarshotTheme.colors.hairline),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     ) {

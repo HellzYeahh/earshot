@@ -31,12 +31,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 
 /**
- * The bottom tab bar (five tabs since the 0.9 Sleep tab) in Field's clothes: a hairline on top,
- * a squared orange indicator behind the chosen icon and monospace labels. Material's
- * `NavigationBar` only offers a pill indicator, so this is its own layout; the selection
- * semantics are the same.
+ * The bottom tab bar (five tabs since the 0.9 Sleep tab): a hairline on top, an indicator behind
+ * the chosen icon and short labels. Field's indicator is a squared orange block with monospace
+ * capitals; Aurora's is a soft pill tinted with the accent. Material's `NavigationBar` only
+ * offers its own pill indicator, so this is its own layout; the selection semantics are the same.
  */
 @Composable
 fun FieldNavigationBar(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
@@ -67,9 +68,10 @@ fun RowScope.FieldNavigationBarItem(
 ) {
     val colors = EarshotTheme.colors
     val scheme = MaterialTheme.colorScheme
-    val indicator by animateColorAsState(if (selected) colors.accent else Color.Transparent, label = "navIndicator")
-    val iconTint by animateColorAsState(if (selected) colors.onAccent else scheme.onSurfaceVariant, label = "navIcon")
+    val indicator by animateColorAsState(if (selected) colors.navIndicator else Color.Transparent, label = "navIndicator")
+    val iconTint by animateColorAsState(if (selected) colors.onNavIndicator else scheme.onSurfaceVariant, label = "navIcon")
     val labelColor by animateColorAsState(if (selected) scheme.onSurface else scheme.onSurfaceVariant, label = "navLabel")
+    val indicatorShape = RoundedCornerShape(if (EarshotTheme.style.squareControls) 6.dp else 15.dp)
     Column(
         modifier
             .weight(1f)
@@ -79,14 +81,14 @@ fun RowScope.FieldNavigationBarItem(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.size(width = 56.dp, height = 30.dp).background(indicator, RoundedCornerShape(6.dp)),
+            Modifier.size(width = 56.dp, height = 30.dp).background(indicator, indicatorShape),
             contentAlignment = Alignment.Center,
         ) {
             CompositionLocalProvider(LocalContentColor provides iconTint, content = icon)
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            label.uppercase(),
+            label.legend(),
             style = MaterialTheme.typography.labelSmall,
             color = labelColor,
             maxLines = 1,

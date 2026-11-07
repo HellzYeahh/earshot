@@ -5,7 +5,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 
 /*
@@ -42,6 +44,25 @@ data class EarshotColors(
     val dotGrid: Color,
     /** "It worked" text and ticks (a detected button). Material has no success role. */
     val ok: Color,
+    /**
+     * Fills for the lit things as brushes: flat in Field (the same colour as the role above),
+     * a gradient in Aurora. Material widgets that only take a colour keep using the colour.
+     */
+    val accentBrush: Brush = SolidColor(accent),
+    val controlBrush: Brush = SolidColor(control),
+    val fillBrush: Brush = SolidColor(fill),
+    /** The two ends of the accent gradient, for brushes that must be built per shape (the battery dial's sweep). */
+    val gradientFrom: Color = accent,
+    val gradientTo: Color = accent,
+    /** The soft halo behind lit things (Aurora); transparent where a look has none. */
+    val glow: Color = Color.Transparent,
+    /** A card's fill when it is see-through (Aurora's glass); unspecified = the scheme's `surfaceContainer`. */
+    val cardFill: Color = Color.Unspecified,
+    /** The tab bar's indicator and the icon on it. */
+    val navIndicator: Color = accent,
+    val onNavIndicator: Color = onAccent,
+    /** Colour glows behind the screen (Aurora); empty where the backdrop is something else. */
+    val glows: List<BackdropGlow> = emptyList(),
 ) {
     companion object {
         /** The same roles derived from a wallpaper (Material You) scheme, for the System colours option. */

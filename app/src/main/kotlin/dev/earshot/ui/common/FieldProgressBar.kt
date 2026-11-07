@@ -10,17 +10,19 @@ import androidx.compose.ui.unit.dp
 import dev.earshot.ui.theme.EarshotTheme
 
 /**
- * Determinate progress drawn like [FieldSlider]'s track: flat, square-ended, olive on sand,
- * without Material 3's gap and end dot. [progress] is read in the draw phase, as Material's is.
+ * Determinate progress drawn like [FieldSlider]'s track, without Material 3's gap and end dot:
+ * flat and square-ended in Field (olive on sand), rounded in Aurora. [progress] is read in the
+ * draw phase, as Material's is.
  */
 @Composable
 fun FieldProgressBar(progress: () -> Float, modifier: Modifier = Modifier) {
+    val square = EarshotTheme.style.squareControls
     LinearProgressIndicator(
         progress = progress,
-        modifier = modifier.fillMaxWidth().height(4.dp),
+        modifier = modifier.fillMaxWidth().height(if (square) 4.dp else 6.dp),
         color = EarshotTheme.colors.fill,
         trackColor = EarshotTheme.colors.track,
-        strokeCap = StrokeCap.Butt,
+        strokeCap = if (square) StrokeCap.Butt else StrokeCap.Round,
         gapSize = 0.dp,
         drawStopIndicator = {},
     )

@@ -68,6 +68,7 @@ import dev.earshot.core.SupportTier
 import dev.earshot.extras.HeadphoneLabels
 import dev.earshot.ui.LocalUiDependencies
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 import dev.earshot.ui.tools.DiagnosticsReport
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -126,16 +127,16 @@ fun SupportTierChip(state: HeadphoneState, modifier: Modifier = Modifier) {
 }
 
 /**
- * The tag itself: a hairline-framed legend with a lamp (green for Tested, the orange indicator for
- * Experimental, grey otherwise), in the monospace capitals of the status chips. The frame is drawn
- * at the text's size; the touch target is 48 dp.
+ * The tag itself: a hairline-framed legend with a lamp (green for Tested, a warm colour for
+ * Experimental, grey otherwise), in the status chips' legend style. The frame is drawn at the
+ * text's size; the touch target is 48 dp.
  */
 @Composable
 fun SupportTierTag(tier: SupportTier, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(tier.labelRes())
     val description = stringResource(R.string.support_tag_description, label)
     val action = stringResource(R.string.support_tag_action)
-    val shape = RoundedCornerShape(4.dp)
+    val shape = RoundedCornerShape(if (EarshotTheme.style.squareControls) 4.dp else 14.dp)
     Row(
         modifier
             .minimumInteractiveComponentSize()
@@ -150,7 +151,7 @@ fun SupportTierTag(tier: SupportTier, onClick: () -> Unit, modifier: Modifier = 
         TierLamp(tier)
         Spacer(Modifier.width(6.dp))
         Text(
-            label.uppercase(),
+            label.legend(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -170,7 +171,8 @@ private fun TierLamp(tier: SupportTier, size: Dp = 8.dp) {
 @Composable
 private fun tierColor(tier: SupportTier): Color = when (tier) {
     SupportTier.TESTED -> EarshotTheme.colors.ok
-    SupportTier.EXPERIMENTAL -> EarshotTheme.colors.accent
+    // Field's accent is orange; Aurora's is green like Tested, so it takes its warm warning colour.
+    SupportTier.EXPERIMENTAL -> if (EarshotTheme.style.squareControls) EarshotTheme.colors.accent else MaterialTheme.colorScheme.tertiary
     SupportTier.BATTERY_ONLY, SupportTier.ANY_HEADSET -> MaterialTheme.colorScheme.outline
 }
 

@@ -34,9 +34,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -63,6 +65,7 @@ import dev.earshot.ui.common.LightDarkPreview
 import dev.earshot.ui.common.SectionCard
 import dev.earshot.ui.common.SupportTierChip
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 import kotlin.math.PI
 
 /**
@@ -107,7 +110,7 @@ fun ConnectionHeader(
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        name.uppercase(),
+                        name.legend(),
                         style = MaterialTheme.typography.titleLarge,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -165,7 +168,7 @@ private fun MetaLine(text: String, icon: ImageVector?, iconDescription: String, 
             Spacer(Modifier.width(6.dp))
         }
         Text(
-            text.uppercase(),
+            text.legend(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
@@ -224,7 +227,7 @@ private fun BudBattery(level: BatteryLevel?, label: String, description: String,
     Column(modifier.clearAndSetSemantics { contentDescription = description }, horizontalAlignment = Alignment.CenterHorizontally) {
         BatteryRing(percent = level?.percent, charging = false, size = 52.dp, stroke = 5.dp, textStyle = MaterialTheme.typography.labelMedium)
         Text(
-            label.uppercase(),
+            label.legend(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -265,8 +268,9 @@ private fun statusLabel(connection: ConnectionState): String = when (connection.
 }
 
 /**
- * Battery dial: a 270° square-ended arc inside a ring of tick marks, like a level meter.
- * `percent == null` draws the ticks and an empty arc.
+ * Battery dial: a 270° arc. Field: square-ended inside a ring of tick marks, like a level meter.
+ * Aurora: a round-ended arc in the accent gradient with a faint halo. `percent == null` draws
+ * the empty track (and the ticks, in Field).
  */
 @Composable
 fun BatteryRing(
@@ -282,13 +286,17 @@ fun BatteryRing(
         animationSpec = tween(600),
         label = "battery",
     )
-    val track = EarshotTheme.colors.track
+    val colors = EarshotTheme.colors
+    val ticked = EarshotTheme.style.tickDial
+    val track = colors.track
     val ticks = MaterialTheme.colorScheme.onSurfaceVariant
+    // Low levels keep a warning colour; only a healthy level takes the look's own (brush) fill.
+    val healthy = percent != null && percent > 30
     val fill = when {
         percent == null -> MaterialTheme.colorScheme.outline
         percent <= 15 -> MaterialTheme.colorScheme.error
         percent <= 30 -> MaterialTheme.colorScheme.tertiary
-        else -> EarshotTheme.colors.dial
+        else -> colors.dial
     }
     val description = when {
         percent == null -> stringResource(R.string.battery_unknown)
@@ -297,25 +305,44 @@ fun BatteryRing(
     }
     Box(modifier.size(size).semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size)) {
-            // Proportions from the 72 dp design: ticks on the rim, the arc at three quarters of the radius.
+            // Proportions from the 72 dp design: Field has ticks on the rim and the arc at three
+            // quarters of the radius; Aurora's arc sits at 30/36 of it, a seventh thicker.
             val radius = this.size.minDimension / 2
-            val tickWidth = radius * (3f / 36f)
-            val tickRadius = radius - tickWidth / 2
-            val tickLength = radius * (1.5f / 36f)
-            val tickGap = (2 * PI.toFloat() * tickRadius) / TICK_COUNT - tickLength
-            drawCircle(
-                ticks,
-                radius = tickRadius,
-                style = Stroke(tickWidth, cap = StrokeCap.Butt, pathEffect = PathEffect.dashPathEffect(floatArrayOf(tickLength, tickGap))),
-                alpha = 0.75f,
-            )
-            val strokePx = stroke.toPx()
-            val arcRadius = radius * 0.75f
+            if (ticked) {
+                val tickWidth = radius * (3f / 36f)
+                val tickRadius = radius - tickWidth / 2
+                val tickLength = radius * (1.5f / 36f)
+                val tickGap = (2 * PI.toFloat() * tickRadius) / TICK_COUNT - tickLength
+                drawCircle(
+                    ticks,
+                    radius = tickRadius,
+                    style = Stroke(tickWidth, cap = StrokeCap.Butt, pathEffect = PathEffect.dashPathEffect(floatArrayOf(tickLength, tickGap))),
+                    alpha = 0.75f,
+                )
+            }
+            val strokePx = if (ticked) stroke.toPx() else stroke.toPx() * (7f / 6f)
+            val cap = if (ticked) StrokeCap.Butt else StrokeCap.Round
+            val arcRadius = radius * if (ticked) 0.75f else (30f / 36f)
             val arcTopLeft = Offset(center.x - arcRadius, center.y - arcRadius)
             val arcSize = Size(arcRadius * 2, arcRadius * 2)
-            drawArc(track, startAngle = 135f, sweepAngle = 270f, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(strokePx, cap = StrokeCap.Butt))
+            drawArc(track, startAngle = 135f, sweepAngle = 270f, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(strokePx, cap = cap))
             if (percent != null) {
-                drawArc(fill, startAngle = 135f, sweepAngle = 270f * fraction, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(strokePx, cap = StrokeCap.Butt))
+                val sweep = 270f * fraction
+                if (!ticked && healthy && colors.glow.alpha > 0f) {
+                    // A faint halo under the lit arc: the same arc, wider and mostly transparent.
+                    drawArc(colors.glow.copy(alpha = colors.glow.alpha * 0.5f), startAngle = 135f, sweepAngle = sweep, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(strokePx * 1.9f, cap = cap))
+                }
+                if (!ticked && healthy) {
+                    // Aurora: a sweep gradient turned to start where the arc does (135°), so the colour
+                    // runs along the dial from its start to its end instead of diagonally across it.
+                    val sweepBrush = Brush.sweepGradient(0f to colors.gradientFrom, 0.75f to colors.gradientTo, 1f to colors.gradientTo, center = center)
+                    rotate(135f, pivot = center) {
+                        drawArc(sweepBrush, startAngle = 0f, sweepAngle = sweep, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(strokePx, cap = cap))
+                    }
+                } else {
+                    // Field draws its dial colour; a low level keeps its warning colour in either look.
+                    drawArc(fill, startAngle = 135f, sweepAngle = sweep, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(strokePx, cap = cap))
+                }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {

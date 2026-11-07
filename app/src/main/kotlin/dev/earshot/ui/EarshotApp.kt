@@ -50,7 +50,7 @@ import dev.earshot.ui.onboarding.NotificationPromptStore
 import dev.earshot.ui.onboarding.OnboardingScreen
 import dev.earshot.ui.onboarding.Permissions
 import dev.earshot.ui.theme.EarshotTheme
-import dev.earshot.ui.theme.dotGrid
+import dev.earshot.ui.theme.earshotBackdrop
 import dev.earshot.ui.whatsnew.WhatsNew
 import dev.earshot.ui.whatsnew.WhatsNewSheet
 import dev.earshot.ui.whatsnew.WhatsNewStore
@@ -225,12 +225,12 @@ fun EarshotRoot(tabRequests: StateFlow<NavRequest?>, onTabRequestHandled: () -> 
     val currentTab = Tab.forRoute(backStackEntry?.destination?.route)
     val gated = isOnboardingGate(hasBluetooth, status)
 
-    // The dot grid is drawn once here, under everything; the sub-screen scaffolds stay transparent.
+    // The backdrop (Field's dot grid, Aurora's glows) is drawn once here, under everything; the sub-screen scaffolds stay transparent.
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .dotGrid(EarshotTheme.colors.dotGrid),
+            .earshotBackdrop(),
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {

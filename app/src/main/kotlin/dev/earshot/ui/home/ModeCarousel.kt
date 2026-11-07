@@ -3,8 +3,10 @@
 package dev.earshot.ui.home
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -45,7 +48,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.earshot.R
 import dev.earshot.core.ListeningMode
+import dev.earshot.ui.common.glowShadow
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 
 /**
  * Big chips for every preset and every configured custom slot. Tap = switch mode; long-press =
@@ -71,12 +76,12 @@ fun ModeCarousel(
 ) {
     val visible = modes.filter { it.isPreset || it.isConfigured }
     Row(modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(stringResource(R.string.home_modes_title).uppercase(), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.home_modes_title).legend(), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         if (canEdit) TextButton(onClick = onEditModes, modifier = Modifier.heightIn(min = 48.dp)) {
             // A monospace label underlined in orange: Field's link.
             val underline = EarshotTheme.colors.accent
             Text(
-                stringResource(R.string.action_edit_modes).uppercase(),
+                stringResource(R.string.action_edit_modes).legend(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.drawBehind {
@@ -96,7 +101,8 @@ fun ModeCarousel(
     LazyRow(
         state = listState,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
-        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp),
+        // Room above and below for Aurora's glow, which the row would otherwise clip (Field has none).
+        contentPadding = PaddingValues(horizontal = 2.dp, vertical = if (EarshotTheme.style.squareControls) 4.dp else 12.dp),
     ) {
         if (customActive) item(key = "custom") { CustomChip() }
         items(visible, key = { it.index }) { mode ->
@@ -115,23 +121,31 @@ fun ModeCarousel(
 @Composable
 private fun CustomChip() {
     val currentLabel = stringResource(R.string.mode_current)
+    val colors = EarshotTheme.colors
+    val shape = MaterialTheme.shapes.medium
+    // Field: orange with an ink outline. Aurora: the accent gradient with a glow, no outline.
+    val gradient = !EarshotTheme.style.squareControls
     Surface(
-        color = EarshotTheme.colors.accent,
-        contentColor = EarshotTheme.colors.onAccent,
-        shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface),
+        color = if (gradient) Color.Transparent else colors.accent,
+        contentColor = colors.onAccent,
+        shape = shape,
+        border = if (gradient) null else BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface),
         modifier = Modifier
             .heightIn(min = 56.dp)
+            .then(if (gradient) Modifier.glowShadow(colors.glow, shape).background(colors.accentBrush, shape) else Modifier)
             .semantics { selected = true; stateDescription = currentLabel },
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.Center) {
-            Text(stringResource(R.string.mode_custom).uppercase(), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+            Text(stringResource(R.string.mode_custom).legend(), style = MaterialTheme.typography.titleMedium, maxLines = 1)
             Text(stringResource(R.string.mode_custom_subtitle), style = MaterialTheme.typography.bodySmall, maxLines = 1)
         }
     }
 }
 
-/** Selected: orange with an ink outline. Otherwise a card-coloured tile with a hairline. */
+/**
+ * Field: selected is orange with an ink outline. Aurora: selected is the accent gradient with a
+ * glow. Otherwise a card-coloured tile with a hairline.
+ */
 @Composable
 private fun ModeChip(
     mode: ListeningMode,
@@ -142,8 +156,14 @@ private fun ModeChip(
 ) {
     val haptics = LocalHapticFeedback.current
     val colors = EarshotTheme.colors
+    val shape = MaterialTheme.shapes.medium
+    val gradient = !EarshotTheme.style.squareControls
+    val tile = EarshotTheme.cardFill
+    // Aurora's gradient and glow fade with the label colour instead of appearing at once; the
+    // tile fades to its own colour at zero alpha (animating to Color.Transparent passes through black).
+    val lit by animateFloatAsState(if (selected && gradient) 1f else 0f, label = "chipLit")
     val container by animateColorAsState(
-        if (selected) colors.accent else MaterialTheme.colorScheme.surfaceContainer,
+        if (selected) (if (gradient) tile.copy(alpha = 0f) else colors.accent) else tile,
         label = "chipBg",
     )
     val content by animateColorAsState(
@@ -151,7 +171,7 @@ private fun ModeChip(
         label = "chipFg",
     )
     val outline by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.onSurface else colors.hairline,
+        if (selected) (if (gradient) colors.hairline.copy(alpha = 0f) else EarshotTheme.chosenOutline) else colors.hairline,
         label = "chipBorder",
     )
     val favouriteLabel = stringResource(R.string.mode_favourite)
@@ -159,10 +179,11 @@ private fun ModeChip(
     Surface(
         color = container,
         contentColor = content,
-        shape = MaterialTheme.shapes.medium,
+        shape = shape,
         border = BorderStroke(1.dp, outline),
         modifier = Modifier
             .heightIn(min = 56.dp)
+            .then(if (lit > 0f) Modifier.glowShadow(colors.glow, shape, intensity = lit).background(colors.accentBrush, shape, alpha = lit) else Modifier)
             .semantics {
                 role = Role.Button
                 this.selected = selected
@@ -189,7 +210,7 @@ private fun ModeChip(
                 Spacer(Modifier.width(6.dp))
             }
             Text(
-                mode.name.ifBlank { stringResource(R.string.mode_slot_number, mode.index) }.uppercase(),
+                mode.name.ifBlank { stringResource(R.string.mode_slot_number, mode.index) }.legend(),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

@@ -47,9 +47,13 @@ import dev.earshot.core.SleepSession
 import dev.earshot.core.fake.FakeSleepRepository
 import dev.earshot.ui.common.EarshotPreview
 import dev.earshot.ui.common.LightDarkPreview
+import dev.earshot.ui.theme.AuroraDarkColors
+import dev.earshot.ui.theme.AuroraDarkScheme
+import dev.earshot.ui.theme.EarshotTheme
 import dev.earshot.ui.theme.FieldDarkColors
 import dev.earshot.ui.theme.FieldDarkScheme
 import dev.earshot.ui.theme.LocalEarshotColors
+import dev.earshot.ui.theme.legend
 
 /**
  * The tab while a session runs: dim, big time left, what the night will still do, and the two
@@ -68,11 +72,13 @@ fun NightView(ui: SleepUiState, actions: SleepActions, contentPadding: PaddingVa
 }
 
 /**
- * Field's night palette whatever the app theme, on its darkest surface. A light theme would
- * light up the bedroom; an already-dark theme (Field or the wallpaper's) is kept as it is.
+ * The look's own night palette whatever the app theme (Field's, or Aurora's when that is the
+ * look), on its darkest surface. A light theme would light up the bedroom; an already-dark
+ * theme (Field, Aurora or the wallpaper's) is kept as it is.
  */
 @Composable
 private fun NightSurface(content: @Composable () -> Unit) {
+    val aurora = !EarshotTheme.style.squareControls
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val body = @Composable {
         Surface(
@@ -85,8 +91,13 @@ private fun NightSurface(content: @Composable () -> Unit) {
     if (dark) {
         body()
     } else {
-        CompositionLocalProvider(LocalEarshotColors provides FieldDarkColors) {
-            MaterialTheme(colorScheme = FieldDarkScheme, shapes = MaterialTheme.shapes, typography = MaterialTheme.typography, content = body)
+        CompositionLocalProvider(LocalEarshotColors provides (if (aurora) AuroraDarkColors else FieldDarkColors)) {
+            MaterialTheme(
+                colorScheme = if (aurora) AuroraDarkScheme else FieldDarkScheme,
+                shapes = MaterialTheme.shapes,
+                typography = MaterialTheme.typography,
+                content = body,
+            )
         }
     }
 }
@@ -107,7 +118,7 @@ private fun RunningNight(session: SleepSession.Running, ui: SleepUiState, action
     ) {
         Spacer(Modifier.height(16.dp))
         Text(
-            (session.headsetName ?: stringResource(R.string.sleep_night_title)).uppercase(),
+            (session.headsetName ?: stringResource(R.string.sleep_night_title)).legend(),
             style = MaterialTheme.typography.labelMedium,
             color = muted,
             textAlign = TextAlign.Center,
@@ -143,7 +154,7 @@ private fun RunningNight(session: SleepSession.Running, ui: SleepUiState, action
 
         if (ui.state.log.isNotEmpty()) {
             Column(Modifier.widthIn(max = 480.dp).fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(stringResource(R.string.sleep_log_heading).uppercase(), style = MaterialTheme.typography.labelSmall, color = muted)
+                Text(stringResource(R.string.sleep_log_heading).legend(), style = MaterialTheme.typography.labelSmall, color = muted)
                 ui.state.log.forEach { LogLine(it) }
             }
         }
@@ -164,7 +175,7 @@ private fun SnoozedNight(session: SleepSession.Snoozed, actions: SleepActions, c
     ) {
         Spacer(Modifier.height(48.dp))
         Text(
-            (session.label?.takeIf { it.isNotBlank() } ?: stringResource(R.string.sleep_snoozed_title)).uppercase(),
+            (session.label?.takeIf { it.isNotBlank() } ?: stringResource(R.string.sleep_snoozed_title)).legend(),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -186,7 +197,11 @@ private fun Countdown(untilMillis: Long) {
     val now = rememberNow(1_000)
     Text(
         SleepLogic.countdown(untilMillis - now, currentLocale()),
-        style = MaterialTheme.typography.displayLarge.copy(fontSize = fixedSize(80.dp), lineHeight = fixedSize(84.dp)),
+        // Aurora's digits are wider: "6:00:00" has to fit a 360 dp phone.
+        style = MaterialTheme.typography.displayLarge.copy(
+            fontSize = fixedSize(if (EarshotTheme.style.squareControls) 80.dp else 68.dp),
+            lineHeight = fixedSize(if (EarshotTheme.style.squareControls) 84.dp else 72.dp),
+        ),
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
         maxLines = 1,
         softWrap = false,

@@ -12,8 +12,9 @@
 
     <!-- Appearance -->
     <string name="prefs_appearance">Appearance</string>
-    <string name="prefs_appearance_subtitle">Field is Earshot\'s own look. System colours keeps it but takes the palette from your wallpaper.</string>
+    <string name="prefs_appearance_subtitle">Field is Earshot\'s own look. Aurora is frosted glass with a green-blue glow. System colours (Android 12 and up) keeps Field\'s type and shapes but takes the palette from your wallpaper.</string>
     <string name="prefs_appearance_field">Field</string>
+    <string name="prefs_appearance_aurora">Aurora</string>
     <string name="prefs_appearance_system">System colours</string>
     <string name="about_fonts_credit">Typefaces, bundled under the SIL Open Font License 1.1:</string>
 

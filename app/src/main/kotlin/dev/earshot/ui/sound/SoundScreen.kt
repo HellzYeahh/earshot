@@ -4,6 +4,7 @@ package dev.earshot.ui.sound
 
 import androidx.compose.foundation.BorderStroke
 import dev.earshot.ui.theme.EarshotTheme
+import dev.earshot.ui.theme.legend
 import android.os.Build
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -164,7 +165,7 @@ fun SoundContent(
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { Text(stringResource(R.string.tab_sound).uppercase(), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)) }
+        item { Text(stringResource(R.string.tab_sound).legend(), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)) }
         // The headphones' own EQ only where the model has one ([1.7] answered); the Pro EQ below is
         // phone-side and works with any headphones, so it always stays.
         if (headphoneState.capabilities.ownSettings && (!settingsLoaded || headphoneState.eq != null)) item {
@@ -347,7 +348,7 @@ private fun PresetChips(
                 shape = MaterialTheme.shapes.small,
                 color = if (selected) EarshotTheme.colors.accent else MaterialTheme.colorScheme.surfaceContainer,
                 contentColor = if (selected) EarshotTheme.colors.onAccent else MaterialTheme.colorScheme.onSurface,
-                border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.onSurface else EarshotTheme.colors.hairline),
+                border = BorderStroke(1.dp, if (selected) EarshotTheme.chosenOutline else EarshotTheme.colors.hairline),
                 modifier = Modifier
                     .defaultMinSize(minHeight = 40.dp)
                     .combinedClickable(
@@ -357,7 +358,7 @@ private fun PresetChips(
                     ),
             ) {
                 Text(
-                    preset.name.uppercase(),
+                    preset.name.legend(),
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),

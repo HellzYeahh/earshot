@@ -69,7 +69,9 @@ fun AlarmRingingScreen(
         // At least a screen tall, so Stop sits at the bottom where the thumb is; scrolls on a small one.
         val screen = maxHeight
         // Sized from the width, not the font scale, so "10:30 AM" stays on one line on a 360 dp phone.
-        val clockSize = fixedSize(minOf(112.dp, (maxWidth - 48.dp) * 0.34f))
+        // Aurora's digits are wider than Field's condensed ones, so they get a smaller share.
+        val wideDigits = !EarshotTheme.style.squareControls
+        val clockSize = fixedSize(minOf(if (wideDigits) 88.dp else 112.dp, (maxWidth - 48.dp) * (if (wideDigits) 0.27f else 0.34f)))
         Column(
             Modifier
                 .fillMaxWidth()
