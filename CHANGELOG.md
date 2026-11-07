@@ -2,11 +2,9 @@
 
 ## Unreleased — preparing 1.0 for Google Play
 
-Roadmap "1.0 plan" (set 2026-10-27).
-
 ### Changed
 - **Two versions from one codebase:** `play` (Google Play, app ID `dev.earshot.foss`) and `foss`
-  (GitHub, F-Droid and IzzyOnDroid, `dev.earshot.github`, always everything free). The GitHub build
+  (GitHub, F-Droid and IzzyOnDroid, `dev.earshot.github`). The GitHub build
   notices an older `dev.earshot` install and offers to open its App info page.
 - **Release signing:** release builds are signed only with the keys in `keystore.properties`
   (`docs/release-signing.md`), one per version; without it they come out unsigned, never with the
@@ -19,14 +17,14 @@ Roadmap "1.0 plan" (set 2026-10-27).
     passes `apksigner verify`, isn't debug-signed and isn't debuggable.
   - `--bridge` and `--installs-over` cover the one-time 0.9.1 bridge
     (`docs/release-signing.md`).
-- **Targets Android 17 (API 37).** It was checked on a Galaxy Z Fold7:
+- **Targets Android 17 (API 37).** It was checked on a Samsung phone:
   - the Bose connect works;
   - a dropped link is reported as a drop and reconnects;
   - sleep sounds keep playing with the screen off;
   - the alarm rings on time;
   - Earshot asks for location only when you tap.
-- **Builds anywhere:** the project no longer pins a Windows JDK path (`gw.cmd` still sets it on the
-  developer's PC).
+- **Builds anywhere:** the project no longer pins a Windows JDK path (`gw.cmd` still sets it on a
+  local machine).
 
 ### New
 - **Aurora, a second look:** frosted glass, an emerald-to-cyan glow, round controls and the Sora and
@@ -93,8 +91,8 @@ Roadmap "1.0 plan" (set 2026-10-27).
 
 ## 0.9.0 — 2026-10-27
 
-The first part of roadmap 0.9: the Sleep tab. The rest of the 0.9 plan ("tie it together") follows
-in 0.9.x updates before 1.0.
+The first part of 0.9: the Sleep tab. The rest of 0.9 ("tie it together") follows in 0.9.x updates
+before 1.0.
 
 ### New
 - **Sleep tab** (a fifth tab; design in `docs/sleep-mode.md`). For any headset: a sleep timer from
@@ -113,7 +111,7 @@ in 0.9.x updates before 1.0.
   phone speaker. "Start sleep" is also in the launcher's long-press menu. New permissions: media
   playback foreground service, exact alarms ("Alarms & reminders", asked for on the tab), the
   full-screen alarm, vibration and, only if you turn Do Not Disturb on, notification-policy
-  access. Checked on the Fold7 for layout and on the emulator; a full night on real headsets is
+  access. Checked on a Samsung phone for layout and on the emulator; a full night on real headsets is
   still to be tested.
 
 ### Changed
@@ -122,11 +120,10 @@ in 0.9.x updates before 1.0.
 
 ## 0.8.0 — 2026-10-26
 
-Roadmap 0.8, items 1–6 and 8 and the JBL driver (item 7, Google Play preparation, moved to 0.9;
-the Pixel Buds Pro driver dropped): the platform pieces for new drivers, the first of them (JBL),
-Find my earbuds and a Bluetooth history. The companion-device pieces were tested on a Galaxy Z
-Fold7 (One UI 9, Android 17) with the QC Ultra 2; the GATT link, the JBL driver and RACE have not
-met real JBL or Airoha hardware.
+The platform pieces for new drivers, the first of them (JBL), Find my earbuds and a Bluetooth
+history. Google Play preparation moved to 0.9 and the Pixel Buds Pro driver was dropped. The
+companion-device pieces were tested on a Samsung phone (One UI 9, Android 17) with the QC Ultra 2;
+the GATT link, the JBL driver and RACE have not met real JBL or Airoha hardware.
 
 ### New
 - **Find my earbuds** (Tools → Find my earbuds, or Find my headphones). Earshot plays a two-note
@@ -143,12 +140,12 @@ met real JBL or Airoha hardware.
   headphones' last 40 events.
 - **Codec switching without Shizuku for a linked headset (Android 13+, experimental).** Android
   accepts the companion link in place of the privileged permission for reading and setting the
-  music codec. On the Fold7 with Shizuku stopped: the codec read, AAC → SBC in about 60 ms, and
+  music codec. On a Samsung phone with Shizuku stopped: the codec read, AAC → SBC in about 60 ms, and
   back with Best quality. When a phone refuses, Shizuku stays the way, as before.
 - **Linked headsets bring Earshot back by themselves.** A headset linked in Tools → Controls →
   Universal remote now starts Earshot when it connects, even when the app was closed, without
   relying on the Bluetooth broadcast. Android also restarts Earshot about 10 s after its process
-  dies while the headset is connected, and Earshot then reconnects (seen on the Fold7) unless you
+  dies while the headset is connected, and Earshot then reconnects (seen on a Samsung phone) unless you
   force-stopped it yourself, so a force-stop still frees the connection for the maker's app.
   Reliable on Android 16 and later (Android reports each connection); on Android 12–15 it is best
   effort and the Bluetooth broadcast stays the fallback. Only a real connection counts, so a
@@ -214,7 +211,7 @@ met real JBL or Airoha hardware.
 ## 0.75.0 — 2026-10-21
 
 **Any headset, and the first drivers beyond Bose.** Earshot is becoming the companion app for every
-Bluetooth headset, not just Bose (plan: [docs/roadmap.md](docs/roadmap.md)). Every headset now gets
+Bluetooth headset, not just Bose. Every headset now gets
 the features that work through Android itself, a universal remote, and a new look; Sennheiser, Sony,
 more Soundcore models and the Skullcandy Method buds get their own experimental drivers, built from
 protocol research ([docs/research/reports](docs/research/reports)). Bose keeps its full control.

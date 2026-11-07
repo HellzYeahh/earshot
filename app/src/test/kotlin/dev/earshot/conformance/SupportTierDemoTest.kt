@@ -37,7 +37,7 @@ class SupportTierDemoTest(private val device: DemoDevice) {
 
         /** The tier each demo device's model has. Tested = Earshot has run on that model's real hardware. */
         fun expected(d: DemoDevice): SupportTier = when (d) {
-            // The user's own QC Ultra 2 and Sleep A30.
+            // The models run on real hardware.
             DemoDevice.QC_ULTRA, DemoDevice.SOUNDCORE_SLEEP_A30 -> SupportTier.TESTED
 
             // Bose Connect era: battery and product info only. AirPods: each bud and the case from the adverts.

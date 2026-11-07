@@ -102,7 +102,7 @@ class VirtualEndToEndTest {
         assertEquals("Fargo", s.info?.customName)
         assertEquals(0x4082, s.info?.productId)
         assertEquals("68:F2:1F:12:34:56", s.info?.bluetoothAddress)
-        assertEquals("085958T53330200AB", s.info?.serialNumber)
+        assertEquals("085958T00000000AB", s.info?.serialNumber)
 
         assertEquals(HeadphoneEq(bass = 0, mid = -2, treble = -6), s.eq)
         assertEquals(Sidetone.MEDIUM, s.sidetone)
@@ -176,15 +176,15 @@ class VirtualEndToEndTest {
         assertEquals("Fargo", s.info?.customName)
 
         // Routing: first attempt finds the table empty, the retry (500 ms virtual) succeeds.
-        s = protocol.switchToDevice(requester, s, "94:45:60:85:05:A7")
-        assertEquals("94:45:60:85:05:A7", s.pairedDevices.single { it.isActiveSource }.address)
+        s = protocol.switchToDevice(requester, s, "94:45:60:AA:BB:CC")
+        assertEquals("94:45:60:AA:BB:CC", s.pairedDevices.single { it.isActiveSource }.address)
 
         // A second refresh sees everything that was written.
         val again = protocol.refresh(requester, s)
         assertEquals(HeadphoneEq(5, 0, -3), again.eq)
         assertEquals("Office", again.modes[5].name)
         assertEquals("Fargo", again.info?.customName)
-        assertEquals("94:45:60:85:05:A7", again.pairedDevices.single { it.isActiveSource }.address)
+        assertEquals("94:45:60:AA:BB:CC", again.pairedDevices.single { it.isActiveSource }.address)
 
         // New writes
         // Switching touch off writes 00 and the unit reports it off; back on writes 01.

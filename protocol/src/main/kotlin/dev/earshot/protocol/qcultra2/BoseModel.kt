@@ -153,7 +153,7 @@ enum class BoseModel(
         hasNoiseCancelling = true, hasWindBlock = true, directCnc = false, presetNames = ULTRA_PRESETS,
         presetSlots = QcUltra2.PRESET_MODE_SLOTS, editableSlots = QcUltra2.EDITABLE_MODE_SLOTS,
         slotCount = QcUltra2.MODE_SLOT_COUNT, knownAbsent = emptySet(), verified = true,
-        // The user's own pair, firmware 10.12.12 (2026-10-16).
+        // A real pair, firmware 10.12.12 (2026-10-16).
         tested = true,
     ),
 

@@ -66,7 +66,7 @@ The AirPods change is a **Bluetooth-stack fix**, not a new API: it removes the L
 
 ### Inferences
 - **Nothing new for BMAP.** Earshot's reflection call `createInsecureRfcommSocket(int)` (unsupported list, allowed) is still the only way to pick an RFCOMM channel. `BluetoothSocketSettings` with `TYPE_RFCOMM` is functionally the same as `create(Insecure)RfcommSocketToServiceRecord(UUID)`: SDP only. It adds nothing for BMAP except a tidier API for the SDP fallbacks on API 36+.
-- **"Android 17 opened L2CAP for AirPods" is only half true.** The stack now lets the AirPods channel come up, but opening classic L2CAP still needs a **blocklisted** non-SDK constructor. That means a hidden-API bypass, either a JNI `setHiddenApiExemptions` call as LibrePods does or a bypass library. Roadmap item C2 should be treated as "requires a hidden-API bypass" and as a policy/stability risk: Google can close bypasses in any release. Android 17's static-final rule shows Google is still tightening reflection.
+- **"Android 17 opened L2CAP for AirPods" is only half true.** The stack now lets the AirPods channel come up, but opening classic L2CAP still needs a **blocklisted** non-SDK constructor. That means a hidden-API bypass, either a JNI `setHiddenApiExemptions` call as LibrePods does or a bypass library. AirPods modes should be treated as "requires a hidden-API bypass" and as a policy/stability risk: Google can close bypasses in any release. Android 17's static-final rule shows Google is still tightening reflection.
 - **Clean-room only.** Any Earshot implementation must be written from our own knowledge or from the AOSP signatures, not from LibrePods code (GPL-3.0).
 - **Delivery.** On Pixel the fix reached Android 16 QPR3 through a Play system update, which suggests it lives in the updatable Bluetooth module. Devices whose OEM ships a modified stack may not get it until their Android 17 build.
 - **Action item.** Earshot's `BmapConnection` and Bragi read loops must treat `read() == -1` as end-of-stream before Earshot targets API 37.
@@ -150,7 +150,7 @@ There is no headset device profile. The Android 14–17 additions (system data s
   - presence binding: API 36+, with the older `onDeviceAppeared` flow on API 31–35;
   - connect/disconnect: API 37+;
   - ACL disconnect: version 37.2.
-- **Association onboarding.** A per-headset association with `setSingleDevice(true)` and a MAC filter should not require re-pairing, because bonded devices are searched. This fits onboarding item F4 in the roadmap.
+- **Association onboarding.** A per-headset association with `setSingleDevice(true)` and a MAC filter should not require re-pairing, because bonded devices are searched.
 - **Wiring.** The presence service can replace the ACL receiver for associated headsets. `EVENT_BT_CONNECTED` / `EVENT_BT_DISCONNECTED` should work for classic-only headsets; BLE appear events are a bonus for dual-mode devices.
 
 ### Gaps
@@ -224,7 +224,7 @@ Earshot's UI line is essentially correct for Bluetooth headphones. Play allows a
 
 ### Gaps
 - Samsung One UI's AVRCP handling (whether it injects through an input device that accessibility could see) is unverified. Key Mapper's "most devices supported" claim may reflect OEM stacks or wired headsets.
-- Not verified this session: that `MediaSessionManager.setOnMediaKeyListener` is SystemApi with a privileged permission, and the exact `MediaSessionService` routing for `asSystemService = false`.
+- Not verified: that `MediaSessionManager.setOnMediaKeyListener` is SystemApi with a privileged permission, and the exact `MediaSessionService` routing for `asSystemService = false`.
 - How Key Mapper's Play declaration is worded is not public.
 
 ---

@@ -54,7 +54,7 @@ import java.util.concurrent.Executor
  * Everything that touches [_state] runs on one serial dispatcher ([work]), so listener callbacks,
  * polls, scheduled boosts and UI commands never interleave.
  *
- * The process must be alive for any of this to happen: the integrator creates this eagerly (the
+ * The process must be alive for any of this to happen: EarshotApp creates this eagerly (the
  * foreground HeadphoneService keeps the process up while the headphones are connected).
  *
  * Android 17 ignores the volume call while Earshot is closed and the headset service has no

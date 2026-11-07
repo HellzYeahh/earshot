@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 /**
  * Samples are SYNTHETIC: written from the `A2dpStateMachine.dump()` / `BluetoothCodecConfig.toString()`
  * source layout, not captured from a device. Replace with a real `dumpsys bluetooth_manager` excerpt
- * from the user's Galaxy once one is available.
+ * from a Galaxy test phone once one is available.
  */
 class DumpsysCodecParserTest {
 

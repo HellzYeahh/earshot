@@ -6,10 +6,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** The idle Sleep tab's lazy card list: the user's order, and no empty banners item. */
+/** The idle Sleep tab's lazy card list: the planned order, and no empty banners item. */
 class SleepSetupCardsTest {
 
-    @Test fun `cards keep the user's order with the banners after the alarms`() {
+    @Test fun `cards keep the planned order with the banners after the alarms`() {
         val missing = SleepPermissions(exactAlarms = false)
         assertEquals(
             listOf(

@@ -1,4 +1,4 @@
-"""Reliability measurements on a real phone over adb (docs/reliability.md, 1.0 plan item 3).
+"""Reliability measurements on a real phone over adb.
 
     python tools/reliability/measure.py connect              # connect timings in the current logcat
     python tools/reliability/measure.py battery              # Earshot's battery use, wake locks, alarms

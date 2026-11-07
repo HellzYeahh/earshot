@@ -321,7 +321,7 @@ class AppContainer(private val appContext: Context) {
 
     /**
      * In-call volume boost and call-codec readout. Created eagerly by [EarshotApp]: its call
-     * listeners only exist once constructed. The headset-volume hook is wired by the integrator
+     * listeners only exist once constructed. The headset-volume hook is wired by AppContainer
      * once `HeadphoneRepository.setVolume` exists.
      */
     val callAudio: CallAudioRepository by lazy {

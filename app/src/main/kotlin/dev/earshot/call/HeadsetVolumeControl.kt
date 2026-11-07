@@ -2,8 +2,8 @@ package dev.earshot.call
 
 /**
  * Raises the headphones' own volume over BMAP. Kept as a tiny adapter so this package does not
- * depend on a `HeadphoneRepository.setVolume` that may or may not exist yet: the integrator wires
- * it in `AppContainer`, e.g. `HeadsetVolumeControl { pct -> headphones.setVolume(pct); true }`
+ * depend on a `HeadphoneRepository.setVolume` that may or may not exist yet: AppContainer wires
+ * it, e.g. `HeadsetVolumeControl { pct -> headphones.setVolume(pct); true }`
  * (converting the percentage to the repository's units there).
  */
 fun interface HeadsetVolumeControl {

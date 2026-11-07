@@ -13,7 +13,7 @@ import java.io.File
  * screen offers again, and the restart that gets there. The rules live in [StagingControl] and
  * [BackupApplier].
  *
- * Wiring (integrator): `EarshotApp.onCreate` calls [applyIfReady] at a fresh unlocked start,
+ * Wiring: `EarshotApp.onCreate` calls [applyIfReady] at a fresh unlocked start,
  * before `startUnlocked()` and before anything opens a DataStore or SharedPreferences (the
  * repositories in `AppContainer` are lazy). A start that was locked skips it; the confirmation
  * only holds a few minutes anyway, and "Restart now" always starts unlocked. The Sleep tab's

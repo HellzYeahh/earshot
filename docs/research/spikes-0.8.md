@@ -1,6 +1,6 @@
-# 0.8 spikes: answers so far (roadmap item 6)
+# 0.8 spikes: answers so far
 
-Tested on the user's Galaxy Z Fold7 (SM-F966U1, One UI 9, Android 17) with the Bose QC Ultra
+Tested on a Samsung Galaxy phone (One UI 9, Android 17) with the Bose QC Ultra
 Headphones (2nd Gen), firmware 10.12.12, on 2026-10-25. Addresses masked as Android masks them.
 
 ## D4: codec switching through a Companion Device Manager association: **yes**
@@ -45,12 +45,3 @@ What it settles:
 The LE record lists Battery, VCS (volume), LE Audio and BASS, but no Microphone Control Service.
 The QC Ultra 2's mic state keeps coming from BMAP `[2.21]`. MICS stays a possible generic path for
 other LE Audio headsets; it needs one that lists it.
-
-## Still open
-
-- **D1** (which chip the user's generic earbuds use, and whether JieLi RCSP is on): needs those
-  earbuds paired to the phone, then the same `dumpsys` read plus an LE advert capture.
-- **D3** (can a normal app open L2CAP PSM `0x1001` to AirPods on One UI 9): needs the AirPods.
-- **D5** (can Earshot open the Fast Pair message stream `df21fe2c…` while Google Play services
-  holds it): the QC Ultra 2 offers it, but opening it could disturb Play services' own session, so
-  it waits for an explicit yes.

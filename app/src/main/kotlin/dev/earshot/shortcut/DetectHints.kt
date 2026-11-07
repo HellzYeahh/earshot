@@ -32,8 +32,8 @@ data class DetectHintInput(
 
 /**
  * Which hints apply. Pure, so each case is unit-tested. Nothing assumes which physical control
- * Bose's Shortcut sits on: the owner's QC Ultra 2 sent the gesture on a single short press of
- * the *power* button (18:44, 2026-10-18), not on the strip hold the Bose app suggests.
+ * Bose's Shortcut sits on: a QC Ultra 2 sent the gesture on a single short press of
+ * the *power* button, not on the strip hold the Bose app suggests.
  */
 object DetectHints {
     fun hints(input: DetectHintInput): List<DetectHint> = buildList {

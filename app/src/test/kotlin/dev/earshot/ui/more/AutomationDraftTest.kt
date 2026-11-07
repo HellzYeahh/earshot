@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
  */
 class AutomationDraftTest {
 
-    private val bose = "68:F2:1F:38:DB:0F"
+    private val bose = "68:F2:1F:12:34:56"
     private val quiet = AutomationAction.SetMode(0, ModeRef(ModeMeaning.QUIET, "Quiet", bose, 0))
 
     @Test fun `every trigger and action survives the saved state exactly`() {

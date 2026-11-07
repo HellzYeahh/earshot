@@ -9,8 +9,7 @@ import dev.earshot.MainActivity
 import dev.earshot.R
 
 /**
- * "Start sleep" in the launcher's long-press menu on Earshot's icon (docs/sleep-mode.md §6, quick
- * start): opens the app on the Sleep tab and starts tonight's plan. It goes through
+ * "Start sleep" in the launcher's long-press menu on Earshot's icon: opens the app on the Sleep tab and starts tonight's plan. It goes through
  * [MainActivity] rather than straight to the service: Android 17 lets audio start only from a
  * visible app (or a notification / tile tap).
  */

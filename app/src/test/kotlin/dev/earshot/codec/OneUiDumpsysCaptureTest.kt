@@ -8,7 +8,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * REAL capture: `dumpsys bluetooth_manager` A2DP section from the user's Samsung Samsung Galaxy
+ * REAL capture: `dumpsys bluetooth_manager` A2DP section from a Samsung Galaxy
  * (One UI 9 / Android 17) with the QC Ultra Headphones (2nd Gen) paired, copied from
  * `docs/reference/captures-galaxy/oneui9-android17-dumpsys-a2dp.txt`. Addresses are redacted by the
  * OS to `XX:XX:XX:XX:AA:BB`; the headphones are the `...00:11` state machine.
@@ -27,7 +27,7 @@ class OneUiDumpsysCaptureTest {
     @Test
     fun `finds the three state machines and no active device`() {
         assertNull(dump.activeDeviceAddress)
-        assertEquals(listOf("XX:XX:XX:XX:00:11", "XX:XX:XX:XX:00:01", "XX:XX:XX:XX:6F:3F"), dump.devices.map { it.address })
+        assertEquals(listOf("XX:XX:XX:XX:00:11", "XX:XX:XX:XX:00:01", "XX:XX:XX:XX:00:21"), dump.devices.map { it.address })
     }
 
     @Test
@@ -65,8 +65,8 @@ class OneUiDumpsysCaptureTest {
             assertTrue(current.sampleRatesHz.isNotEmpty(), "device ${d.address} picked up a NONE config")
             assertFalse(d.selectable.any { it.codecName == CodecNames.SAMSUNG_SCALABLE }, "SSC is never selectable here")
         }
-        assertEquals(CodecNames.SBC, dump.forDevice("00:00:00:00:6F:3F")?.current?.codecName)
-        assertEquals(1, dump.forDevice("00:00:00:00:6F:3F")?.selectable?.size)
+        assertEquals(CodecNames.SBC, dump.forDevice("00:00:00:00:00:21")?.current?.codecName)
+        assertEquals(1, dump.forDevice("00:00:00:00:00:21")?.selectable?.size)
     }
 
     @Test

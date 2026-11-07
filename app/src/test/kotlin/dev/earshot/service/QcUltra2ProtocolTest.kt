@@ -33,7 +33,7 @@ class QcUltra2ProtocolTest {
     private val protocol = QcUltra2Protocol()
     private val fake = FakeRequester()
     private val phone = "C4:0F:08:11:22:33"
-    private val laptop = "94:45:60:85:05:A7"
+    private val laptop = "94:45:60:AA:BB:CC"
 
     @Before
     fun silenceLog() {
@@ -70,7 +70,7 @@ class QcUltra2ProtocolTest {
             ) + (5..10).map { FakeRequester.modeStatus(it, "None", cncWire = 10) }
         }
         status(QcUltra2.FAVORITES, "0b0003")
-        status(QcUltra2.PAIRED_DEVICES, "03 c40f08112233 9445608505a7")
+        status(QcUltra2.PAIRED_DEVICES, "03 c40f08112233 944560aabbcc")
         on(QcUltra2.DEVICE_INFO, BmapOperator.GET) { req ->
             val name = if (req.payload.toHex() == "c40f08112233") "Pixel 9" else "ThinkPad"
             listOf(FakeRequester.statusFrame(QcUltra2.DEVICE_INFO, req.payload.toHex() + "0001" + "03" + name.toByteArray().toHex()))
@@ -135,7 +135,7 @@ class QcUltra2ProtocolTest {
         scriptFullDevice()
         val current = HeadphoneState(pairedDevices = listOf(PairedDevice(phone, "Pixel 9")))
         val s = protocol.refresh(fake, current)
-        assertEquals(listOf("9445608505a7"), fake.requestsTo(QcUltra2.DEVICE_INFO).map { it.payload.toHex() })
+        assertEquals(listOf("944560aabbcc"), fake.requestsTo(QcUltra2.DEVICE_INFO).map { it.payload.toHex() })
         assertEquals("Pixel 9", s.pairedDevices[0].name)
         assertEquals("ThinkPad", s.pairedDevices[1].name)
     }
@@ -424,12 +424,12 @@ class QcUltra2ProtocolTest {
         fake.on(QcUltra2.ROUTING, BmapOperator.START) {
             calls++
             if (calls < 3) listOf(FakeRequester.errorFrame(QcUltra2.ROUTING, BmapError.FUNC_NOT_SUPPORTED))
-            else listOf(BmapPacket(4, 12, BmapOperator.RESULT, byteArrayOf(0) + "9445608505a7".let { h -> ByteArray(6) { i -> h.substring(2 * i, 2 * i + 2).toInt(16).toByte() } }))
+            else listOf(BmapPacket(4, 12, BmapOperator.RESULT, byteArrayOf(0) + "944560aabbcc".let { h -> ByteArray(6) { i -> h.substring(2 * i, 2 * i + 2).toInt(16).toByte() } }))
         }
         val current = HeadphoneState(pairedDevices = listOf(PairedDevice(phone, "Pixel 9", isActiveSource = true), PairedDevice(laptop, "ThinkPad")))
         val s = protocol.switchToDevice(fake, current, laptop)
         assertEquals(3, calls)
-        assertEquals("829445608505a7", fake.sent.last().payload.toHex())
+        assertEquals("82944560aabbcc", fake.sent.last().payload.toHex())
         assertEquals(listOf(false, true), s.pairedDevices.map { it.isActiveSource })
     }
 

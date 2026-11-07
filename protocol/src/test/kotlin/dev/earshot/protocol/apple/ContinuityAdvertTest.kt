@@ -64,8 +64,8 @@ class ContinuityAdvertTest {
     }
 
     @Test fun `an advert only counts for a headset whose name fits its model`() {
-        assertTrue(AppleModels.fitsName(0x1420, "Yass's AirPods Pro"))
-        assertFalse(AppleModels.fitsName(0x0F20, "Yass's AirPods Pro")) // someone else's plain AirPods
+        assertTrue(AppleModels.fitsName(0x1420, "Alex's AirPods Pro"))
+        assertFalse(AppleModels.fitsName(0x0F20, "Alex's AirPods Pro")) // someone else's plain AirPods
         assertFalse(AppleModels.fitsName(0x0A20, "AirPods Pro"))
         assertTrue(AppleModels.fitsName(0x0A20, "AirPods Max"))
         assertTrue(AppleModels.fitsName(0x0B20, "Powerbeats Pro"))

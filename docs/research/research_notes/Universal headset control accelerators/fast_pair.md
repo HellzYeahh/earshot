@@ -89,7 +89,7 @@ way, and ChromeOS is a full non-Android Seeker. **On an Android phone with Googl
 though, the channel is very likely occupied.** The spec has the Seeker open a persistent stream as
 soon as the headset connects, and the AOSP RFCOMM layer refuses a second client connection to the same
 (server channel, device) with `PORT_ALREADY_OPENED`. I found **no report** of a third-party Android
-app talking Message Stream, either succeeding or failing. Earshot has to test this on the Galaxy.
+app talking Message Stream, either succeeding or failing. Earshot has to test this on a Galaxy phone.
 
 ### Cited Findings
 - The Seeker opens the stream itself when the Provider connects, and it is described as a persistent connection. [CC-BY 4.0] — [Message Stream](https://developers.google.com/nearby/fast-pair/specifications/extensions/messagestream)
@@ -115,7 +115,7 @@ app talking Message Stream, either succeeding or failing. Earshot has to test th
   - (b) Before GMS connects, or after it drops the stream. Whether GMS keeps it open for the whole connection is unknown.
   - (c) The BLE L2CAP transport (LE Audio / BLE Providers). LE credit-based channels allow several channels to one PSM, so a second Seeker may be accepted. That depends on firmware and is untested.
 - **The "Gets" are worth little to a non-GMS Seeker.** Notify ANC is pushed on Seeker connect and battery on connect and change, so a third party that cannot hold the stream gains almost nothing from the Gets.
-- **Cheap test on the Galaxy (Earshot spike D5):** with a Fast Pair headset connected,
+- **Cheap test on a Galaxy phone (Earshot spike D5):** with a Fast Pair headset connected,
   - check `adb shell dumpsys bluetooth_manager` for an RFCOMM client socket owned by GMS on the `df21fe2c` channel;
   - then try `createInsecureRfcommSocketToServiceRecord(df21fe2c…)` from Earshot and log the error, then retry after force-stopping Play services (Bluetooth stays connected).
   - Expected result: the first attempt fails with an IOException while GMS holds the channel.
@@ -161,7 +161,7 @@ The battery may be shown only around case-open (the spec discourages advertising
 
   With two Fast Pair headsets nearby (household, office) it will mis-attribute. Earshot should label the result "nearby Fast Pair battery", not the battery of the connected device.
 - **How often battery appears:** spec-conforming earbuds put battery in adverts mainly around case-open, so the advert path gives a snapshot at case-open rather than a continuous gauge. Over-ear headphones don't do Battery Notification at all (Q4), so for them adverts give nothing beyond presence.
-- **Identification:** a headset whose SDP record lists `df21fe2c-…` is Fast Pair capable. That is a cheap identification signal for Earshot's planned `DeviceIdentifier` (roadmap A2), and it needs no connection beyond `fetchUuidsWithSdp`.
+- **Identification:** a headset whose SDP record lists `df21fe2c-…` is Fast Pair capable. That is a cheap identification signal for Earshot's planned `DeviceIdentifier`, and it needs no connection beyond `fetchUuidsWithSdp`.
 
 ### Gaps
 - Whether Android's scanner reports a bonded headset's LE identity address instead of its RPA in `ScanResult` was not checked; that would make matching deterministic for LE-bonded (CTKD) headsets.
@@ -199,7 +199,7 @@ The battery may be shown only around case-open (the spec discourages advertising
 
 ### Gaps
 - No public list of models that enabled Hearable Controls ("ANC slice") exists that I could find. I can't confirm any non-Google product implements `0x08`.
-- Whether the user's QC Ultra Headphones 2nd Gen expose `df21fe2c` in SDP is unknown: no Earshot capture contains it. A `fetchUuidsWithSdp` dump on the Galaxy would answer it.
+- Whether the QC Ultra Headphones 2nd Gen expose `df21fe2c` in SDP is unknown: no Earshot capture contains it. A `fetchUuidsWithSdp` dump on a Galaxy phone would answer it.
 - Market-share figures for Fast Pair-enabled headsets were not found. "Hundreds of millions" is the researchers' own estimate.
 
 ## 5. Spec licence terms and any certification/policy restriction on non-Google apps
@@ -230,7 +230,7 @@ metadata and anti-spoofing keys sit behind Google's online API.
   - (1) GMS probably holds the RFCOMM channel (Q2).
   - (2) Writes need an account key, which by design only GMS has (Q1).
   - (3) Model metadata and anti-spoofing keys require Google's online API (Q3), which breaks Earshot's no-INTERNET rule.
-- **Roadmap E4:** "Fast Pair baseline: battery L/R/case and ring for any Fast Pair headset" is protocol-legal. It is practically usable only (a) from adverts (battery snapshot, heuristic match) on every phone, and (b) over the Message Stream on phones where GMS doesn't occupy it. Treat it as a fallback tier, and gate the Message Stream path on a successful connect rather than assuming it.
+- **Fast Pair baseline:** battery L/R/case and ring for any Fast Pair headset is protocol-legal. It is practically usable only (a) from adverts (battery snapshot, heuristic match) on every phone, and (b) over the Message Stream on phones where GMS doesn't occupy it. Treat it as a fallback tier, and gate the Message Stream path on a successful connect rather than assuming it.
 
 ### Gaps
 - I did not find Google Play / Fast Pair terms that explicitly forbid a non-Google app from acting as a Seeker. I also found none that explicitly allow it.

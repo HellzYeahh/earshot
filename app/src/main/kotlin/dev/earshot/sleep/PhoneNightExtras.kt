@@ -16,8 +16,7 @@ import dev.earshot.core.NightExtra
 import dev.earshot.core.SleepPlan
 
 /**
- * The phone half of the night extras: Do Not Disturb and the media volume cap (docs/sleep-mode.md
- * §6). Both remember what they changed in the [RestoreRecord] and put it back in the morning.
+ * The phone half of the night extras: Do Not Disturb and the media volume cap. Both remember what they changed in the [RestoreRecord] and put it back in the morning.
  *
  * Volume calls are silently ignored on Android 17 unless the app is visible or runs a foreground
  * service; the cap is applied and held while `SleepService` runs.

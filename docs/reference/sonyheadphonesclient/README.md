@@ -21,5 +21,5 @@ case battery, NCASM 0x17, EQ param and capability, auto power off, general setti
 pause when taken off, voice guidance. Frames carrying names or addresses (paired devices, capability info)
 were not copied.
 
-Facts that came from elsewhere (Sound Connect 13.3.0 static analysis, Gadgetbridge, mdr-protocol) are
+Facts that came from elsewhere (interoperability analysis of the public Sound Connect 13.3.0 app, Gadgetbridge, mdr-protocol) are
 facts only; see `docs/research/research_notes/Top brand headset protocols/sony.md`.

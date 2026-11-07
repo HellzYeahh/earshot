@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 /**
  * All samples are SYNTHETIC: written from the layout of AOSP's `HeadsetService.dump()` /
  * `HeadsetStateMachine.dump()` and `LeAudioService.dump()`, not captured from a device. Replace
- * them with a real `adb shell dumpsys bluetooth_manager` taken *during a call* on the user's Galaxy
+ * them with a real `adb shell dumpsys bluetooth_manager` taken *during a call* on a Galaxy test phone
  * once one exists (the repository logs the candidate lines when it can't resolve a codec).
  */
 class CallCodecParserTest {
@@ -154,7 +154,7 @@ class CallCodecParserTest {
                 mHasWbsEnabled: true
         """.trimIndent()
         val parsed = CallCodecParser.parse(text)
-        assertEquals(VoiceCodec.MSBC, CallCodecParser.resolve(parsed, CallRoute.UNKNOWN, preferAddress = "E4:58:BC:00:00:11")?.codec)
+        assertEquals(VoiceCodec.MSBC, CallCodecParser.resolve(parsed, CallRoute.UNKNOWN, preferAddress = "AA:BB:CC:00:00:11")?.codec)
         // No preference: falls back to the service's active device.
         assertEquals(VoiceCodec.CVSD, CallCodecParser.resolve(parsed, CallRoute.UNKNOWN)?.codec)
     }

@@ -121,7 +121,7 @@ data class SleepAlarm(
     companion object {
         const val TONE_SYSTEM = "system"
         const val TONE_SOUND_PREFIX = "sound:"
-        /** "Earbuds" moves to the phone when nobody stops it within this long (user decision default). */
+        /** "Earbuds" moves to the phone when nobody stops it within this long. */
         const val PHONE_FALLBACK_SECONDS = 60
         val WAKE_WINDOW_CHOICES = listOf(0, 10, 20, 30)
         val FADE_IN_CHOICES = listOf(15, 30, 60, 180)

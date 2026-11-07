@@ -283,8 +283,8 @@ class VirtualQcUltra2Test {
 
     @Test
     fun `paired devices, names and active source`() {
-        assertEquals("03c40f081122339445608505a7", get(QcUltra2.PAIRED_DEVICES).payload.toHex())
-        val info = device.handle(DeviceInfoQuery.request("94:45:60:85:05:A7")).single()
+        assertEquals("03c40f08112233944560aabbcc", get(QcUltra2.PAIRED_DEVICES).payload.toHex())
+        val info = device.handle(DeviceInfoQuery.request("94:45:60:AA:BB:CC")).single()
         assertEquals("ThinkPad", DeviceInfoQuery.parse(info.payload)!!.name)
         device.handle(DeviceInfoQuery.request("00:11:22:33:44:55")).single().assertError(BmapError.INVALID_DATA)
         assertEquals("000f01c40f08112233", get(QcUltra2.AUDIO_SOURCE).payload.toHex())
@@ -292,13 +292,13 @@ class VirtualQcUltra2Test {
 
     @Test
     fun `routing fails once with an empty table and then succeeds`() {
-        val packet = BmapPacket.start(QcUltra2.ROUTING, Routing.startPayload("94:45:60:85:05:A7"))
+        val packet = BmapPacket.start(QcUltra2.ROUTING, Routing.startPayload("94:45:60:AA:BB:CC"))
         val first = device.handle(packet).single()
         assertTrue(Routing.isTableEmpty(first))
         val second = device.handle(packet).single()
         assertEquals(BmapOperator.RESULT, second.operator)
-        assertEquals("94:45:60:85:05:A7", Routing.parseReply(second))
-        assertEquals("000f019445608505a7", get(QcUltra2.AUDIO_SOURCE).payload.toHex())
+        assertEquals("94:45:60:AA:BB:CC", Routing.parseReply(second))
+        assertEquals("000f01944560aabbcc", get(QcUltra2.AUDIO_SOURCE).payload.toHex())
         now += 100
         assertTrue(device.tick().any { it.matches(QcUltra2.AUDIO_SOURCE) })
     }

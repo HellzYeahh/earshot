@@ -3,7 +3,7 @@
 Collected 2026-10-21. Framing basics are in `docs/research/headset-landscape-2026-10.md` and are not repeated here.
 Licence of each source is given in brackets. **GPL/AGPL sources: facts only, never copy code or tables.**
 Qualcomm's own GAIA v3 reference is login-gated, so it was not read. The feature numbers below come from
-open community code that agrees across two brands. None of it was checked against hardware we own.
+open community code that agrees across two brands. None of it was checked against real hardware for these notes.
 
 ## 1. Standard GAIA v3 features, what ANC/Audio Curation and Music Processing expose, and how a host discovers support
 

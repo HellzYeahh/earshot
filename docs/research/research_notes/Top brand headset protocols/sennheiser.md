@@ -1,12 +1,12 @@
 # Sennheiser (Sonova Consumer Hearing) ANC headphones and earbuds, 2020 onward: control protocol for an Earshot driver
 
-Collected 2026-10-21. Static analysis only: no APK was installed or run, and no Bluetooth device was contacted.
+Collected 2026-10-21. Interoperability analysis of the public app only: no APK was installed or run, and no Bluetooth device was contacted.
 
 **Sources and licences** (facts only from anything not MIT; no code copied):
 
 | Key | Source | Licence | How used |
 |---|---|---|---|
-| **[APK]** | Sennheiser Smart Control **4.9.3** (`com.sennheiser.control`, versionCode 147651, APKMirror upload 2025-06-11), statically unpacked | Proprietary (Sonova Consumer Hearing GmbH) | Facts only |
+| **[APK]** | Sennheiser Smart Control **4.9.3** (`com.sennheiser.control`, versionCode 147651) | Proprietary (Sonova Consumer Hearing GmbH) | Facts only |
 | **[M4C]** | [Ariazonaa/momentum4-control](https://github.com/Ariazonaa/momentum4-control) | MIT | Clean-room project; its hardware captures on a Momentum 4 (fw 3.37.3 and 3.38.3) and a Momentum 5 (fw 6.21.5) are the only on-device evidence used here |
 | **[MC]** | [gjabell/momentumctl](https://github.com/gjabell/momentumctl), mirror of [codeberg galen/momentumctl](https://codeberg.org/galen/momentumctl) | MIT | Cross-check |
 | **[SDC]** | [sennheiser-desktop-client PROTOCOL.md](https://github.com/Oein/sennheiser-desktop-client/blob/main/PROTOCOL.md), also [zaval/sennheiser-desktop-client](https://github.com/zaval/sennheiser-desktop-client) | No licence stated | Facts only |
@@ -21,7 +21,7 @@ Collected 2026-10-21. Static analysis only: no APK was installed or run, and no 
 
 Each file gives the vendor ID, command, response, notification and error IDs, plus the payload layout of every property.
 
-**Citation for [APK] facts.** In-text citations of [APK] link to the [APKMirror listing](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/), which is where the analysed build came from. The path given next to each one is the file inside the APK.
+**Citation for [APK] facts.** In-text citations of [APK] link to the app's [store page](https://play.google.com/store/apps/details?id=com.sennheiser.control). The path given next to each one is the file inside the APK.
 
 ---
 
@@ -59,9 +59,9 @@ Sonova now ships **Smart Control Plus**, which is the only app for products laun
   | Momentum 3, PXC 550 | – | `Nautilus` |
   | Soundbar | – | `ELMAR` |
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `assets/app/*.json` `protocol` field
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `assets/app/*.json` `protocol` field
 - **Two vendor IDs.** GAIA v3 models use vendor **`0x0495`** for Sennheiser commands and **`0x001D`** for Qualcomm core, upgrade, debug, voice-UI and statistics commands. GAIA v1/v2 models (e.g. MTW2) use vendor **`0x0494`** for Sennheiser commands and **`0x000A`** for Qualcomm-standard ones such as user-EQ control, power state and PS keys.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `m4.json`, `tw2.json`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `m4.json`, `tw2.json`
 - **Article numbers** (sent to Sonova's cloud for firmware checks):
 
   | Model | Article no. |
@@ -79,7 +79,7 @@ Sonova now ships **Smart Control Plus**, which is the only app for products laun
   | CX500 | 700271 |
   | MTW2 | 300001 |
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `parameters[].articleNumber`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `parameters[].articleNumber`
 - **Identification by Bluetooth name.** [APK] holds a name-to-type map:
 
   | Bluetooth name | Type |
@@ -99,7 +99,7 @@ Sonova now ships **Smart Control Plus**, which is the only app for products laun
   | "HD 450BT", "HD 458BT", "HD 450SE" | HD line |
 
   Mars, Venus, Aphrodite and Magnum are internal codenames.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `bundle.js` `DeviceType.deviceTypeByBluetoothNameMap`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `bundle.js` `DeviceType.deviceTypeByBluetoothNameMap`
 - **Identification over classic.** After connecting over classic Bluetooth, the app reads **`0x0495/0x1206` Versions_GetModelId** (a NUL-terminated string) and maps it to the exact model and colour variant. Example strings:
   - "M4AEBT Black", "M4AEBT White", "M4AEBT Graphite"
   - "MTW3 Black"
@@ -109,7 +109,7 @@ Sonova now ships **Smart Control Plus**, which is the only app for products laun
   - "MSPORT1 Olive"
   - "CXPLUSTW1 Black", "CX200TW1 Black", "CX200TW1 S", "CX500BT1 Grey"
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `GaiaProduct.readModelNameViaGaia`, `DeviceType.getDeviceTypeByManufacturerName`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `GaiaProduct.readModelNameViaGaia`, `DeviceType.getDeviceTypeByManufacturerName`
 
   On hardware, a Momentum 5 returned "M5AEBT Black" and a Momentum 4 returned a "…BT Black" string.
   — [M4C m5-6.21.5-parity.json](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets/M5); [SDC](https://github.com/Oein/sennheiser-desktop-client/blob/main/PROTOCOL.md)
@@ -120,9 +120,9 @@ Sonova now ships **Smart Control Plus**, which is the only app for products laun
   - Colours: 0 black, 1 white, 2 SE, 3 graphite, 4 grey, 5 olive, 6 silver, 7 copper, 8 JD, 9 denim, 10 pride, 11 blue, 12 R.
 
   BLE advertising also carries the 16-bit service UUIDs **FDCE** (Sennheiser) and **FCFE** (Sonova).
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `BTPayloadDecoder`, `SmartUUID`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `BTPayloadDecoder`, `SmartUUID`
 - **Internal platform name.** The app's internal name for the GAIA v3 platform is **"Herakles"**: the model-name tile is enabled when `protocol === GAIA3`, and the bonding type is `Herakles`.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `bundle.js` `ModelNameTileComponent`, `mW` enum
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `bundle.js` `ModelNameTileComponent`, `mW` enum
 - **Smart Control Plus support list.** The App Store lists Smart Control Plus (Sonova Consumer Hearing GmbH) as compatible with:
   - MOMENTUM True Wireless 5, MOMENTUM 5, HDB 630, ACCENTUM Clip
   - MOMENTUM 4, MOMENTUM True Wireless 4, MOMENTUM True Wireless 3, MOMENTUM Sport
@@ -156,7 +156,7 @@ Sonova now ships **Smart Control Plus**, which is the only app for products laun
   - The MTW2 JSON does expose ANC: `0x0494/0x0708` set, `0x0788` get, u16 OFF 0 / ON 1 / ADAPTIVE 2.
   - It also exposes transparent hearing: `0x0494/0x0705` and `0x0785`.
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `hd450.json`, `hd458.json`, `hd450se.json`, `tw2.json`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `hd450.json`, `hd458.json`, `hd450se.json`, `tw2.json`
 
 ### Inferences
 - **Treat the GAIA v3 set as one protocol.** Command IDs are identical across all eleven GAIA v3 JSONs. The only differences are which properties each model declares, so an Earshot driver can treat "Sennheiser GAIA v3" as one protocol with per-model capability tables.
@@ -165,7 +165,7 @@ Sonova now ships **Smart Control Plus**, which is the only app for products laun
 - **Name map for the first guess.** Earshot already lists bonded devices, so the Bluetooth name map plus the `0x1206` model ID is enough for identification. There is no need to decode Sonova's encrypted advertising.
 
 ### Gaps
-- **Smart Control Plus was not analysed.** No Smart Control Plus APK was available in this session, so the protocol of MTW5, HDB 630, ACCENTUM Clip, BTA1 and RS 275 is unconfirmed. For Momentum 5 there is only [M4C]'s community evidence.
+- **Smart Control Plus was not analysed,** so the protocol of MTW5, HDB 630, ACCENTUM Clip, BTA1 and RS 275 is unconfirmed. For Momentum 5 there is only [M4C]'s community evidence.
 - **CX 500BT is unidentified.** I found no public product page for it (model string "CX500BT1 Grey"); it may be a regional model.
 - **Chips** are unconfirmed for M4, Accentum, Accentum Plus, Momentum Sport and CX Plus. That they are Qualcomm is inferred only from the GAIA protocol.
 - **Company IDs.** I did not check the Bluetooth SIG registry names for company IDs 0x0494 and 0x0495.
@@ -205,7 +205,7 @@ RFCOMM channel numbers differ by model (Accentum 15, M4 1 and 2). One community 
   | `BLE_PAIRING` | `63331379-…` | BLE pairing |
 
   All the `6333…` UUIDs share the base `-23c1-11e5-b696-feff819cdc9f`.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `bundle.js` `SmartUUID`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `bundle.js` `SmartUUID`
 - **Per-model connection config.** `DeviceConfigurationService.getDeviceConfig` sets fields per model:
   - `preferredTransportAndroid`, `preferredTransportIOS`
   - `communicationService`, `writeCharacteristic`, `readCharacteristic`
@@ -227,16 +227,16 @@ RFCOMM channel numbers differ by model (Accentum 15, M4 1 and 2). One community 
   | HD 250/350/450/450SE/458BT | CLASSIC | BLE | – | – | `GAIA_SPP_UUID` | – |
 
   The RFCOMM column is `rfcommService` (`p`); the BLE service is the `communicationService`.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `bundle.js` `getDeviceConfig`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `bundle.js` `getDeviceConfig`
 - **BLE fallback below `rfcommMinVersion`.** On Android, if the stored firmware is below `rfcommMinVersion`, the app switches the device to BLE.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `bundle.js`, log text "preferred transport … is RFCOMM, but the minimum FW is not installed … Switching to BLE transport"
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `bundle.js`, log text "preferred transport … is RFCOMM, but the minimum FW is not installed … Switching to BLE transport"
 - **RFCOMM connect.** `com.sennheiser.bluetooth.BluetoothSPP.connect`:
   1. opens a **secure** `createRfcommSocketToServiceRecord(UUID)`, so SDP resolves the channel;
   2. cancels discovery;
   3. tries `connect()` once.
 
   If the device's UUIDs are unknown, a JS state machine first runs `service_discovery` (an SDP UUID fetch). There is no reflection or channel-number path.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `BluetoothSPP.connect`; `bundle.js` `RFCommSMA`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `BluetoothSPP.connect`; `bundle.js` `RFCommSMA`
 - **Framing (from the app's own framer and deframer).** One GAIA v3 frame:
 
   | Field | Size | Meaning |
@@ -254,7 +254,7 @@ RFCOMM channel numbers differ by model (Accentum 15, M4 1 and 2). One community 
   - The deframer accepts versions 1, 3 and 4.
   - The app never enables the checksum.
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `bundle.js` `SPPGaiaFramer`, `SPPGaiaDeframer`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `bundle.js` `SPPGaiaFramer`, `SPPGaiaDeframer`
 - **Hardware frames that match.**
   - GET battery: `FF 03 00 00 04 95 06 03` → `FF 03 00 01 04 95 07 03 2A` (42 %). — [SDC](https://github.com/Oein/sennheiser-desktop-client/blob/main/PROTOCOL.md)
   - SET ANC on: `FF 03 00 01 04 95 1A 04 01` → `FF 03 00 00 04 95 1B 04`. — [M4C capture anc-off-on-adaptive](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets)
@@ -264,14 +264,14 @@ RFCOMM channel numbers differ by model (Accentum 15, M4 1 and 2). One community 
   - writes to `GAIA3_BLE_WRITE` (6333133B);
   - requests an ATT MTU from the model config (default 92).
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `DeviceControlTransport`, connect state machine in `bundle.js`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `DeviceControlTransport`, connect state machine in `bundle.js`
 - **Command word.** The 16-bit command is `(feature << 9) | (type << 7) | pdu`:
   - response = command | `0x0100`
   - notification = command | `0x0080`
   - error = command | `0x0180`; the app treats `(id & 0x0180) == 0x0180` as an error and reads the error code from the first payload byte.
 
   GAIA v1/v2 commands differ: the response is command | `0x8000`, followed by a status byte (0 = success) before the payload.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `Gaia3Command.handleIncomingData`, `GaiaCommand.handleIncomingData`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `Gaia3Command.handleIncomingData`, `GaiaCommand.handleIncomingData`
 - **Sennheiser `0x0495` feature numbers.** Derived from `id >> 9` and the RegisterNotification values:
 
   | Feature | Name | Contents |
@@ -298,7 +298,7 @@ RFCOMM channel numbers differ by model (Accentum 15, M4 1 and 2). One community 
   | 22 | findDevice | |
   | 27 | head tracking / immersive | M5 |
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) model JSONs; feature 20 and 27 from [M4C CommandCatalog](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/Catalog/CommandCatalog.cs)
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) model JSONs; feature 20 and 27 from [M4C CommandCatalog](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/Catalog/CommandCatalog.cs)
 - **Qualcomm `0x001D` feature numbers in the app:** 0 Core, 1 Earbud, 2 AudioCurationOld, 3 VoiceUi, 4 Debug, 5 MusicProcessing, 6 DFU, 7 HandsetService, 8 AudioCuration, 9 FitTest, 10 VoiceEnhancement, 11 UserConfig, 12 Statistics.
 
   Core commands:
@@ -312,9 +312,9 @@ RFCOMM channel numbers differ by model (Accentum 15, M4 1 and 2). One community 
   - `0x000D` set transport parameter
 
   Transport keys: 1 max TX, 2 optimum TX, 3 max RX, 4 optimum RX, 5 TX flow, 6 RX flow, 7 protocol version, 8 payload size. A Core feature version > 3 means version-4 (extended-length) transport is supported.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `Gaia3FrameworkService`, `TransportInfo`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `Gaia3FrameworkService`, `TransportInfo`
 - **Negotiation happens only in the updater.** The Core framework init does API version, then supported features (looping on `moreData`), then transport info, then switches to transport v4. It runs only inside the firmware updater. Normal control gates features by **firmware-version thresholds** in the JSON (e.g. `ancMinFwVersion`, `Eq5Band_Gen1_MinFwVersion`, feature `minVersion`).
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `Gaia3Updater.read_firmware_infoOnRun`, `MultiBandEqFactory`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `Gaia3Updater.read_firmware_infoOnRun`, `MultiBandEqFactory`
 - **Supported features on a Momentum 4 (fw 3.37.3).** Both lists fit in one reply (`moreData = 0`):
   - **Sennheiser:** `00 | 09 01 08 06 0C 01 03 02 10 02 04 02 02 01 0A 02 14 01 0B 01 0D 01 00 04`, i.e. features 9, 8 (v6), 12, 3, 16, 4, 2, 10, 20, 11, 13 and 0 (v4).
   - **Qualcomm:** `00 | 0D 01 0C 01 06 02 04 02 07 01 00 04`.
@@ -323,16 +323,16 @@ RFCOMM channel numbers differ by model (Accentum 15, M4 1 and 2). One community 
 - **Notification registration.** RegisterNotification is `0x0495/0x0007 [featureId]`, acknowledged by an empty `0x0107`. Right after it, the headset sends the current state of that feature as notifications. Feature 10 sends no such dump.
 
   The app's MTW4 class registers features 4, 10, 12, 13, 3, 0, 2 and 11. Gen-2 EQ adds 8, personalisation adds 16, find-device 22 and Auracast 21.
-  — [M4C capture stage5-notifications](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets); [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `Tw4Product`, `features/*.json`
+  — [M4C capture stage5-notifications](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets); [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `Tw4Product`, `features/*.json`
 - **RFCOMM channels vary.**
   - Accentum: "GAIA" SDP record on RFCOMM **15**, HFP on 10, and Apple iAP2 (`00000000-deca-fade-deca-deafdecacaff`) on **14**. "Sending GAIA frames there powers the headset off". — [SDC](https://github.com/Oein/sennheiser-desktop-client/blob/main/PROTOCOL.md)
   - Momentum 4: **two** GAIA SDP records, on channels 1 and 2. — [M4C GaiaServiceResolver.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Bluetooth/Rfcomm/GaiaServiceResolver.cs)
   - [M4C]'s comment labels the deca-fade UUID "Apple iAP2" and says the GAIA UUID must not be confused with it. — [M4C ProtocolConstants.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/ProtocolConstants.cs)
 - **[MC] connects by UUID too.** It opens RFCOMM by the same UUID through BlueZ Profile1. — [momentumctl ble.rs](https://github.com/gjabell/momentumctl)
 - **iOS uses iAP2.** The app's iOS build reaches classic models over iAP2: `iapMinVersion` exists for M4, MTW3, MTW4 and ATW1. The deca-fade UUID does not appear anywhere in the Android build.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) (grep of `bundle.js` and `classes*.dex`)
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) (grep of `bundle.js` and `classes*.dex`)
 - **No authentication on RFCOMM.** No GAIA v3 property in any JSON is an authentication or challenge step, and the RFCOMM socket is a plain secure (bonded) socket. BLE models use an app-driven bonding flow (`BLE_PAIRING` characteristic, "Herakles" bonding) that the classic path does not need.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) model JSONs, `BondEffects`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) model JSONs, `BondEffects`
 
 ### Inferences
 - **Classic path for Earshot.** Use `BluetoothDevice.createRfcommSocketToServiceRecord(a2129ff3-…-ec)` on the bonded device, as the app does. Use `fetchUuidsWithSdp` only if the cached UUIDs lack it. **Never** walk channel numbers the way the Bose driver does.
@@ -410,7 +410,7 @@ EQ comes in two incompatible generations that reuse `0x1002`/`0x1003` for differ
 | **Primary side** | – | `0041` → `[u8]` | – | 0 both, 1 left, 2 right | all GAIA v3 models except CX200 / CX200 Sports |
 
 Sources for the table:
-- [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/): `m4.json`, `tw3.json`, `tw4.json`, `ac1.json`, `acp1.json`, `atw1.json`, `msport1.json`, `cx*.json`, `features/*.json`; UI ranges from `bundle.js` (`defaultAutoPowerOff`, `PhoneCallsTileComponent`, `TransparentHearingTileComponent`, `FitQualityThresholds`, `mapBatteryValue`)
+- [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control): `m4.json`, `tw3.json`, `tw4.json`, `ac1.json`, `acp1.json`, `atw1.json`, `msport1.json`, `cx*.json`, `features/*.json`; UI ranges from `bundle.js` (`defaultAutoPowerOff`, `PhoneCallsTileComponent`, `TransparentHearingTileComponent`, `FitQualityThresholds`, `mapBatteryValue`)
 - [M4C CommandCatalog.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/Catalog/CommandCatalog.cs) (MIT), which independently lists the same IDs and marks them verified on hardware
 - [MC codec.rs](https://github.com/gjabell/momentumctl) (MIT): ANC, mode, level, on-head, smart pause, auto-answer, comfort call, battery
 - [SDC PROTOCOL.md](https://github.com/Oein/sennheiser-desktop-client/blob/main/PROTOCOL.md)
@@ -443,7 +443,7 @@ Sources for the table:
 - **MSPORT1:** as above, but "OFF" sets `1804 = on`, meaning transparency.
 - **CX Plus and CX500:** `1A04` and `1804` are kept mutually exclusive: turning transparency on writes `1A04 = 0`, and turning ANC on writes `1804 = 0`.
 
-— [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `Momentum4Product`, `Acp1Product`, `Ac1Product`, `Tw3Product`, `Tw4Product`, `ATW1Product`, `MomentumSport1Product`, `Cx400IIProduct`, `Cx500Product` (`sendFeatureToDevice`)
+— [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `Momentum4Product`, `Acp1Product`, `Ac1Product`, `Tw3Product`, `Tw4Product`, `ATW1Product`, `MomentumSport1Product`, `Cx400IIProduct`, `Cx500Product` (`sendFeatureToDevice`)
 
 **Accentum.** On the Accentum the mode table `1A00`/`1A01` reads as zeros and ignores writes, so it is controlled with `1A04` and `1804` instead.
 — [SDC](https://github.com/Oein/sennheiser-desktop-client/blob/main/PROTOCOL.md)
@@ -467,7 +467,7 @@ On hardware ([M4C]):
 - `1003 [00]` reads all gains: `3C 3C 16 16 0A` = 6.0 / 6.0 / 2.2 / 2.2 / 1.0 dB.
 - `100B`, `100D` and `100F` read band frequency, Q (×4096) and filter type. Notifications `108B`/`108D`/`1091` carry them; e.g. frequencies 90 / 325 / 1500 / 6500 / 6500 Hz and Q 2048 / 2908 (0.5 / 0.71).
 
-— [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `features/user-eq-2.json`, `Eq5BandGen2`, `getMultiBandGen2ParametersForDevice`; [M4C captures eq-band-bass-boost, stage5-notifications](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets)
+— [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `features/user-eq-2.json`, `Eq5BandGen2`, `getMultiBandGen2ParametersForDevice`; [M4C captures eq-band-bass-boost, stage5-notifications](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets)
 
 **EQ, Gen-1** (`user-eq-1`, older firmware):
 
@@ -489,13 +489,13 @@ Which engine the app picks:
 - otherwise Gen-1 when firmware ≥ `Eq5Band_Gen1_MinFwVersion` (M4/ACP1 2.12.0, MTW3 2.10.5);
 - otherwise a 3-band legacy EQ.
 
-— [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `features/user-eq-1.json`, `Eq5BandGen1`, `EqKnobValuesCoder`, `MultiBandEqFactory`, `get5BandParametersForDevice`
+— [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `features/user-eq-1.json`, `Eq5BandGen1`, `EqKnobValuesCoder`, `MultiBandEqFactory`, `get5BandParametersForDevice`
 
 **Presets, bass boost and podcast.** EQ presets (Rock, Pop and so on) and "Sound Check" exist only in the app: they are sets of band gains written with the commands above. Sound Check requires a Sennheiser account and internet. "Bass boost" is the Gen-2 sub-mode bit (or extra gains in Gen-1), and "Podcast" is sound mode 2.
-— [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `default3BandEqPresets`, i18n `soundcheck_intro_desc_3`, `Ac1Product.createProductFeatures`
+— [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `default3BandEqPresets`, i18n `soundcheck_intro_desc_3`, `Ac1Product.createProductFeatures`
 
 **"Sound Zones"** (CX Plus `soundZonesMinFwVersion`) are the app's geofence "triggers". When the user enters a zone, the app sends a stored set of ANC/TH/EQ commands. There is no device-side feature.
-— [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `TriggerEffects.getCmdByteArrayForSettings`, `GeofenceHandler`
+— [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `TriggerEffects.getCmdByteArrayForSettings`, `GeofenceHandler`
 
 **Button-mapping enums** (wire values from the app):
 - **Functions:**
@@ -510,13 +510,13 @@ Which engine the app picks:
   - 7 tap-hold, 8 two-finger tap-hold, 9 two-finger single, 10 two-finger double
   - 11 / 12 circle clockwise / counter-clockwise
 
-— [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `bundle.js` MMI enums
+— [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `bundle.js` MMI enums
 
 On the M4 (fw 3.37.3), `1601` accepted only `[00 09]` (→ `00 09 00`). Every other button/pattern combination returned error reason `0x05`, so the `m4.json` enum does not fit the M4.
 — [M4C capture supported-features-mmi](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets)
 
 **Device name.** Feature 20 has SET `2801` and GET `2802` (device name). [M4C] verified both on M4 3.37.3/3.38.3; Smart Control 4.9.3 keeps renaming disabled (`renameDeviceMinFwVersion` 99.99.99).
-— [M4C CommandCatalog.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/Catalog/CommandCatalog.cs); [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `m4.json`
+— [M4C CommandCatalog.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/Catalog/CommandCatalog.cs); [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `m4.json`
 
 **Qualcomm `0x001D` extras the app declares:**
 - voice assistant: `0600` get selected (0 none, 2 Google, 3 Amazon), `0601` set, `0602` supported list. The app disables it for all models with min fw 99.99.99.
@@ -524,7 +524,7 @@ On the M4 (fw 3.37.3), `1601` accepted only `[00 09]` (→ `00 09 00`). Every ot
 - debug panic log: `0803` info, `0804` erase.
 - upgrade: `0C00`–`0C02`.
 
-— [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `m4.json`
+— [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `m4.json`
 
 **Legacy GAIA v1/v2 (vendor `0x0494`), MTW2 2020, for reference:**
 - battery `0182`, charging `0185`, earbud status `0183`
@@ -533,7 +533,7 @@ On the M4 (fw 3.37.3), `1601` accepted only `[00 09]` (→ `00 09 00`). Every ot
 - sidetone `0707` / `0787`, sound mode `0706` / `0786`, smart pause `0602` / `0682`, auto-answer `0604` / `0684`, touch lock `0601` / `0681`
 - user-EQ control: vendor `0x000A`, `0220` / `02A0`; EQ group `0x000A/021B`
 
-— [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `tw2.json`
+— [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `tw2.json`
 
 ### Inferences
 - **Noise-control model in Earshot terms.**
@@ -572,13 +572,13 @@ Block these:
 Allow-list known GET/SET pairs instead of deny-listing.
 
 ### Cited Findings
-- **Factory reset.** `0x0495/0x0040` Service_FactoryReset (response `0x0140`). The app follows it by deleting the bond and resetting its overlay (`factoryResetDetails`: `needsDeleteBonding`, `needsResetOverlay`). — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) all GAIA v3 JSONs
+- **Factory reset.** `0x0495/0x0040` Service_FactoryReset (response `0x0140`). The app follows it by deleting the bond and resetting its overlay (`factoryResetDetails`: `needsDeleteBonding`, `needsResetOverlay`). — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) all GAIA v3 JSONs
 - **Firmware upgrade, Sennheiser feature 1.**
   - `0x0200` Upgrade_EnterDfuMode
   - `0x0201` Upgrade_SetUpgradeFilesize
   - progress notification `0x0282` (response `0x0302`)
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `m4.json`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `m4.json`
 - **Firmware upgrade, Qualcomm feature 6.**
   - `0x001D/0x0C00` UpgradeConnect
   - `0x0C01` UpgradeDisconnect
@@ -586,19 +586,19 @@ Allow-list known GET/SET pairs instead of deny-listing.
   - data indication `0x0C80`
 
   Also Momentum Sport's MCU upgrade feature `0x0495/0x2400`–`0x2403`; the reads are harmless, the feature is not needed.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `m4.json`, `msport1.json`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `m4.json`, `msport1.json`
 - **Reboot and role switch.**
   - `0x0495/0x060F` Reboot_Gaia (MTW4, ATW1, MSPORT1)
   - `0x0495/0x1C00` EnforceRoleSwitch (TW models; forces a primary/secondary bud swap)
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `tw4.json`, `msport1.json`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `tw4.json`, `msport1.json`
 - **Pairing list.**
   - `0x1403` DeviceList_Disconnect `[idx]`
   - `0x1405` DeleteEntry `[idx]`
   - `0x1406` DeletePDL (wipes the whole paired-device list)
 
   The app's `pairedDevicesDisconnectOwnDevice = true` means it can also disconnect the phone itself.
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) all GAIA v3 JSONs
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) all GAIA v3 JSONs
 
   [M4C] blocks disconnect because "on some firmware that command wiped the pairing". Its own throwaway test on M4 fw 3.38.3 found that `1403 [03]` disconnected but did **not** delete the entry (4 devices before and after). — [M4C README](https://github.com/Ariazonaa/momentum4-control); [M4C capture disconnect-1403](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets)
 - **Debug and data transfer.**
@@ -606,7 +606,7 @@ Allow-list known GET/SET pairs instead of deny-listing.
   - `0x001D/0x0009` / `0x000A` Core DataTransfer (the app uses them to pull crash dumps for upload)
   - `0x0495/0x080F` Debug_SmartPauseSensorCalibrationStart, `0x080E` raw sensor data
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `m4.json`, `tw4.json`, `CrashdumpsService`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `m4.json`, `tw4.json`, `CrashdumpsService`
 - **Other state changers to avoid by default:**
   - `0x2009` PersonalizedSound_Reset (erases the hearing profile)
   - `0x1604` MMI_SetDefaultConfig (resets the button layout)
@@ -614,8 +614,8 @@ Allow-list known GET/SET pairs instead of deny-listing.
   - `0x001D/0x0601` voice-assistant select
   - `0x2801` SetLocalName (rename)
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/); [M4C CommandCatalog](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/Catalog/CommandCatalog.cs), which marks `000D`, `0601`, `0817`, `1403`, `1405`, `1406`, `1604`, `0040`, `0200`, `0201`, `0C00`–`0C02`, `0803`, `0804`, `0009` and `000A` as Blocked
-- **Button-function values to refuse** when writing `0x1600`: function 8 (power off) and 19 (disconnect all BLE devices). — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) MMI enum
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control); [M4C CommandCatalog](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/Catalog/CommandCatalog.cs), which marks `000D`, `0601`, `0817`, `1403`, `1405`, `1406`, `1604`, `0040`, `0200`, `0201`, `0C00`–`0C02`, `0803`, `0804`, `0009` and `000A` as Blocked
+- **Button-function values to refuse** when writing `0x1600`: function 8 (power off) and 19 (disconnect all BLE devices). — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) MMI enum
 - **Legacy GAIA v1/v2** (MTW2, CX 400BT):
   - `0x000A/0x0204` Control_SetPowerState: power off. This confirms the "0x0204 power-off" note in the earlier research.
   - `0x0494/0x0101` Service_FactoryReset
@@ -623,7 +623,7 @@ Allow-list known GET/SET pairs instead of deny-listing.
   - `0x000A/0x0710` / `0x0711` PS-key reads
   - DeviceList `0x0494/0x0803`, `0805`, `0806`
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `tw2.json`, `cx400.json`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `tw2.json`, `cx400.json`
 - **Transport level.** Do not open or write to the iAP2 record (`00000000-deca-fade-deca-deafdecacaff`, Accentum channel 14). GAIA frames there powered an Accentum off. — [SDC](https://github.com/Oein/sennheiser-desktop-client/blob/main/PROTOCOL.md)
 
 ### Inferences
@@ -658,7 +658,7 @@ Gadgetbridge has no 2020+ Sennheiser support. I found no security write-up beyon
 
   — [README](https://github.com/Ariazonaa/momentum4-control); [THIRD_PARTY_NOTICES.md](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/THIRD_PARTY_NOTICES.md)
 - **[M4C] command policy.** Only "Verified" commands are sent in production. "NeedsHardwareTest" commands need an explicit test policy. "Blocked" and "Unknown" are never sent. — [CommandPolicy.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Core/Queue/CommandPolicy.cs)
-- **[M4C] long timeouts:** battery and paired-count reads 9 s, firmware version 10 s. That matches [APK]'s `send_command_timeout` of 9000/10000 ms. — [CommandCatalog.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/Catalog/CommandCatalog.cs); [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `m4.json`
+- **[M4C] long timeouts:** battery and paired-count reads 9 s, firmware version 10 s. That matches [APK]'s `send_command_timeout` of 9000/10000 ms. — [CommandCatalog.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Protocol/Catalog/CommandCatalog.cs); [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `m4.json`
 - **[MC] momentumctl (MIT, Rust).**
   - Features: Momentum 4 adaptive, ANC, anti-wind, auto-answer, battery, comfort call, on-head detection, smart pause and transparency level.
   - IDs it uses: `1A00`/`1A01`/`1A02`/`1A03`/`1A04`/`1A05`, `0400`/`0401`, `080A`/`080B`, `080C`/`080D`, `0814`/`0815`, `0603`.
@@ -709,7 +709,7 @@ CX Plus TW / CX 500BT (BLE-only in the app) and the 2020 GAIA v1/v2 units are se
   | MSPORT1 | fit test 3.17.14; tap sensitivity 3.16.0; bass-boost and podcast toggles 3.17.3; high-resolution 3.17.14 |
   | CX Plus | ANC, TH and sound zones 1.7.28 |
 
-  — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) model JSON `parameters`
+  — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) model JSON `parameters`
 - **Version numbers.** Firmware version comes from `0x1201` (3 × u16 major/minor/patch). The M5 replied `00 06 00 15 00 05` = 6.21.5. — [M4C capture](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets/M5)
 - **Quirks observed on hardware (M4):**
   - writes return an empty response, then a notification about 30 ms later;
@@ -720,8 +720,8 @@ CX Plus TW / CX 500BT (BLE-only in the app) and the 2020 GAIA v1/v2 units are se
   - auto-off writes send no notification even with feature 3 registered.
 
   — [M4C captures](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets)
-- **Serialised requests.** The app talks to the device through one property layer with per-command timeouts (6–15 s for slow ones). [M4C] runs a GAIA command queue that keeps one request in flight. — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `send_command_timeout`; [M4C GaiaCommandQueue.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Core/Queue/GaiaCommandQueue.cs)
-- **Gen-1/Gen-2 ID collision.** `0x1003` is a different command in Gen-1 (EQ_UserParameterGroup_Get) and in Gen-2 firmware (all band gains on M4 3.37.3). `0x1002` is Gen-1 "set parameter group" but Gen-2 "get slider gain". — [APK](https://www.apkmirror.com/apk/sonova-consumer-hearing-gmbh/sennheiser-smart-control/) `features/user-eq-1.json` vs `user-eq-2.json`; [M4C capture eq-band-bass-boost](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets)
+- **Serialised requests.** The app talks to the device through one property layer with per-command timeouts (6–15 s for slow ones). [M4C] runs a GAIA command queue that keeps one request in flight. — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `send_command_timeout`; [M4C GaiaCommandQueue.cs](https://github.com/Ariazonaa/momentum4-control/blob/HEAD/src/Momentum4.Core/Queue/GaiaCommandQueue.cs)
+- **Gen-1/Gen-2 ID collision.** `0x1003` is a different command in Gen-1 (EQ_UserParameterGroup_Get) and in Gen-2 firmware (all band gains on M4 3.37.3). `0x1002` is Gen-1 "set parameter group" but Gen-2 "get slider gain". — [APK](https://play.google.com/store/apps/details?id=com.sennheiser.control) `features/user-eq-1.json` vs `user-eq-2.json`; [M4C capture eq-band-bass-boost](https://github.com/Ariazonaa/momentum4-control/tree/HEAD/tests/CapturedPackets)
 - **Sonova recommends Smart Control Plus** for current firmware updates on the 2022–2024 models. — [Sennheiser UK FAQ](https://uk.sennheiser-hearing.com/pages/smartcontrol)
 
 ### Inferences

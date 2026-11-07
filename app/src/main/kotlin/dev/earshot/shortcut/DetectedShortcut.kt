@@ -27,7 +27,7 @@ enum class PressStyle {
 /**
  * A headset whose assistant gesture reached Earshot during "Detect a button", and what the user
  * called the control. Kept per headset because the QC Ultra 2 taught us not to guess: Bose
- * documents the Shortcut as a strip hold, the owner's unit fired on a power-button press.
+ * documents the Shortcut as a strip hold, a test unit fired on a power-button press.
  */
 @Serializable
 data class DetectedShortcut(

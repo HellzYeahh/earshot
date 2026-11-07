@@ -168,7 +168,7 @@ fun SleepContent(ui: SleepUiState, actions: SleepActions, contentPadding: Paddin
 }
 
 /**
- * Idle, top to bottom (the user's order, [SleepSetupCard]): the headset, the alarms (with the
+ * Idle, top to bottom ([SleepSetupCard]): the headset, the alarms (with the
  * accesses that would make them late), tonight's timers and Start, the sounds, and last the
  * switches for the night.
  *

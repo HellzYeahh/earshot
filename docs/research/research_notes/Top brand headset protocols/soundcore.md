@@ -1,6 +1,6 @@
 # Anker Soundcore ANC headphones and earbuds (2020 onward): Bluetooth control protocol
 
-Research notes for Earshot roadmap item E2 ("Soundcore"), written 2026-10-21. Static analysis only: no APK was
+Research notes for the Earshot Soundcore driver, written 2026-10-21. Interoperability analysis of the public app only: no APK was
 installed or run, and no Bluetooth device was contacted. Facts are restated in my own words. Licences of the
 sources: Soundcore app = proprietary (facts only); OpenSCQ30 = GPL-3.0 (facts only); Gadgetbridge = AGPL-3.0
 (facts only); SoundcoreManager = no licence (facts only); soundcorebridge = MIT; Anker SoundcoreSDKDemo =
@@ -12,7 +12,7 @@ Short names used below:
   per-byte comments, contributed by owners.
 - **GB** = Gadgetbridge `service/devices/soundcore/...` and `devices/soundcore/...` (Codeberg, master).
 - **SCB** = soundcorebridge (MIT): a verified Space 2 (D1402) protocol map.
-- **APK** = the user's Soundcore 5.0.32 (`com.oceanwing.soundcore`, versionCode 431) base.apk and splits.
+- **APK** = Soundcore 5.0.32 (`com.oceanwing.soundcore`, versionCode 431) base.apk and splits.
 - Command ids are written as two bytes `[category code]`, as they appear on the wire (`06 81` = category 6,
   code 0x81). Codes 0x00..0x7F read or report, 0x80..0xFF write.
 
@@ -35,22 +35,21 @@ recovered, because its Java code is encrypted by a commercial packer.
   the ARouter route tables and the AndServer library. The real bytecode sits encrypted in `assets/ijiami.dat`
   (30.9 MB) and `assets/ijiami.ajm` (9.0 MB), both at about 7.98-7.99 bits/byte of entropy, with the Ijiami
   loader libs in `assets/ijm_lib/*/libexec.so` and `libexecmain.so`. No headphone protocol class could be
-  decompiled. Unpacking would mean running the app or defeating the packer, both outside this task's rules —
-  [APK base.apk, local static analysis](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/base.apk)
+  read —
+  APK base.apk
 - The splits hold no dex. `split_soundcoreso.apk` carries native libs: `libjl_ota_auth.so` (JieLi OTA,
   JNI `com.jieli.jl_bt_ota`), `libecc-encryption.so` (JNI `com.anker.esiotkit...EccEncryption`, micro-ECC plus
   AES-128-CBC), `libsecuritytool.so`, opus, snore detection, deep AEC and others. `split_lib_asset.apk` carries
   media (HearID tones, sleep sounds, PAG animations named after models such as `d1302_welcome`,
   `a6611_sleep_homepage`, `a3953_gif_fittest_guide2`) —
-  [APK splits](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/)
+  APK splits
 - The Flutter module (`libapp.so`, 21 MB, package `module_flutter`) covers the D3200 recorder, AI chat, the
   HearID test UI and "Anker Day". Its strings contain no `0cf12d31` UUID and no `08 EE` framing, so the device
   protocol is in the encrypted Java layer, not Dart —
-  [APK lib/arm64-v8a/libapp.so](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/base.apk)
-- `libscsecurity.so` holds the app's cloud API secrets (JNI `com.anker.scsecurity.SCSecurityLib`). They are
-  irrelevant to Bluetooth and deliberately not recorded here. `libscnativelib.so` is DSP and health code (deep AEC,
+  APK lib/arm64-v8a/libapp.so
+- `libscnativelib.so` is DSP and health code (deep AEC,
   SBC decoder, LZF, "dailycare" heart-rate maths), not protocol code —
-  [APK base.apk native libs](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/base.apk)
+  APK base.apk native libs
 - The decoded manifest (readable, not encrypted) shows about 100 per-model activity packages named by product
   code: `com.oceanwing.soundcore.activity.a3951`, `.a3947`, `.a3953`, `.a3954`, `.a3955`, `.a3957`, `.a3959`
   (none), `.a3936`, `.a3933`, `.a3040`, `.a3035`, `.a3062`, `.a6611`, `.d1301`, `.d1302`, `.d1303`, `.d1402`,
@@ -59,17 +58,17 @@ recovered, because its Java code is encrypted by a commercial packer.
   `CommonBes2OtaActivity`, `CommonCombainOtaActivity`, `CommonJLOtaActivity`, `CommonWqActivity`,
   `CommonWqV2Activity` and `CommonWqV2BleActivity`, plus a Qualcomm `com.qualcomm.qti.gaiacontrol.services`
   service and the Kable BLE library (`com.juul.kable.KableInitializer`) —
-  [APK AndroidManifest.xml](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/base.apk)
+  APK AndroidManifest.xml
 - `resources.arsc` key names are prefixed by model code. Approximate counts: a3951 335, a3952 241, a3953 203,
   a3954 249, a3956 249, a3957 61, a3947 44, a3936 37, a3040 85, a3035 56, a3062 44, a6611 678, d1301 556,
   d1302 282, d1204 146, d1203 24, d1205 24, d1206 19, d1402 52. Earbud/headphone codes present include A3004,
   A3005, A3027, A3028, A3029, A3033, A3035, A3040, A3062, A3330, A3388, A3850, A3871-A3879, A3909, A3910,
   A3926-A3968, A3982/A3983, A6610, A6611, D1101, D1105, D1200-D1206, D1301-D1303, D1402-D1406 —
-  [APK resources.arsc](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/base.apk)
+  APK resources.arsc
 - Product names are mostly server-delivered. Only a few names are local strings (for example "Liberty 5 Pro Max",
   "Sleep A10", "Sleep A20", "AeroFit 2", "Space A40", "Liberty 4 NC"), so the APK alone cannot give a complete
-  code-to-name table — [APK resources.arsc values](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/base.apk)
-- Older, unpacked builds of the app that the community decompiled show the architecture. For each model there is
+  code-to-name table — APK resources.arsc values
+- Community notes on older builds of the app show the architecture. For each model there is
   an `AxxxxDeviceModel` that creates an `AxxxxCmdService` (writes) and an `AxxxxAnalysisService` (parses reads).
   Both are handed to `Cmm2BtDeviceManager`, with a shared command catalogue in `Cmm2CmdData`/`CmmBtCmdService`
   and dispatch through `BaseBtDispatch`. Per-model command services inherit from each other, for example
@@ -160,7 +159,7 @@ The Space 2 / Liberty 5 Pro / Pro Max codes are also on retail listings found by
 - **Serial number.** The 16-character serial is the model digits followed by the headset's MAC in reversed byte
   order. Example: model 1234 with MAC 55:66:77:88:99:AA gives `1234AA9988776655` —
   [OSCQ structures/serial_number.rs](https://github.com/Oppzippy/OpenSCQ30/blob/200d9e1657dff67d516ed1b6347f312d7a1b01a7/lib/src/devices/soundcore/common/structures/serial_number.rs).
-  Real captures follow this: `3957F49D8AC20334` on a Liberty 5, `1203…`/`1204…` on Liberty 5 Pro/Pro Max, and
+  Real captures follow this: `3957…` on a Liberty 5, `1203…`/`1204…` on Liberty 5 Pro/Pro Max, and
   `1402…` on Space 2 —
   [Faker a3957.toml](https://github.com/Oppzippy/OpenSCQ30/blob/200d9e1657dff67d516ed1b6347f312d7a1b01a7/tools/soundcore-device-faker/devices/a3957.toml),
   [OSCQ #304](https://github.com/Oppzippy/OpenSCQ30/issues/304), [SCB protocol map](https://github.com/mervin008/soundcorebridge/blob/HEAD/docs/protocol-map.md)
@@ -211,7 +210,7 @@ writes. OTA runs on separate vendor services (BES `66666666-…` and others) tha
   [OSCQ common/packet.rs](https://github.com/Oppzippy/OpenSCQ30/blob/200d9e1657dff67d516ed1b6347f312d7a1b01a7/lib/src/devices/soundcore/common/packet.rs),
   [OSCQ packet/checksum.rs](https://github.com/Oppzippy/OpenSCQ30/blob/200d9e1657dff67d516ed1b6347f312d7a1b01a7/lib/src/devices/soundcore/common/packet/checksum.rs).
   This matches Earshot's existing implementation and its example `08 EE 00 00 00 01 01 0A 00 02` —
-  [Earshot SoundcorePacket.kt](file:///C:/Users/Hellz/Desktop/earshot/protocol/src/main/kotlin/dev/earshot/protocol/soundcore/SoundcorePacket.kt)
+  Earshot SoundcorePacket.kt
 - **Checksum outlier:** OSCQ flags a no-checksum variant used only by the Motion+ speaker (A3116), which also
   pins its own vendor UUID `…b3116`. Liberty 2 Pro+ (A3930) is pinned to SPP —
   [OSCQ a3116.rs](https://github.com/Oppzippy/OpenSCQ30/blob/200d9e1657dff67d516ed1b6347f312d7a1b01a7/lib/src/devices/soundcore/a3116.rs),
@@ -252,8 +251,7 @@ writes. OTA runs on separate vendor services (BES `66666666-…` and others) tha
   SCB therefore resolves channels from SDP records and refuses by service UUID, never by number. Its refuse-list:
   BES OTA `66666666-6666-6666-6666-666666666666` and Apple iAP2 `00000000-deca-fade-deca-deafdecacaff` —
   [SCB RFCOMM.swift](https://github.com/mervin008/soundcorebridge/blob/HEAD/Sources/soundcorectl/RFCOMM.swift).
-  Earshot already saw `…d1301` plus BES `66666666-…` on the user's Sleep A30 —
-  [Earshot roadmap](file:///C:/Users/Hellz/Desktop/earshot/docs/roadmap.md)
+  Earshot already saw `…d1301` plus BES `66666666-…` on a Sleep A30.
 - **BLE GATT:** SoundcoreManager (no licence) talks to Soundcore devices over BLE. Its resolver skips GATT
   services `1800`, `1801`, `86868686-8686-8686-8686-868686868686` and `66666666-6666-6666-6666-666666666666`, and
   uses the remaining custom service's write and read/notify characteristics —
@@ -264,7 +262,7 @@ writes. OTA runs on separate vendor services (BES `66666666-…` and others) tha
   encryption found nothing reliable (see section 5). The only crypto in the APK is (a) `libecc-encryption.so` in
   Anker's `esiotkit` (ECC key generation and encrypt/decrypt, AES-128-CBC), (b) JieLi OTA auth and (c) cloud API
   signing. Anker's official SDK demo shows a "secure binding" key store for the D3200 recorder —
-  [APK split_soundcoreso.apk](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/split_soundcoreso.apk),
+  APK split_soundcoreso.apk,
   [AnkerInnovations/SoundcoreSDKDemo (Apache-2.0)](https://github.com/AnkerInnovations/SoundcoreSDKDemo)
 
 ### Inferences
@@ -334,7 +332,7 @@ from bytes 2-3 — [GB SoundcoreProtocolImplV1.java](https://codeberg.org/Freeyo
 
 **SL (sleep earbuds, A6611/D1301):** 0 host; 1 linked; 2-3 battery L/R; 4-8 fw L; 9-13 fw R; 14-29 serial
 (no charging bytes) — [Faker a6611.toml](https://github.com/Oppzippy/OpenSCQ30/blob/200d9e1657dff67d516ed1b6347f312d7a1b01a7/tools/soundcore-device-faker/devices/a6611.toml),
-[Earshot D1301State.kt](file:///C:/Users/Hellz/Desktop/earshot/protocol/src/main/kotlin/dev/earshot/protocol/soundcore/D1301State.kt)
+Earshot D1301State.kt
 
 **G2h (Space One/Q45/One Pro, Space 2):** 0 battery; 1 charging (`FF` seen); 2-6 firmware; 7-22 serial; 23-24 EQ
 preset id u16 LE; 25 onward EQ bands. On Space 2, 7-10 are the ASCII model "1402" and 11-22 the ASCII MAC —
@@ -449,7 +447,7 @@ Sources: [OSCQ a3936/structures/sound_modes.rs](https://github.com/Oppzippy/Open
 [d1202/structures.rs](https://github.com/Oppzippy/OpenSCQ30/blob/200d9e1657dff67d516ed1b6347f312d7a1b01a7/lib/src/devices/soundcore/d1202/structures.rs),
 [GB A30i protocol](https://codeberg.org/Freeyourgadget/Gadgetbridge/src/branch/master/app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/soundcore/devices/SoundcoreA30iProtocol.java),
 [SCB protocol map](https://github.com/mervin008/soundcorebridge/blob/HEAD/docs/protocol-map.md),
-[Earshot SoundcorePacket.kt](file:///C:/Users/Hellz/Desktop/earshot/protocol/src/main/kotlin/dev/earshot/protocol/soundcore/SoundcorePacket.kt).
+Earshot SoundcorePacket.kt.
 
 Mode-writing quirks:
 - **v1 sub-mode bug.** If the NC sub-mode changes while the ambient mode is normal or transparency, v1 devices
@@ -675,11 +673,11 @@ clear-all-pairings or OTA opcode in this protocol, so the only safe design is a 
   [SCB protocol map](https://github.com/mervin008/soundcorebridge/blob/HEAD/docs/protocol-map.md)
 - **OTA paths in the official app:** BES, BES2, JieLi, Actions, "AB", "Combain", WuQi (classic and BLE), Qualcomm
   GAIA, plus per-model OTA screens (A3145, A3165, A3301, A3395, A3398, A3600, A3850, A3909, A3933) and a JieLi OTA
-  auth native lib — [APK AndroidManifest.xml and split_soundcoreso.apk](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/)
+  auth native lib — APK AndroidManifest.xml and split_soundcoreso.apk
 - **Hidden debug/test screens** exist in the app: `A3062DebugActivity`, `activity.devtools.*`, A3200/A3600/A3947
   `BetaTestActivity`, `A3874TestActivity`, and resource names `a3956box_cmd_test_activity` and
   `d3200_cmd_test_activity`. Their opcodes are inside the encrypted code —
-  [APK AndroidManifest.xml / resources.arsc](file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.oceanwing.soundcore/base.apk)
+  APK AndroidManifest.xml / resources.arsc
 - **Disruptive control writes with known ids:**
 
   | Cmd | Effect | Source |
@@ -700,7 +698,7 @@ clear-all-pairings or OTA opcode in this protocol, so the only safe design is a 
   [OSCQ d1301 outbound](https://github.com/Oppzippy/OpenSCQ30/blob/200d9e1657dff67d516ed1b6347f312d7a1b01a7/lib/src/devices/soundcore/d1301/packets/outbound.rs)
 - **Earshot's guard today:** `SoundcoreWriteGuard` refuses unpair, pairing mode, host connections, power off
   (`01 85`/`01 89`), find device, reset buttons, delete alarm and any unknown write —
-  [Earshot SoundcorePacket.kt](file:///C:/Users/Hellz/Desktop/earshot/protocol/src/main/kotlin/dev/earshot/protocol/soundcore/SoundcorePacket.kt)
+  Earshot SoundcorePacket.kt
 - **Why it matters:** SCB keeps unverified models read-only, because guessed offsets written to headphones can
   leave them in odd states —
   [SCB README](https://github.com/mervin008/soundcorebridge/blob/HEAD/README.md)
@@ -813,7 +811,7 @@ slider), Space 2 (handshake), the TLV generation (Liberty 5 Pro/Pro Max/Buds 2) 
 
 ### Inferences
 
-Recommended order for Earshot. Sizes use the roadmap's S/M/L scale; "verify" means a capture from a real owner via
+Recommended order for Earshot. Sizes use an S/M/L scale; "verify" means a capture from a real owner via
 the Lab device report (F3) before writes are enabled.
 
 1. **Generic read-only Soundcore view** (S). Covers every vendor-UUID model:

@@ -46,7 +46,7 @@ object ShortcutButtonPolicy {
     /**
      * Modes that do nothing at all while Earshot holds the connection. Spotify Tap needs the Bose
      * app on the other end: on the QC Ultra 2 (fw 10.12, 2026-10-18) a press in that mode sent
-     * nothing to the phone, so the owner's button was simply dead after testing it.
+     * nothing to the phone, so the button was simply dead.
      */
     val DEAD_WITH_EARSHOT: Set<ButtonAction> = setOf(ButtonAction.SPOTIFY_TAP)
 

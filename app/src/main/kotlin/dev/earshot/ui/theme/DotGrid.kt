@@ -21,7 +21,7 @@ import kotlin.math.roundToInt
  * The backdrop behind every screen: a faint grid of dots, like the panel of a field recorder.
  *
  * Drawn as ONE rectangle filled with a repeating one-dot tile (a bitmap shader), not one point
- * per dot. The old `drawPoints` list was about 3,000 anti-aliased ovals on the unfolded Fold7
+ * per dot. The old `drawPoints` list was about 3,000 anti-aliased ovals on a large unfolded phone
  * (2,000 on the cover screen) that the render thread drew again on every frame of every screen.
  * And because `drawWithCache` got a new lambda on every call, each recomposition of the root
  * rebuilt and re-recorded that list; the root recomposed on every headset push. This modifier is a

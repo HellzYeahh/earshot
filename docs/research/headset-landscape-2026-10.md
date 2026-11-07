@@ -1,6 +1,6 @@
 # Headset protocol landscape (research, 2026-10-20)
 
-Background for [the roadmap](../roadmap.md). Collected from public sources on 2026-10-20 and not
+Collected from public sources on 2026-10-20 and not
 re-checked since. Anything marked *unverified* rests on one source or on reading code, not on a
 device. Nothing here comes from a real capture of ours, except where it says so.
 
@@ -71,7 +71,7 @@ signal.
 3. **Bose QC Earbuds (lando) are Airoha.** The ERNW toolkit lists a Bose RACE UUID
    `2D064AA9-32B5-4970-865C-643742BD2862`. BMAP probing is harmless there, but never write RACE.
 4. **The QC35 speaks BMAP** (based-connect), so its UNSUPPORTED entry could get basic noise and
-   auto-off control (S effort, experimental: nobody here owns one).
+   auto-off control (S effort, experimental: no test unit).
 
 ## What Android gives every headset (no vendor protocol)
 

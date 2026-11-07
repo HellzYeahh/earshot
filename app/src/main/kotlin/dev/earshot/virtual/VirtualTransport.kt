@@ -120,7 +120,7 @@ class VirtualTransport(
         }
 
         /**
-         * What the integrator hands to the connection manager in demo mode: one shared
+         * What AppContainer hands to the connection manager in demo mode: one shared
          * [VirtualQcUltra2] so state (EQ, modes, battery) survives reconnects, a fresh transport
          * per "connection". A unit that was powered off comes back on when the next connection
          * is attempted, as if the user pressed the button, so the manager's reconnect loop

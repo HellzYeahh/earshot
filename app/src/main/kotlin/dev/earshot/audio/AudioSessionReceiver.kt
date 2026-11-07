@@ -35,7 +35,7 @@ class AudioSessionReceiver : BroadcastReceiver() {
         }
         // The container builds repositories lazily. If this broadcast is what woke the process,
         // nobody is observing the registry yet; touching `tuning` constructs the real repository
-        // (once the integrator wires it) so the engine can attach without the user opening the app.
+        // (once AppContainer wires it) so the engine can attach without the user opening the app.
         runCatching { context.appContainer.tuning }
             .onFailure { Log.w(TAG, "tuning repository not available: ${it.message}") }
     }

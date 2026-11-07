@@ -19,7 +19,7 @@ So the whole safety design is two rules: connect by UUID only, and pass every wr
 
 How much can ship without hardware depends on whether the protocol describes itself. Sony, Sennheiser and JBL's 2025+ stack announce their features. Soundcore and JBL's older stack need per-model layouts that only captures can confirm.
 
-Every finding here comes from static analysis of the official Android apps plus open sources. Nothing was run against a headset. The only on-device evidence is other people's captures: Momentum 4/5, Wave Buds 2, Space 2 and OpenSCQ30's owner captures.
+Every finding here comes from interoperability analysis of the public Android apps plus open sources. Nothing was run against a headset. The only on-device evidence is other people's captures: Momentum 4/5, Wave Buds 2, Space 2 and OpenSCQ30's owner captures.
 
 Compared with earlier research, these findings:
 - confirm the Sony plan and the shared-GAIA-codec idea;
@@ -175,7 +175,7 @@ Full tables: [Sony notes §3][sony-n].
 - **Reboots.** Switching the voice assistant reboots the headset ([Gadgetbridge][gb-sony]).
 - **ALERT confirmations.** Some settings never apply unless the app answers the headset's ALERT confirmation. Earshot should answer "positive" only for actions the user started.
 
-The pitfalls also correct one assumption in roadmap E3: **Sony has no ANC strength slider**. Earshot's noise slider maps to Sony's ambient level, while ANC itself is a mode.
+The pitfalls also correct one earlier assumption: **Sony has no ANC strength slider**. Earshot's noise slider maps to Sony's ambient level, while ANC itself is a mode.
 
 **Blocks:**
 - firmware update: UPDT `0x30–0x39`, `0x3E`, `0x3F` (v1 `0x34–0x37`) and the BLE FOTA service `5b833e30-…`;
@@ -304,7 +304,7 @@ Full tables: [JBL notes §3][jbl-n].
 - *Security mode 2* waits for a device-side pairing-status push. That probably needs LE bonding, which is unverified.
 - *Security mode 3* requires a host-identification write derived from the phone's Bluetooth name.
 
-Neither gate encrypts anything. The app's "authentication" features are an app-side anti-counterfeit check, and nothing in the control path waits for it. Earshot skips the check and blocks those feature IDs.
+Neither gate encrypts anything. Nothing in the control path waits for the app-side auth features (003E, 004A, 004B, 0053, 0054); whether a device refuses commands without them is unconfirmed.
 
 **Blocks** (listed in the guard table below):
 - the BES and excelpoint firmware-update services;
@@ -416,7 +416,7 @@ So the shared asset is a **RACE codec whose allow-list is per vendor**: standard
 | Recognise-never-open table (BES, JBL OTA services, iAP2) | Soundcore, JBL, Skullcandy, Sennheiser | inside the Soundcore link factory only | **S** (move into A2) |
 | Per-vendor allow-list WriteGuard | all | Bose, Soundcore (global) | **S** each |
 
-The identification signals for roadmap item A2 (DeviceIdentifier), compactly:
+The identification signals for DeviceIdentifier, compactly:
 
 | Signal | Means | Caveat |
 |---|---|---|
@@ -451,71 +451,11 @@ The WriteGuard seeds for each brand, named only so they can be refused:
   - Soundcore adds adaptive and transport sub-modes;
   - Sennheiser's earbuds and headbands differ.
 
-  So roadmap item A7 (modes stored by meaning) is due with the first of these drivers rather than with AirPods.
-
-## Ranked order: five RFCOMM drivers in 0.7, GATT and RACE in 0.8
-
-The ranking weighs four things:
-- whether the transport already exists;
-- whether an MIT reference with hardware captures exists, so the virtual device can be trusted;
-- whether the protocol describes itself, so a driver degrades gracefully on unknown firmware;
-- how isolated the dangerous commands are.
-
-Earshot owns only the Sleep A30 among these brands. Under roadmap rule 3 everything else ships as Experimental, and device reports (F3) are what promote it ([roadmap][roadmap]).
-
-| Rank | Driver | Release | Size | Why here |
-|---|---|---|---|---|
-| 1 | **Soundcore generic read-only view**: header parse, model from the serial, battery L/R/case and firmware for every vendor-UUID model; fix the A-code suffix rule | 0.7 (first) | S | zero writes; lifts every vendor-UUID model above "any headset"; creates the capture path for F3 |
-| 2 | **Skullcandy Method 360 / 540 ANC** on BOS-RPC | 0.7 | S | configuration-only reuse of the Crusher driver; inherits its five open questions |
-| 3 | **Sennheiser GAIA v3 over RFCOMM**, with the shared GAIA codec | 0.7 (moved up from 0.8) | S–M | 9 models plus the Momentum 5; simplest framing; MIT captures for golden frames; feature discovery |
-| 4 | **Sony v2 over RFCOMM** (E3) | 0.7 | M | the premium Bose peer; self-describing; MIT replay fixtures; the ACK layer is the main extra cost |
-| 5 | **Soundcore gen-2 earbud writes**: Liberty 4 NC, Liberty 5, P40i, R50i NC/A30i, P31i (E2) | 0.7 → 0.8 | M + S per model | writes only after an owner's capture confirms the layout (clean-room from GPL facts) |
-| 6 | **BLE GATT byte transport** | 0.8 | M | unlocks JBL, Sennheiser CX, Airoha GATT and Sony LE Audio |
-| 7 | **JBL H-AA** | 0.8 | M | largest JBL base (2021–24); MIT jbl-control frames |
-| 8 | **JBL H-P4** | 0.8 | S–M | every 2025–26 model; self-describing; the security gates need one capture |
-| 9 | **Soundcore headphones**: Space One, One Pro, Q45, then Space 2 with its init script | 0.8 | M | direct Bose competitors; MIT map for Space 2 |
-| 10 | **Airoha RACE allow-list codec → JBL A-RACE** | 0.8, after a decision | M | the same codec later serves Skullcandy's Airoha line |
-| 11 | **Sony v1** (WH-1000XM4); **Sennheiser BLE** (CX Plus, CX 500) | 0.8 | S–M each | v1 after mos's support matures; BLE once rank 6 lands |
-
-After 0.8, by demand:
-- Skullcandy BOS-AT (M, plus research);
-- Skullcandy's Airoha line (L);
-- Soundcore EQ writes (M–L) and the TLV generation (L);
-- JBL custom EQ curves (L).
-
-Not worth building: the Dime 540 ANC (BES TOTA on the OTA UUID), the Hesh ANC (no control channel), and Sennheiser's legacy GAIA v1 models (MTW2, HD 4x0BT). All stay GENERIC.
-
-Two ordering calls deserve a defence.
-
-**Sennheiser before Sony** is a cost call, not a value call. Sennheiser needs no sequence/ACK layer, no byte escaping and no version whitelist, and its MIT reference was tested on two current models. Sony needs the full Tandem link layer but reaches more users. They can run in parallel. If only one fits in 0.7, Sony's user value argues for Sony.
-
-**The read-only Soundcore view comes first** because it is pure parsing on an already-working link. It also turns every Soundcore owner into a capture source. That is the bottleneck for ranks 5 and 9, because OpenSCQ30's captures cannot be reused as test data.
-
-## What this confirms, changes and adds to the roadmap
-
-| Item | Verdict | Finding |
-|---|---|---|
-| Rules 6–7 (own WriteGuard; identify before opening) | **Confirms, sharpens** | Three brands punish probing: Sennheiser's iAP2 power-off, Soundcore Space 2's OTA on channel 12, Sony's exposed RACE. Allow-lists must key on command + sub-type + length, because Soundcore reuses ids across models and Sony multiplexes by inquired type |
-| D6 (`deca-fade`) | **Strengthens, adds a fix** | A second community source (momentum4-control, MIT) labels it iAP2. The forced-Bose path still tries `SdpBmap` with `fixedChannels = false` ([BmapCandidate.kt][bmapcand]); drop it for non-Bose names now, not after D6 |
-| A2 DeviceIdentifier | **Adds** | the identification table above; the `0cf12d31` prefix is shared with JBL; Sony's UUIDs need byte-reversed matching |
-| A6 / A7 (shared session base; modes by meaning) | **Changes timing** | Both were deferred to AirPods modes (C2), which is now a go/no-go decision. Sennheiser and Sony are vendors 4 and 5 with modes, so attach A6 and A7 to the first of them |
-| A5 capability flags | **Confirms** | Sony support functions, Sennheiser feature lists and H-P4's unsupported list map onto it directly |
-| E2 Soundcore | **Confirms, refines** | model table kept; adds the serial-prefix model ID, the `b`-suffix rule for A-codes, per-model init scripts, a read-only tier first, per-model allow-lists; the app is packed, so no app-derived facts |
-| E3 Sony | **Confirms; answers the open decision with "yes"** | The MIT reference matches the app's own enums, the protocol describes itself, and the fixtures can seed the virtual device. Adds reversed UUIDs, ACK timing, the version whitelist and the block list; drops "ANC level" (Sony has only an ambient level); WH-1000XM4 (v1) comes later |
-| E4 Fast Pair | **Confirms the shrink** | JBL identifies through its own advert, not Fast Pair; jbl-control's Fast Pair battery path is Linux-only evidence |
-| F1 VendorControl, F2 conformance, F3 device report | **Confirm, raise F3** | Sony GENERAL_SETTING items, Soundcore flags and Sennheiser toggles fit F1. MIT-licensed frames or fixtures exist for Sony, Sennheiser, JBL H-AA and Space 2; Soundcore otherwise depends on F3 captures |
-| 0.7 headline | **Changes** | "Experimental: Sony, Crusher" becomes "Experimental: Sony, Sennheiser, Skullcandy Crusher 1080 + Method 360/540, Soundcore families" |
-| 0.8 drivers | **Changes** | Sennheiser moves to 0.7 with the GAIA codec; add the GATT transport and the RACE codec as 0.8 platform items; JBL lands in 0.8 |
-| Bragi "never RACE" vs rule 6 "RACE allow-list only" | **Decision needed** | An allow-listed RACE codec is the only route to JBL's Airoha models and Skullcandy's 2022–25 line; keep "never" for Sony, Bose and Bragi BOS-RPC |
-| Landscape JBL row | **Changes** | "gen 3 unknown" becomes H-P4, documented; the main transport is BLE GATT, not RFCOMM; L effort stands |
-| Landscape Sennheiser and Sony rows | **Refine** | Sennheiser's best reference is momentum4-control (hardware captures, safety classes); CX Plus needs BLE. Sony's "BLE on XM5+" is GATT only while LE Audio is active |
-| Accelerators: Sennheiser 2.4★ app | **Weakens** | That rating belongs to the legacy Smart Control; Smart Control Plus is the current app and is recommended for M4, MTW4 and Accentum ([App Store](https://apps.apple.com/au/app/id6448098057)) |
-| Accelerators: GAIA codec | **Refines** | Sennheiser shares only framing and Core discovery with other GAIA brands; per-brand tables carry everything else |
-| No INTERNET permission | **Confirms** | Cloud-only features stay out: Sennheiser Sound Check, Skullcandy Skull AI and Skull-iQ voice. Soundcore product names are delivered from the server, so Earshot must bundle its own code-to-name table |
+  So modes stored by meaning are due with the first of these drivers rather than with AirPods.
 
 ## Conclusion
 
-The study changes the question from "which brand is easiest" to "which platform piece unlocks the most brands safely". RFCOMM by UUID, which Earshot already has, opens four brands at once. The only new transport worth building is GATT, and JBL alone makes it mandatory. The one real policy decision left is whether Earshot speaks Airoha RACE behind an allow-list. That one choice gates JBL's Airoha models and most of Skullcandy's line, and the honest answer depends on whether the integrator trusts a per-vendor allow-list on a protocol whose debug surface is publicly documented as dangerous.
+The study changes the question from "which brand is easiest" to "which platform piece unlocks the most brands safely". RFCOMM by UUID, which Earshot already has, opens four brands at once. The only new transport worth building is GATT, and JBL alone makes it mandatory. The one real policy decision left is whether Earshot speaks Airoha RACE behind an allow-list. That one choice gates JBL's Airoha models and most of Skullcandy's line, and the honest answer depends on whether a per-vendor allow-list can be trusted on a protocol whose debug surface is publicly documented as dangerous.
 
 The second shift is in what "Experimental" means. For self-describing protocols, an Experimental driver built on MIT fixtures is close to correct by construction, because the headset tells it what is safe to offer. For Soundcore it is a guess until an owner's capture arrives. That argues for treating the F3 device report as a release gate for Soundcore writes and as a confirmation step for Sony and Sennheiser. The single most urgent fix this research found is not a new driver: it is removing the `deca-fade` SDP lookup from Earshot's forced-Bose path, before more brands reach users.
 
@@ -524,12 +464,10 @@ The second shift is in what "Experimental" means. For self-describing protocols,
 [sen-n]: ../research_notes/Top%20brand%20headset%20protocols/sennheiser.md
 [jbl-n]: ../research_notes/Top%20brand%20headset%20protocols/jbl.md
 [sk-n]: ../research_notes/Top%20brand%20headset%20protocols/skullcandy.md
-[roadmap]: ../../roadmap.md
 [landscape]: ../headset-landscape-2026-10.md
 [accel]: Universal%20headset%20control%20accelerators.md
 [rfcomm]: ../../../app/src/main/kotlin/dev/earshot/bt/RfcommTransport.kt
 [psm]: ../../../app/src/main/kotlin/dev/earshot/bt/BmapPsmReader.kt
-[bmapcand]: ../../../app/src/main/kotlin/dev/earshot/bt/BmapCandidate.kt
 [d1301]: ../../../protocol/src/main/kotlin/dev/earshot/protocol/soundcore/D1301State.kt
 [mos]: https://github.com/mos9527/SonyHeadphonesClient
 [gb-sony]: https://codeberg.org/Freeyourgadget/Gadgetbridge/raw/branch/master/app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/sony/headphones/SonyHeadphonesProtocol.java

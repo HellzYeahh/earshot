@@ -36,7 +36,7 @@ class EqCycleAndHandlerTest {
     fun `handler status from resolveActivity`() {
         val own = "dev.earshot"
         assertEquals(HandlerStatus.Earshot, HandlerStatus.classify(own, "dev.earshot.shortcut.ShortcutTriggerActivity", "Earshot", own))
-        // What the Galaxy logged with Google and Bixby both installed and no default.
+        // What a Galaxy phone logged with Google and Bixby both installed and no default.
         assertEquals(HandlerStatus.Chooser, HandlerStatus.classify("android", "com.android.internal.app.ResolverActivity", "Android System", own))
         assertEquals(
             HandlerStatus.OtherApp("com.samsung.android.bixby.agent", "Bixby Voice"),

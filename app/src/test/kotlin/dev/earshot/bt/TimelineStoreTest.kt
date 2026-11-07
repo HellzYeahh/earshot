@@ -15,7 +15,7 @@ class TimelineStoreTest {
 
     private fun tempFile(): File = Files.createTempDirectory("timeline").toFile().resolve("bt_timeline.tsv")
 
-    private fun event(n: Long) = TimelineEvent(n, "68:F2:1F:38:DB:0F", TimelineKind.LINK_UP, "#$n")
+    private fun event(n: Long) = TimelineEvent(n, "68:F2:1F:12:34:56", TimelineKind.LINK_UP, "#$n")
 
     @Test fun `events are kept across a restart`() {
         val file = tempFile()

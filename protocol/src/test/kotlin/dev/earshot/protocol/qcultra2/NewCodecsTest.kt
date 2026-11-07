@@ -27,10 +27,10 @@ class NewCodecsTest {
 
     @Test
     fun `4_6 extended info decodes classic and LE bits`() {
-        val mac = "2C:DA:46:00:00:02"
-        assertEquals("04060106" + "2cda46000002", DeviceExtendedInfoQuery.request(mac).encode().toHex())
+        val mac = "AA:BB:CC:00:00:02"
+        assertEquals("04060106" + "aabbcc000002", DeviceExtendedInfoQuery.request(mac).encode().toHex())
         // paired A2DP+HFP+AVRCP, connected A2DP+AVRCP, LE unicast paired, nothing LE connected
-        val x = DeviceExtendedInfoQuery.parse("2cda46000002 07 05 00 00 01 00".hexToBytes())!!
+        val x = DeviceExtendedInfoQuery.parse("aabbcc000002 07 05 00 00 01 00".hexToBytes())!!
         assertEquals(mac, x.mac)
         assertEquals(setOf(ClassicProfile.A2DP, ClassicProfile.HFP, ClassicProfile.AVRCP), x.pairedClassic)
         assertEquals(setOf(ClassicProfile.A2DP, ClassicProfile.AVRCP), x.connectedClassic)
@@ -38,9 +38,9 @@ class NewCodecsTest {
         assertFalse(x.leBroadcastPaired)
         assertFalse(x.leUnicastConnected)
         // a short frame still yields the classic bits
-        val short = DeviceExtendedInfoQuery.parse("2cda46000002 01 01".hexToBytes())!!
+        val short = DeviceExtendedInfoQuery.parse("aabbcc000002 01 01".hexToBytes())!!
         assertFalse(short.leUnicastConnected)
-        assertNull(DeviceExtendedInfoQuery.parse("2cda46000002".hexToBytes()))
+        assertNull(DeviceExtendedInfoQuery.parse("aabbcc000002".hexToBytes()))
     }
 
     @Test

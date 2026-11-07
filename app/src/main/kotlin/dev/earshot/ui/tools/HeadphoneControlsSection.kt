@@ -54,8 +54,8 @@ fun HeadphoneControlsSection(
     modifier: Modifier = Modifier,
     touchModifier: Modifier = Modifier,
 ) {
-    // Tools never hide a setting and let anyone try it while a headset is connected (user decision,
-    // 0.6): a value the headset didn't report shows its default, and a refusal comes back as a message.
+    // Tools never hide a setting and let anyone try it while a headset is connected: a value the
+    // headset didn't report shows its default, and a refusal comes back as a message.
     val enabled = state.isConnected && !state.isBusy
     var showRename by rememberSaveable { mutableStateOf(false) }
     var showPowerOff by rememberSaveable { mutableStateOf(false) }

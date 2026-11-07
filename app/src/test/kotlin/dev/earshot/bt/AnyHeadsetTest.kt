@@ -75,7 +75,7 @@ class AnyHeadsetTest {
         assertNull(DevicePick.choose(listOf(watch), connected = setOf(watch.address)))
     }
 
-    // ── What counts as a headset (classes and UUIDs from the user's phone, 2026-10-20) ────
+    // ── What counts as a headset (classes and UUIDs seen on real devices) ─────────────────
 
     private fun deviceClassOf(cod: Int) = cod and 0x1FFC // what BluetoothClass.getDeviceClass() returns
 
@@ -87,19 +87,19 @@ class AnyHeadsetTest {
     }
 
     @Test fun `a car kit, a speaker and a watch are not`() {
-        val uconnect = listOf(
+        val carKit = listOf(
             "00001101-0000-1000-8000-00805f9b34fb", "0000110b-0000-1000-8000-00805f9b34fb",
             "0000111e-0000-1000-8000-00805f9b34fb", "00001133-0000-1000-8000-00805F9B34FB", // MNS: a dashboard showing texts
         )
-        assertFalse(AudioClass.isHeadset(deviceClassOf(0x340408), uconnect))
-        assertFalse(AudioClass.isHeadset(deviceClassOf(0x240414), emptyList())) // soundcore Boom 2 (loudspeaker)
-        assertFalse(AudioClass.isHeadset(deviceClassOf(0x280704), emptyList())) // Galaxy Watch
+        assertFalse(AudioClass.isHeadset(deviceClassOf(0x340408), carKit))
+        assertFalse(AudioClass.isHeadset(deviceClassOf(0x240414), emptyList())) // a loudspeaker
+        assertFalse(AudioClass.isHeadset(deviceClassOf(0x280704), emptyList())) // a smartwatch
         assertFalse(AudioClass.isHeadset(null, emptyList()))
     }
 
     @Test fun `on HFP a watch or a car is not the headset, odd audio classes still are`() {
         fun major(cod: Int) = cod and 0x1F00
-        // Galaxy Watch8 Classic: the HFP hands-free unit that showed up on the Controls screen.
+        // A smartwatch that is an HFP hands-free unit showed up on the Controls screen.
         assertFalse(AudioClass.isAudioPeer(major(0x280704), deviceClassOf(0x280704), emptyList()))
         assertFalse(AudioClass.isAudioPeer(major(0x340408), deviceClassOf(0x340408), listOf("00001133-0000-1000-8000-00805f9b34fb")))
         assertTrue(AudioClass.isAudioPeer(major(0x240404), deviceClassOf(0x240404), emptyList()))

@@ -147,7 +147,7 @@ private fun TimelineRow(event: TimelineEvent, name: String, time: String) {
 @Composable
 private fun TimelinePreview() = EarshotPreview {
     val now = System.currentTimeMillis()
-    val a = "68:F2:1F:38:DB:0F"
+    val a = "68:F2:1F:12:34:56"
     TimelineContent(
         events = listOf(
             TimelineEvent(now - 3_600_000, a, TimelineKind.LINK_UP),

@@ -102,7 +102,7 @@ data class CallCodecReading(val codec: String, val wideband: Boolean, val sample
 /**
  * Reads the call (voice) codec out of `dumpsys bluetooth_manager`.
  *
- * Formats targeted (no real in-call capture from the user's Galaxy yet, so this is written from the
+ * Formats targeted (no real in-call capture from a Galaxy test phone yet, so this is written from the
  * AOSP sources and kept deliberately tolerant; see `CallCodecParserTest` for the samples):
  * ```
  * Profile: HeadsetService

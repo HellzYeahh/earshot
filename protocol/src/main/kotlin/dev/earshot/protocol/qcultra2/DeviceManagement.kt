@@ -76,8 +76,8 @@ data class DeviceInfo(
  * STATUS on firmware 10.12 (two real frames): `[mac(6), flags, b7, b8, name...]`, the name
  * starting at offset 9 (b7-b8 = the Class of Device for a non-Bose device; for a Bose product the
  * app reads a product id there, a variant at 9 and the name from 10, not seen yet):
- * `2cda46000002 03 02 03 "My Galaxy Fold"` (the connected, streaming phone) and
- * `10b1df000003 00 01 01 "OLD_LAPTOP"` (paired, absent). Quiet Rebellion's "name follows the
+ * `aabbcc000002 03 02 03 "My Phone Model"` (the connected, streaming phone) and
+ * `ddeeff000003 00 01 01 "OLD_LAPTOP"` (paired, absent). Quiet Rebellion's "name follows the
  * first 0x03" rule only worked for the first shape; it is kept as a fallback for shorter frames.
  */
 object DeviceInfoQuery {
@@ -160,7 +160,7 @@ object DeviceExtendedInfoQuery {
 
 /**
  * `[4.9]` AppAddress: the phone's own Bluetooth address *as the headphones see it* (fw 10.12
- * `2cda46000002` = the Galaxy running Earshot). Android hides the local adapter address from
+ * `aabbcc000002` = the phone running Earshot). Android hides the local adapter address from
  * apps, so this is how Earshot recognises "this phone" in the paired list.
  */
 object AppAddress {

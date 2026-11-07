@@ -88,7 +88,7 @@ Profile: A2dpService
         rec[18]: time=10-16 03:48:57.240 processed=Connected org=Connected dest=Disconnecting what=101(0x65) CONNECTION_STATE_CHANGED: arg1=3, arg2=0, obj=null
         rec[19]: time=10-16 03:48:57.246 processed=Disconnecting org=Disconnecting dest=Disconnected what=101(0x65) CONNECTION_STATE_CHANGED: arg1=0, arg2=0, obj=null
        curState=Disconnected
-  === A2dpStateMachine for XX:XX:XX:XX:6F:3F ===
+  === A2dpStateMachine for XX:XX:XX:XX:00:21 ===
     getConnectionPolicy: 100
     mConnectionState: STATE_DISCONNECTED, mLastConnectionState: STATE_DISCONNECTING
     mIsPlaying: false

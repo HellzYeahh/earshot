@@ -28,7 +28,7 @@ import dev.earshot.protocol.qcultra2.TransportControl
  * [VirtualTransport] wraps it in a [dev.earshot.bt.ByteTransport] with realistic timing so the
  * whole app stack runs on an emulator; JVM tests drive [handle] directly.
  *
- * Modelled on the user's unit, firmware 10.12.12 (`docs/reference/captures-galaxy/deep-scan-
+ * Modelled on the test unit, firmware 10.12.12 (`docs/reference/captures-galaxy/deep-scan-
  * fw10.12-2026-10-17.txt`) with the layouts of `docs/bmap-from-bose-app-13.3.4.md`; older facts
  * from `docs/reference/bosectl/NOTES.md`. Where the sources are silent the behaviour is a guess
  * and the comment says so, so a later capture can correct it in one place.
@@ -66,7 +66,7 @@ class VirtualQcUltra2(
 ) : DemoPressTarget {
     // ── Identity (the reference unit, with a made-up tail where it was masked) ───────────
     var firmwareVersion = profile.firmwareVersion
-    var serialNumber = "085958T53330200AB"
+    var serialNumber = "085958T00000000AB"
     var productName = profile.productName
     var customName = profile.customName
     var macAddress = "68:F2:1F:12:34:56"
@@ -210,7 +210,7 @@ class VirtualQcUltra2(
     /** `[4.4]` capture lists two addresses while both were connected; byte 0 was `03`. */
     val pairedDevices = mutableListOf(
         Peer("C4:0F:08:11:22:33", "Pixel 9"),
-        Peer("94:45:60:85:05:A7", "ThinkPad"),
+        Peer("94:45:60:AA:BB:CC", "ThinkPad"),
     )
     /** The phone running the app ([4.9] AppAddress); the first peer. */
     val appAddress: String get() = pairedDevices.first().mac

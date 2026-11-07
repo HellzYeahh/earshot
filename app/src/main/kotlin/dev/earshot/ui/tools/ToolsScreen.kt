@@ -136,7 +136,7 @@ fun ToolsContent(
             subtitle = stringResource(R.string.tools_find_subtitle),
             onClick = navigation.onOpenFind,
         )
-        // Always offered: Tools never hide anything, so anyone can try a headset (user decision, 0.6).
+        // Always offered: Tools never hide anything, so anyone can try a headset.
         ToolCard(
             icon = Icons.Default.Science,
             title = stringResource(R.string.tools_lab),

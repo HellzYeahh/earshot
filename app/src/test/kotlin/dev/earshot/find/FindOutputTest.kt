@@ -7,7 +7,7 @@ import kotlin.test.assertNull
 /** The find tone only ever goes to the shown headset's own output. */
 class FindOutputTest {
 
-    private val headset = "68:F2:1F:38:DB:0F"
+    private val headset = "68:F2:1F:12:34:56"
     private val car = OutputCandidate(id = 3, type = FindOutput.TYPE_BLUETOOTH_A2DP, address = "11:22:33:44:55:66")
     private val speaker = OutputCandidate(id = 1, type = 2, address = "")
 

@@ -25,7 +25,7 @@ class CodecStatusTextTest {
             "{codecName:SBC,mCodecType:0,mCodecPriority:1001,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x3(MONO|STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}]," +
             "mCodecsSelectableCapabilities:[{codecName:SBC,mCodecType:0,mCodecPriority:1001,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x3(MONO|STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}]}"
 
-    /** Same shape with the QC Ultra 2 streaming AAC and accepting AAC + SBC (what this Galaxy negotiates). */
+    /** Same shape with the QC Ultra 2 streaming AAC and accepting AAC + SBC (what a Galaxy phone negotiates). */
     private val qcUltraAac =
         "{mCodecConfig:{codecName:AAC,mCodecType:1,mCodecPriority:2001,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}," +
             "mCodecsLocalCapabilities:[{codecName:SSC,mCodecType:8,mCodecPriority:8001,mSampleRate:0x3(44100|48000),mBitsPerSample:0x3(16|24),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}, " +

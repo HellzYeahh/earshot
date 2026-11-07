@@ -9,9 +9,6 @@ local.properties
 *.iml
 .vscode/
 
-# Upstream clones used for research (the useful parts are copied to docs/reference)
-/reference/
-
 # Signing / secrets (docs/release-signing.md)
 *.jks
 *.keystore
@@ -25,11 +22,3 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Agent worktrees and local Claude settings
-.claude/
-
-# Serena (code-navigation MCP server) project config, caches and logs
-.serena/
-
-# Vendor apps downloaded for protocol research: copyrighted, never commit
-apps for research/

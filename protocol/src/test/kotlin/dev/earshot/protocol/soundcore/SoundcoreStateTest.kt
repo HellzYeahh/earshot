@@ -102,7 +102,7 @@ class SoundcoreStateTest {
         val b = ByteArray(120)
         b[1] = 1; b[2] = 5; b[3] = 0xFF.toByte()
         "00.99".toByteArray().copyInto(b, 6); "00.99".toByteArray().copyInto(b, 11)
-        "3968F49D8AC20334".toByteArray().copyInto(b, 16)
+        "3968A1B2C3D4E5F6".toByteArray().copyInto(b, 16)
         val s = read(SoundcoreModel.SPORT_X20, b)
         assertEquals(100, s.leftPercent)
         assertNull(s.rightPercent, "255 = bud absent")

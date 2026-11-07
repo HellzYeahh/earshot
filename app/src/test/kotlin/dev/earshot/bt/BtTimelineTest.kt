@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 /** The diagnostics timeline's file format, capacity, last-seen rule and labels. */
 class BtTimelineTest {
 
-    private val headset = "68:F2:1F:38:DB:0F"
+    private val headset = "68:F2:1F:12:34:56"
 
     @Test fun `events survive the file format, tabs and newlines in details included`() {
         val e = TimelineEvent(1_792_969_445_058, headset.lowercase(), TimelineKind.PROFILE_DOWN, "A2DP\tSDP\nfailed")

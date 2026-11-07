@@ -3,7 +3,7 @@ package dev.earshot.ui.sleep
 import dev.earshot.core.SleepPermissions
 
 /**
- * The cards of the idle Sleep tab, top to bottom in the user's order (docs/sleep-mode.md §5).
+ * The cards of the idle Sleep tab, top to bottom (docs/sleep-mode.md §5).
  * Each is one keyed item of the tab's LazyColumn; the names are the item keys, so keep them
  * stable (a key must survive in a Bundle, and a renamed key drops that card's saved state).
  */

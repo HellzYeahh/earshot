@@ -1,7 +1,7 @@
 # Skullcandy ANC headphones and earbuds (2020 onward): control stacks and Earshot coverage
 
-How the notes were made: static reading of the official **Skullcandy app 5.0.6** (`app.skullcandy`,
-pulled from the user's phone; Flutter UI with native Android plugins), plus public sources. Nothing was
+How the notes were made: interoperability analysis of the public **Skullcandy app 5.0.6** (`app.skullcandy`,
+Flutter UI with native Android plugins), plus public sources. Nothing was
 installed or run and no Bluetooth device was contacted. The research was deliberately narrow. It
 covers model names, product IDs, which stack each model uses and the feature list per model.
 Authentication, pairing, secure-session and crypto mechanics, field-level message layouts and anything
@@ -206,8 +206,7 @@ Per-model stack. "Certain" means the Bragi config names the model; everything el
 
 ### Gaps
 - The definitive product-to-chip map is compiled Dart code (`SKDYProductChip` and the
-  `is…Device` getters), which a string dump cannot recover. A Dart AOT decompiler such as blutter
-  would settle the medium and low rows above. Not attempted.
+  `is…Device` getters), which a string dump cannot recover.
 - Whether the non-Bragi Airoha models use standard Airoha RACE command IDs or Skullcandy-specific
   ones was not established. The app's `AIROHA_RACE_CUSTOM` and `airoha_run_custom_command` names
   suggest at least some custom ones.
@@ -373,7 +372,7 @@ excludes them.
 | Crusher 900 ANC (if Bragi) | probably like the 1080 | confirm in a later app version's Bragi config |
 | Crusher ANC 2, Rail ANC (and non-ANC Grind, Grind Fuel, Push Active) | only routing (`DeviceFamily.BRAGI`), RFCOMM-by-UUID and the link-profile memory | a new BOS-AT driver |
 | Rail (non-ANC) | none | RACE-only |
-| Indy ANC, Sesh ANC, Push ANC Active, Sesh ANC Active, Icon ANC, Aviator 900 ANC, Hesh 540 ANC | none | a RACE / RACE-custom stack, which needs the integrator to lift the "never RACE" rule for these models |
+| Indy ANC, Sesh ANC, Push ANC Active, Sesh ANC Active, Icon ANC, Aviator 900 ANC, Hesh 540 ANC | none | a RACE / RACE-custom stack, which needs a decision to lift the "never RACE" rule for these models |
 | Dime 540 ANC | none | BES TOTA, which involves a session set-up step before commands (not researched) |
 | Hesh ANC | GENERIC only | none |
 
@@ -477,8 +476,8 @@ does the BOS-RPC part.
 4. **BOS-AT driver** (Crusher ANC 2, Rail ANC; Grind, Grind Fuel and Push Active for free). It needs
    its own protocol research and a separate link profile on the `0F0186B9-…` / `BDA1C873-…` UUIDs.
 5. **Guarded Airoha RACE driver** (Push ANC Active, Sesh ANC Active, Icon ANC, Aviator 900 ANC,
-   Hesh 540 ANC, Sesh ANC, Indy ANC). This is the largest installed base, but it needs an
-   integrator decision to allow RACE writes behind an allow-list, and research into Skullcandy's
+   Hesh 540 ANC, Sesh ANC, Indy ANC). This is the largest installed base, but it needs a
+   decision to allow RACE writes behind an allow-list, and research into Skullcandy's
    custom RACE commands.
 6. **Not worth it now:** Dime 540 ANC (BES TOTA with a session set-up, unreleased) and Hesh ANC (no
    control channel). Both stay GENERIC.

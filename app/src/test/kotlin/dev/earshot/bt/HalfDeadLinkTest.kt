@@ -25,7 +25,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * A channel-2 socket that connects but never answers: what the Galaxy (Android 17, firmware
+ * A channel-2 socket that connects but never answers: what a Galaxy phone (Android 17, firmware
  * 10.12) gave Earshot while the Bose app ran in the background. [answer] scripts replies per write.
  */
 private class SilentFakeTransport : ByteTransport {

@@ -3,7 +3,7 @@ package dev.earshot.shortcut
 /**
  * Who answers the headset's assistant gesture today: what `resolveActivity(VOICE_COMMAND,
  * MATCH_DEFAULT_ONLY)` returns. With several handlers and no default Android returns its own
- * ResolverActivity (package "android"), which is the chooser the owner saw on the Galaxy.
+ * ResolverActivity (package "android"), which is the chooser.
  */
 sealed interface HandlerStatus {
     data object Earshot : HandlerStatus
@@ -16,7 +16,7 @@ sealed interface HandlerStatus {
         fun classify(resolvedPackage: String?, resolvedClass: String?, resolvedLabel: String?, ownPackage: String): HandlerStatus = when {
             resolvedPackage.isNullOrBlank() -> Unknown
             resolvedPackage == ownPackage -> Earshot
-            // "android" on the Galaxy log; newer AOSP may host the resolver in its own package.
+            // "android" on a Samsung phone; newer AOSP may host the resolver in its own package.
             resolvedPackage == "android" || resolvedPackage == "com.android.intentresolver" ||
                 resolvedClass?.endsWith("ResolverActivity") == true ||
                 resolvedClass?.endsWith("ChooserActivity") == true -> Chooser

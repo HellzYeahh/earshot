@@ -20,7 +20,7 @@ class PairedDeviceReplyMatchTest {
     private val protocol = QcUltra2Protocol()
     private val fake = FakeRequester()
     private val phoneHex = "c40f08112233"
-    private val laptopHex = "9445608505a7"
+    private val laptopHex = "944560aabbcc"
 
     @Before
     fun silenceLog() {

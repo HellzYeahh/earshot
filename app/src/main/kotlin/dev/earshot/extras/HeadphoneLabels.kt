@@ -8,7 +8,7 @@ import dev.earshot.core.HeadphoneState
 
 /**
  * Plain-Kotlin naming and battery helpers shared by Home, the widget, the tile, the low-battery
- * alert and (once the integrator wires it) the persistent notification, so every surface calls
+ * alert and (once AppContainer wires it) the persistent notification, so every surface calls
  * the product the same thing. No Android or Compose types: unit-tested in `HeadphoneLabelsTest`.
  */
 object HeadphoneLabels {

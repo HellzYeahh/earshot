@@ -1,5 +1,5 @@
 {
- "source": "Bose app com.bose.bosemusic 13.3.4 (versionCode 35696), enums com.bose.bmap.messages.enums.spec.BmapFunctionBlock / BmapFunction; derived names only",
+ "source": "BMAP block and function names from interoperability research; names only",
  "operators": {
   "0": "Set",
   "1": "Get",

@@ -1,23 +1,6 @@
-# Sleep tab (0.9): design and build plan
+# Sleep tab (0.9): design
 
-Planned 2026-10-26 and built the same day (phases 1–5 except the launcher quick start; phase 0's
-phone checks were skipped at the user's request and moved to the end, see
-`docs/PHONE_TEST_CHECKLIST.md` §5c). Nothing has run on a phone yet. The user asked for a Sleep
-tab like the Soundcore Sleep app (Sleep A20/A30) and BetterSleep, working with **any** connected
-headset. This file is the handoff: §11 says where the code is and what is left.
-
-## 1. What the user asked for
-
-- A new **Sleep** tab (a fifth bottom-bar tab).
-- **Sleep timer, 1 to 6 hours.** When it ends the headset stops playing and goes to sleep: turned
-  off, disconnected or left idle, whichever the headset allows.
-- **Noise cancelling off during the timer** (option): switched off automatically if it is on.
-- **Sleep sounds:** rain, white noise, brown noise, fire crackling (Soundcore's audio library,
-  BetterSleep).
-- **Alarm:** a wake-up time that rings **in the earbuds, on the phone, or both**.
-- Layout reference: the user's screenshots of BetterSleep's alarm screen (time and switch, wake-up
-  window, sound, fade in, snooze) and the Soundcore Sleep A20 device page (battery L/R/case, audio
-  library, reminder and alarm, sleep timer, sleep mode, a mini player at the bottom).
+Design notes for the Sleep tab.
 
 ## 2. The shape in one paragraph
 
@@ -40,7 +23,7 @@ earbuds are gone. Headset actions go through `HeadphoneRepository` only (no vend
 | Noise cancelling off | No: the row stays visible and says why | Yes: the mode that means Off, else `setAncEnabled(false)` | Yes (its "Off" mode) |
 | End: stop sounds | Yes | Yes | Yes |
 | End: disconnect | Android 17 + linked once (CDM `disconnect`) | Same | Same |
-| End: power off | No | Bose (`powerOff`, on the phone checklist), Sony (virtual only). Soundcore and JBL guards refuse power off: keep that | Refused by the guard; the earbuds' own timer instead |
+| End: power off | No | Bose (`powerOff`, to be checked on a phone), Sony (virtual only). Soundcore and JBL guards refuse power off: keep that | Refused by the guard; the earbuds' own timer instead |
 | Alarm in the earbuds | Yes, while Android has an audio output for them | Yes | Later: the earbuds' own alarm |
 | Lock touch controls / mute voice prompts for the night | No | Bose (touch, prompts), Soundcore A30 (touch, prompt toggles) | Yes |
 
@@ -51,8 +34,7 @@ explains why and what would make it work ("Link this headset once to let Earshot
 
 ### 4.1 Sounds (`:dsp`, pure Kotlin)
 
-**Changed 2026-10-26 after the user heard them:** the synthesised nature sounds were "awful", so
-rain, heavy rain, ocean, stream, wind, fire and the birdsong alarm now play **real recordings**:
+Rain, heavy rain, ocean, stream, wind, fire and the birdsong alarm play **real recordings**:
 public-domain field recordings from radio aporee ::: maps (archive.org), cut into seamless 60–75 s
 48 kHz loops by `tools/sleep-sounds/make_loops.py` (sources, licences and cut points in
 `tools/sleep-sounds/sources.json`; credited on the About screen) and bundled as
@@ -60,7 +42,7 @@ public-domain field recordings from radio aporee ::: maps (archive.org), cut int
 (`LoopSource`, random start per night); `sleep/BundledRecordings` decodes the files with
 `MediaCodec` off the audio thread. A sound without a decoded recording falls back to the
 synthesis below, which also still covers white, pink and brown noise and the fan (no clean,
-freely licensed fan recording exists; recording the user's own fan would fix that).
+freely licensed fan recording exists).
 
 **Your own sounds (added 2026-10-26):** the Sounds card has a "Yours" group and a "Your own
 sound" tile. Android's file picker (any audio, no storage permission) → a name → Earshot copies the
@@ -88,7 +70,7 @@ The synthesis (the original design):
 - Tests on the JVM: spectral slope of pink/brown, no sample above full scale for any mix, the same
   seed gives the same output, no audible loop (autocorrelation), CPU per second of audio.
 - If generated rain or fire don't sound good enough on the phone, the fallback is a few CC0
-  recordings (bigger APK, attribution in About). Decide after hearing them (§9).
+  recordings (bigger APK, attribution in About).
 
 ### 4.2 The session and its timeline
 
@@ -206,7 +188,7 @@ holds the exact alarm permission. So:
   - **Earbuds:** the headset's own output from `FindOutput.pick`; checked after it starts
     (`routedDevice`), like the Find tone.
   - **Both:** two tracks, or one alarm track left to Android's alarm routing (it normally plays on
-    the speaker and the headset together); the spike in §8 decides.
+    the speaker and the headset together).
   - **Safety net (not optional):** "Earbuds" moves to the phone when there is no headset output at
     fire time, when routing lands elsewhere, or when nobody stops it within 60 s. Never rely on the
     headset alone to wake someone.
@@ -216,8 +198,7 @@ holds the exact alarm permission. So:
 
 ## 5. The tab
 
-Order top to bottom (the user's layout, set 2026-10-26 after trying the first version on the
-Fold7), in the Field theme (night palette in dark mode):
+Order top to bottom, in the Field theme (night palette in dark mode):
 
 1. **Headset header:** name, L / R / case battery (Home's battery component) and a bedtime battery
    check ("about 4 h left: the 6 h timer will outlast it").
@@ -236,39 +217,7 @@ Fold7), in the Field theme (night palette in dark mode):
 6. Not built: a mini player bar above the bottom bar while a session runs.
 
 While a session runs the tab shows a dim night view: big time left, the sound, +15 min, Stop. The
-service notification carries the same buttons (later a Live Update, idea `live-status`).
-
-## 6. Extra ideas, scored
-
-Jev scored 20 ideas for value to someone who sleeps with earbuds (0 = niche … 3 = solves a
-real nightly problem), whether they need headset control (what a plain sleep-sounds app can't do)
-and a risk of being unreliable or making health claims. Claude decided where Jev was unsure
-(marked *Claude*). Cost $0.0006, 1.5 s.
-
-| Idea | Value | Needs headset | Risk | Decision |
-|---|---|---|---|---|
-| Bedtime battery check | 2.84 | 0.95 | 0.16 | **Core** (phase 5, first) |
-| Alarm safety net (phone takes over) | 2.84 | 0.71 | 0.47 | **Core**, built into the alarm |
-| Do Not Disturb for the night | 2.78 | 0.11 | 0.57 | Phase 5 (needs notification-policy access) |
-| Night volume cap | 2.74 | 0.23 | 0.22 | Phase 5 |
-| Lock touch controls for the night | 2.55 | 0.94 | 0.36 | **Phase 5**, a standout: maker apps don't do it across brands |
-| Mute voice prompts for the night | 2.55 | 0.92 | 0.45 | Phase 5, with touch lock |
-| Gentle wake (window + fade in) | 2.54 | 0.14 | 0.41 | **Core**, part of the alarm |
-| Tap the earbud to snooze | 2.49 | 0.87 | 0.67 | Phase 5 (a media session while ringing; player conflicts) |
-| Side-sleeper: sound in one ear | 2.43 (unsure) | 0.55 | 0.33 | *Claude:* phase 5, cheap (`FindTone` already zeroes a side) |
-| Timer for any app (pause Spotify / podcasts) | 2.29 (unsure) | 0.14 | 0.71 | *Claude:* **core**: the classic sleep-timer use; the risk is players that ignore pause, so it says so |
-| Quick start (tile, shortcut, widget) | 2.19 | 0.38 | 0.42 | Phase 5 |
-| Morning restore | 2.07 | 0.96 | 0.67 | **Core**: whatever the night changed must come back |
-| Lock-screen card (+15 min, Stop) | 2.05 (unsure) | 0.14 | 0.32 | *Claude:* core as notification buttons; Live Update later |
-| Bedtime reminder | 2.03 | 0.66 | 0.41 | Later |
-| Sleep A30's own timer, sounds, alarm | 1.98 (split) | 0.95 | 0.28 | *Claude:* phase 6: the user owns the pair, but it needs protocol reads first |
-| Sound mixer with saved mixes | 1.77 | 0.10 | 0.15 | Core mixing (3 layers); saved mixes phase 5 |
-| Own audio file as sound or alarm | 1.40 | 0.20 | 0.25 | Later (file picker, no permission) |
-| Private night log | 1.31 (unsure) | 0.19 | 0.14 | *Claude:* later, no sleep-stage claims |
-| Smart alarm from phone movement | 1.77 (unsure) | 0.19 | 0.90 | *Claude:* **dropped**: unreliable and implies sleep-stage claims |
-| Binaural beats | 1.03 | 0.08 | 0.85 | **Dropped**: health claims |
-
-Raw answers: Jev batch of 2026-10-26 (scratchpad, not kept in the repo).
+service notification carries the same buttons (later a Live Update).
 
 ## 7. Files and who owns them
 
@@ -285,42 +234,16 @@ New, owned by the Sleep work:
 - Tests: `SleepPlannerTest`, `AlarmRoutingTest`, `SleepHeadsetActionsTest` (on `DemoDevice`s:
   QC Ultra 2, Sleep A30, a generic headset), and `sleep` added to `VendorBoundaryTest.neutral`.
 
-Integrator items (manifest, `AppContainer`, Gradle):
+Manifest, `AppContainer` and Gradle items:
 - Permissions: `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `SCHEDULE_EXACT_ALARM`,
   `USE_FULL_SCREEN_INTENT`, `VIBRATE`; later `ACCESS_NOTIFICATION_POLICY` (Do Not Disturb).
-  `USE_EXACT_ALARM` (auto-granted, Play allows it only for alarm apps) is a 1.0 Play decision.
+  `USE_EXACT_ALARM` (auto-granted, Play allows it only for alarm apps) is not declared.
 - Components: `sleep.SleepService` (`foregroundServiceType="mediaPlayback"`),
   `sleep.SleepAlarmReceiver` (not exported), `sleep.AlarmActivity` (`showWhenLocked`,
   `turnScreenOn`, excluded from recents).
 - `AppContainer`: `val sleep: SleepRepository by lazy { SleepRepositoryImpl(appContext,
   headphones, deviceFinder, CompanionRemote(appContext), applicationScope) }`.
 - No new library: DataStore, coroutines and Compose are already there.
-
-## 8. Build order (start at phase 0)
-
-| Phase | What | Needs hardware | Done when |
-|---|---|---|---|
-| **0. Spikes** (1–2 days, Fold7) | (a) `USAGE_ALARM` track with preferred device = headset / speaker / none: where does it play, with hardening on? (b) a `mediaPlayback` service started from the tab keeps playing 1 h+ with the screen off (One UI "sleeping apps"). (c) `setAlarmClock` -> receiver -> service + full-screen screen on a locked phone. (d) CDM disconnect / connect on the QC Ultra 2 and the A30: does the headset stay on, and for how long? (e) Bose power off (phone checklist item). | Yes | Answers written into §4 |
-| **1. Sound engine** | `:dsp` generators, rain, fire, mixer, fades, tests | No | `:dsp:test` green; a debug button plays each sound |
-| **2. Contract + tab** | `SleepRepository` + fake, `Tab.SLEEP`, the screen against the fake, previews (light and dark) | No | The tab works end to end on the fake |
-| **3. Night session** | service, player, planner, scheduler, noise off, end actions, notification buttons, morning restore | Yes | A 15-min session on the QC Ultra 2 and on a generic headset runs every stage |
-| **4. Alarm** | `setAlarmClock`, receiver, alarm screen, routing, safety net, snooze, fade in, wake window | Yes | Alarm rings in earbuds / phone / both, and on the phone with the buds in their case |
-| **5. Night extras** | battery check, touch lock + prompts off, DND, volume cap, timer for other apps, side sleeper, quick start, saved mixes | Partly | Each extra restores itself in the morning |
-| **6. Sleep A30 native** | read `15 03` (sleep settings) and `14 01` (alarms) on the real pair in the Lab, then the earbuds' own timer (`15 85` full form), local sounds and alarm (`14 81`, added to the guard with its source) | Yes (A30) | The A30's own timer and alarm work with the phone in another room |
-
-Phases 1 and 2 can run in parallel (separate trees: `:dsp` vs `ui/` + `core/`). Phase 0 can run
-alongside them on the phone.
-
-## 9. Decisions for the user
-
-The user didn't answer these before building ("start building"), so the recommended defaults were
-used; each is one constant or one line to change.
-
-1. **Generated sounds first, recordings only if they disappoint.** Built that way.
-2. **Exact alarm access:** `SCHEDULE_EXACT_ALARM`, asked for from the tab's permissions banner;
-   `USE_EXACT_ALARM` stays a 1.0 Play decision.
-3. **Default end action:** Stop sounds (`SleepPlan.endAction`).
-4. **Alarm default:** earbuds, phone joins after 60 s (`SleepAlarm.PHONE_FALLBACK_SECONDS`).
 
 ## 10. Guard rails
 
@@ -329,33 +252,3 @@ used; each is one constant or one line to change.
   its source and a hardware test, like every guard change.
 - Nothing about the night leaves the phone; no INTERNET permission, as always.
 - The alarm never depends on the headset alone.
-
-## 11. What was built (2026-10-26) and what is left
-
-Built in one session: the contract and fake (main session), the sound engine (a helper agent,
-`:dsp` `dsp/sleep/`, 34 tests), the screens (a helper agent, `ui/sleep/`, 23 tests), the runtime
-(main session, `sleep/`, 28 tests). A review agent found 17 problems; Jev ranked them by harm and
-all were fixed (cancellation, speaker fallback after a restart, the silent full-screen alarm, the
-phone fallback when the earbud stream dies, exact-alarm re-arming, alarms after an overnight
-restart before unlock, lost or early restores, the wake-up-window double ring, and smaller ones).
-A second review of those fixes found 13 more, all fixed too: the service could stop itself right
-after Start (the session is now published before the service starts), a snooze taken on a locked
-phone was lost at unlock, a one-off alarm's switch-off wasn't saved, a pending restore dropped its
-phone part, the morning volume now waits for its own output and for a foreground, a store that
-can't load no longer blocks everything, a preview can't end the night's sounds, and smaller ones.
-Full suite green: app 1,051 (5 old skips), dsp 76, protocol 320; lint 0 errors; debug APK builds.
-
-Phases done: 1 (sounds), 2 (contract and tab), 3 (night session), 4 (alarm), 5 (night extras,
-including the launcher "Start sleep" shortcut). Not done:
-- **Phase 0 / phone checks:** skipped on purpose; run `PHONE_TEST_CHECKLIST.md` §5c on the Fold7.
-  Listen to `dsp/build/sleep-sounds/*.wav` on the PC first (rain and fire were tuned by
-  measurement, not by ear).
-- **Phase 6 (Sleep A30's own timer, local sounds, alarm).**
-- Not built: the mini player across tabs (needs the root scaffold), a Live Update card, a
-  bedtime reminder, own audio files, a night history beyond tonight's log.
-- Unknowns only a phone answers: whether `USAGE_ALARM` pinned to the A2DP output plays on the
-  earbuds only (some phones duplicate alarms to the speaker), whether One UI lets the
-  `mediaPlayback` service run all night, and how each headset behaves after a CDM disconnect.
-- No test drives `SleepRepositoryImpl` itself (it needs Android: AlarmManager, DataStore,
-  AudioTrack); its pure parts (`SleepPlanner`, `AlarmRouting`, `SleepHeadsetActions`, the JSON)
-  are tested.

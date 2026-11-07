@@ -107,7 +107,7 @@ data class VirtualProfile(
             QcUltra2.LE_AUDIO_SUPPORTED, QcUltra2.LE_AUDIO_CONTROL, QcUltra2.LE_AUDIO_CHECK, QcUltra2.LATENCY,
         )
 
-        /** The user's unit, firmware 10.12.12 (the reference everything else is compared with). */
+        /** The reference profile, firmware 10.12.12 (the reference everything else is compared with). */
         val QC_ULTRA_2 = VirtualProfile(
             productId = QcUltra2.PRODUCT_ID, productName = "Bose QC Ultra 2 HP", customName = "Fargo",
             firmwareVersion = "10.12.12+ga927c9a", blocks = WOLVERINE_BLOCKS,

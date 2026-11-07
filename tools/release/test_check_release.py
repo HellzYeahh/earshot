@@ -441,7 +441,7 @@ class FlavourFromAppIdTest(GateTestCase):
         self.assertFailsWith(self.check(apk), "app ID dev.earshot is neither", "--bridge")
 
     def test_play_build_under_the_github_asset_name_fails(self) -> None:
-        # The X05 case: a signed play build copied to the GitHub asset name, later with billing.
+        # The X05 case: a signed play build copied to the GitHub asset name.
         apk = self.apk("app/build/earshot-1.0.0.apk", PLAY, perms=(BILLING,))
         self.assertFailsWith(self.check(apk, tag="1.0.0"), "built as foss, but its app ID dev.earshot.foss is the play build's")
 

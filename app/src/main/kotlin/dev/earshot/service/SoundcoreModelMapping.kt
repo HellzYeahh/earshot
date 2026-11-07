@@ -23,7 +23,7 @@ import dev.earshot.protocol.soundcore.SoundcoreWrites
  * what the model has goes to [VendorControl]s: noise-cancelling type and level, transparency type,
  * wind, and the single-byte settings its table documents.
  *
- * Per the user's rule that tools never hide settings, a model whose layout is known shows its
+ * Tools never hide settings, so a model whose layout is known shows its
  * controls even when the state did not match (the values are blank, a change is refused with a
  * message). A model with no layout shows battery and firmware and says so.
  */

@@ -76,13 +76,13 @@ class BmapConnectionAuditTest {
 
     @Test
     fun `frames that can carry personal data are logged by size only`() {
-        val laptop = "9445608505a7"
+        val laptop = "944560aabbcc"
         val name = "Jane's Laptop".toByteArray()
         val personal = listOf(
             BmapPacket(4, 4, BmapOperator.STATUS, "03 c40f08112233 $laptop".hexToBytes()), // paired list
             BmapPacket(4, 5, BmapOperator.STATUS, "$laptop 00 0101".hexToBytes() + name),      // paired device's name
             BmapPacket(4, 5, BmapOperator.GET, laptop.hexToBytes()),                             // the MAC asked about
-            BmapPacket(4, 9, BmapOperator.STATUS, "2cda46000002".hexToBytes()),                  // this phone's address
+            BmapPacket(4, 9, BmapOperator.STATUS, "aabbcc000002".hexToBytes()),                  // this phone's address
             BmapPacket(4, 12, BmapOperator.START, "82 $laptop".hexToBytes()),                    // routing
             BmapPacket(5, 1, BmapOperator.STATUS, "000f01 $laptop".hexToBytes()),                // active source
             BmapPacket(0, 7, BmapOperator.STATUS, "SN123456".toByteArray()),                     // serial number

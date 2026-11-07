@@ -75,7 +75,7 @@ Not restricted, so an app *can* use them over its own GATT connection: **Microph
 - How many shipping LE Audio earbuds or headphones actually expose MICS, and whether their Mute is writable rather than "disabled" (2), is unknown. No source was found, and nothing was tested on hardware.
 - The trigger that enables `DONOT_STEAL_AUDIO_ON_GATT_CONN` (target SDK level, or always on) was not found. `ChangeIds` was not located in `android17-release`.
 - Behaviour on OEM forks (Samsung One UI, which has its own LE Audio stack additions) was not checked. OEMs could add restrictions beyond AOSP.
-- Classic-only headsets (most of today's ANC headphones, including the QC Ultra 2 on the user's Galaxy, AAC/SBC) often expose no BLE GATT at all, so these services apply only to dual-mode or LE Audio products. Coverage numbers were not found.
+- Classic-only headsets (most of today's ANC headphones, including a QC Ultra 2 on a Galaxy phone, AAC/SBC) often expose no BLE GATT at all, so these services apply only to dual-mode or LE Audio products. Coverage numbers were not found.
 
 ---
 
@@ -234,7 +234,7 @@ BAS (0x180F) is **not restricted** on any Android version from 12 to 17. An app 
 
 ### Inferences
 - **Initial value:** reading BAS directly is a legitimate, unprivileged way to get the *initial* battery value on LE-capable headsets, without waiting for the next broadcast and without Shizuku. This fills the `getBatteryLevel()` gap for LE devices only.
-- **Classic-only headsets:** these (e.g. the QC Ultra 2 on the user's Galaxy, AAC/SBC only) expose no LE GATT BAS. For them the sources stay the HFP indicators and vendor ATs (Q5) and Fast Pair adverts.
+- **Classic-only headsets:** these (e.g. a QC Ultra 2 on a Galaxy phone, AAC/SBC only) expose no LE GATT BAS. For them the sources stay the HFP indicators and vendor ATs (Q5) and Fast Pair adverts.
 - **Per-bud levels:** BAS can have several instances (left/right/case) with a Characteristic Presentation Format descriptor. Whether earbuds expose per-bud BAS was not verified.
 - **Android 17 audio routing:** an app's direct LE GATT connection to an LE Audio device should not make it the active audio device, per the `DONOT_STEAL_AUDIO_ON_GATT_CONN` logic (Q1). On Android 13–16 that protection applied only to allow-listed packages (`GATT_CLIENTS_NOTIFY_TO_ADAPTER_PACKAGES`). A background BAS read from Earshot could therefore, in theory, affect LE Audio auto-activation on those versions. This is an inference from code comments; not tested.
 

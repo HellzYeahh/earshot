@@ -50,8 +50,7 @@ No headset at hand? **Try demo mode** on the welcome screen.
 Build it yourself: `./gradlew :app:assembleFossDebug` (Windows: `.\gw.cmd :app:assembleFossDebug`). The Play
 version is `:app:assemblePlayDebug`; signing for releases: [docs/release-signing.md](docs/release-signing.md).
 
-What changed: [CHANGELOG.md](CHANGELOG.md) · Plans: [docs/roadmap.md](docs/roadmap.md) ·
-Protocol research: [docs/research/](docs/research/)
+What changed: [CHANGELOG.md](CHANGELOG.md) · Protocol research: [docs/research/](docs/research/)
 
 ## Credits
 

@@ -1,8 +1,7 @@
 # JBL (Harman) ANC headphones and earbuds: control protocols for an Earshot driver
 
-How the notes were made: static analysis of the official **JBL Headphones 5.37.10** app (`jbl.stc.com`,
-version code 260825178, APKMirror build dated 2026-09-01). The app was decompiled with jadx and its JSON
-assets and native-library exports were read. Nothing was installed or run, and no Bluetooth device was
+How the notes were made: interoperability analysis of the public **JBL Headphones 5.37.10** app (`jbl.stc.com`,
+version code 260825178). Nothing was installed or run, and no Bluetooth device was
 contacted. The app is plain Kotlin/Java with no Flutter or React Native. Its protocol code lives in:
 
 - `com.harman.*`: Harman's own SDK, `cmdctrl`, `protocol4`, `bluetooth`.
@@ -10,7 +9,7 @@ contacted. The app is plain Kotlin/Java with no Flutter or React Native. Its pro
 - `assets/*.json`: per-model configuration.
 
 Licences: the app and the Airoha SDK bundled in it are proprietary, so this file records facts only, in
-my own words, and quotes no decompiled source. Each community source's licence is noted where it is cited.
+my own words, and quotes no app code. Each community source's licence is noted where it is cited.
 
 Citation convention: "APK" links to the app's store page. The class or asset name in the link text says
 where a fact was found inside the APK. Byte values are hex. "LE" means little-endian.
@@ -286,7 +285,7 @@ Other notes on the table:
 - Earshot is RFCOMM-only today. JBL support therefore needs a **BLE GATT link factory**. That means BLE
   scanning for 0x0ECB / 0xFDDF adverts, mapping each advert to the bonded classic device by PID plus
   name/CRC, and following address rotation. None of this needs INTERNET, but it does need
-  `BLUETOOTH_SCAN`. Ask the integrator; it is probably already declared for the AirPods advert scanner.
+  `BLUETOOTH_SCAN`, which is probably already declared for the AirPods advert scanner.
 - Security mode 3 only proves which phone is talking: a name CRC the phone can compute itself.
 - Mode 2 most likely needs the LE link to be bonded/encrypted before the device sends PairingStatus = 1.
   This is inferred from the name only; the app has no explicit `createBond` on this path.
@@ -597,26 +596,18 @@ below are named so a guard can refuse them. Never open the BES firmware-update c
 - ERNW's December 2025 full disclosure of the Airoha RACE issues lists JBL Endurance Race 2 and JBL Live
   Buds 3 as verified vulnerable. It says nothing about JBL's patch status. RACE was reachable without
   pairing over BLE GATT and/or classic RFCOMM on the devices they tested — [insinuator.net](https://insinuator.net/2025/12/bluetooth-headphone-jacking-full-disclosure-of-airoha-race-vulnerabilities); press coverage: [Tom's Guide](https://www.tomsguide.com/computing/online-security/major-security-flaw-exposes-sony-jbl-and-bose-headphones-to-hijacking-threat-how-to-stay-safe)
-- The app's "authentication" is an anti-counterfeit check of the accessory:
-  - Algorithms: RSA-2048 with a prebuilt or dynamic key pair, or AES-256-CBC.
-  - Implemented in `libcounterfeit.so`, `com.jbl.counterfeit` and `AuthAccessoryMgr`.
-  - A failed check makes the app show a "counterfeit" pop-up.
-  - [APK: AuthenticationAlgorithmIndex, AuthenticateDeviceFeature, obfuscated bm.a/bm.g, lib/arm64-v8a/libcounterfeit.so](https://play.google.com/store/apps/details?id=jbl.stc.com)
 - Native libraries in the arm64 split, and what each does (from their JNI export names):
   - `libnative-peq(-serialize).so`, `libnative-anc(-1568).so`: Airoha EQ and ANC coefficient maths.
   - `libcalibrationLib.so`: EQ calibration value.
   - `libDspConfig.so`: Realtek (realsil) EQ.
   - `libpersonifiAlgorithm.so`: PersoniFi hearing test.
-  - `libcounterfeit.so`: the authenticity check above.
   - `libamazonjniutil.so`: cloud analytics.
   - `libsbcconverter.so`: voice memo to SBC.
   - None carries the control protocol itself.
   - [APK: split_config.arm64_v8a.apk](https://play.google.com/store/apps/details?id=jbl.stc.com)
 
 ### Inferences
-- The counterfeit check is something the *app* does to the *device*. Nothing in the control path waits
-  for it, so Earshot can skip it; it is only flagged on 2025–26 models (`hasAuthentication`). Whether a
-  device refuses commands when no check has happened is unconfirmed.
+- Nothing in the control path waits for the app-side auth features (003E, 004A, 004B, 0053, 0054); whether a device refuses commands without them is unconfirmed.
 - The earlier landscape note's "gen 3 unknown" is H-P4. Its framing, feature IDs and connect gates are
   now documented above.
 

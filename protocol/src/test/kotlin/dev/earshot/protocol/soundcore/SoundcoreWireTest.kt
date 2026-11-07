@@ -94,13 +94,13 @@ class SoundcoreWireTest {
     }
 
     /**
-     * The state the user's Sleep A30 sent on 2026-10-21 (firmware 01.91), serial and bytes 30..35
+     * The state a Sleep A30 sent on 2026-10-21 (firmware 01.91), serial and bytes 30..35
      * masked. Noise cancelling on, both buds full, tap controls on: what the earbuds were doing.
      */
     @Test fun `a real Sleep A30 state reads as on, full battery, firmware 01_91`() {
         val body = hex(
             "0101090930312e393130312e39313133303158585858585858585858585800000000000030312e36380000000006dd88" +
-            "ddddff0001d4027c0064001e0001ffffff00000100003232000006001e43410000000000020100000000000000000002" +
+            "ddddff0001d4027c0064001e0001ffffff00000100003232000006001e00000000000000020100000000000000000002" +
             "018000000000000004030280000000000000040403800000000000000405048000000000000004010000010701010101" +
             "010000010100",
         )

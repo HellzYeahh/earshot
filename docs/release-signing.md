@@ -1,6 +1,6 @@
 # Release signing
 
-Earshot ships two versions from one codebase (roadmap, "1.0 plan"):
+Earshot ships two versions from one codebase:
 
 | Version | Gradle flavour | App ID | Signed with |
 |---|---|---|---|
@@ -23,9 +23,9 @@ Run these yourself in PowerShell. keytool asks for a password and your name deta
 passwords yourself, and never paste them into a chat, an issue or a commit.
 
 ```powershell
-New-Item -ItemType Directory -Force C:\Users\Hellz\keys
-& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore C:\Users\Hellz\keys\earshot-github.jks -alias earshot -keyalg RSA -keysize 4096 -validity 36500
-& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore C:\Users\Hellz\keys\earshot-play-upload.jks -alias upload -keyalg RSA -keysize 4096 -validity 36500
+New-Item -ItemType Directory -Force <your keys folder>
+& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore <your keys folder>\earshot-github.jks -alias earshot -keyalg RSA -keysize 4096 -validity 36500
+& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore <your keys folder>\earshot-play-upload.jks -alias upload -keyalg RSA -keysize 4096 -validity 36500
 ```
 
 The keystores are PKCS12, so each key's password is the same as its keystore's password.
@@ -35,11 +35,11 @@ The keystores are PKCS12, so each key's password is the same as its keystore's p
 Create `keystore.properties` in the repo root. It is in `.gitignore`, like `*.jks`:
 
 ```properties
-foss.storeFile=C:/Users/Hellz/keys/earshot-github.jks
+foss.storeFile=<your keys folder>/earshot-github.jks
 foss.storePassword=<GitHub key password>
 foss.keyAlias=earshot
 foss.keyPassword=<GitHub key password>
-play.storeFile=C:/Users/Hellz/keys/earshot-play-upload.jks
+play.storeFile=<your keys folder>/earshot-play-upload.jks
 play.storePassword=<upload key password>
 play.keyAlias=upload
 play.keyPassword=<upload key password>
@@ -62,11 +62,11 @@ $env:EARSHOT_FOSS_KEY_PASSWORD = $env:EARSHOT_FOSS_STORE_PASSWORD
 
 ## 3. Back them up (do this before the first release)
 
-Back up the two `.jks` files in two places that are not this PC. For example:
+Back up the two `.jks` files in two places away from the PC that holds them. For example:
 - an encrypted USB stick kept somewhere else;
 - an encrypted archive (7-Zip, AES-256, its own strong password) in a cloud drive.
 
-A second drive inside this PC (such as `E:`) doesn't count, because it fails along with the PC.
+A second drive inside the same PC doesn't count, because it fails along with the PC.
 Never put the `.jks` files unencrypted in a cloud drive, and never in the repo.
 
 Keep the passwords **only in a password manager**. `keystore.properties` is not a backup item: it
@@ -87,7 +87,7 @@ python tools\release\check_release.py --aab app\build\outputs\bundle\playRelease
 ```
 
 On a tag, a signed APK also has to pass `zipalign -c -P 16` (16 KB page alignment), so the
-build-tools must be 35 or newer (this PC has 36.0.0). The `.aab` check reads its base manifest and
+build-tools must be 35 or newer. The `.aab` check reads its base manifest and
 refuses INTERNET, QUERY_ALL_PACKAGES, AD_ID, Shizuku and a debuggable or wrongly versioned build.
 
 The GitHub release asset is named `earshot-X.Y.Z.apk`. Publish the file that passed the check.
@@ -121,13 +121,13 @@ when the signing key changes:
 ### The 0.9.1 bridge build
 
 The bridge is the `foss` flavour, so About says GitHub and there's no store code. It differs in two
-ways: it keeps the old app ID `dev.earshot`, and it is signed with this PC's debug key, the key 0.9.0
-and earlier were signed with, so it installs over them. Only the Gradle property
+ways: it keeps the old app ID `dev.earshot`, and it is signed with the debug key of the PC that
+built 0.9.0 and earlier, so it installs over them. Only the Gradle property
 `earshot.legacyBridge` builds it this way (`app/build.gradle.kts`); without the property nothing
 changes.
 
-Build it on **this PC**. Any other PC, and CI, has a different debug key, and an APK signed with it
-updates nobody.
+Build it on the PC that built 0.9.0. Any other PC, and CI, has a different debug key, and an APK
+signed with it updates nobody.
 
 1. **Set the version.** In `app/build.gradle.kts` set `versionCode = 11` and
    `versionName = "0.9.1"`. 0.9.0 is 10, and Android updates only to a higher code. 11 is also

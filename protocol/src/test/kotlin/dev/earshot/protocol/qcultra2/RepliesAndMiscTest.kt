@@ -84,13 +84,13 @@ class RepliesAndMiscTest {
 
     @Test
     fun `device info request carries the MAC and the reply name follows 0x03`() {
-        val req = DeviceInfoQuery.request("94:45:60:85:05:A7")
-        assertEquals("04050106 9445608505a7".replace(" ", ""), req.encode().toHex())
+        val req = DeviceInfoQuery.request("94:45:60:AA:BB:CC")
+        assertEquals("04050106 944560aabbcc".replace(" ", ""), req.encode().toHex())
         assertEquals(BmapOperator.GET, req.operator)
-        val info = DeviceInfoQuery.parse(("9445608505a7" + "0001" + "03" + "Pixel 9".toByteArray().toHex()).hexToBytes())!!
-        assertEquals("94:45:60:85:05:A7", info.mac)
+        val info = DeviceInfoQuery.parse(("944560aabbcc" + "0001" + "03" + "Pixel 9".toByteArray().toHex()).hexToBytes())!!
+        assertEquals("94:45:60:AA:BB:CC", info.mac)
         assertEquals("Pixel 9", info.name)
-        assertNull(DeviceInfoQuery.parse("9445608505a7".hexToBytes())!!.name)
+        assertNull(DeviceInfoQuery.parse("944560aabbcc".hexToBytes())!!.name)
     }
 
     @Test

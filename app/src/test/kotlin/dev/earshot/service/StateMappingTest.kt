@@ -139,8 +139,8 @@ class StateMappingTest {
 
     @Test
     fun `active source marks exactly one paired device`() {
-        val devices = listOf(PairedDevice("C4:0F:08:11:22:33", "Pixel", isActiveSource = true), PairedDevice("94:45:60:85:05:A7", "Laptop"))
-        val switched = devices.withActiveSource("94:45:60:85:05:a7")
+        val devices = listOf(PairedDevice("C4:0F:08:11:22:33", "Pixel", isActiveSource = true), PairedDevice("94:45:60:AA:BB:CC", "Laptop"))
+        val switched = devices.withActiveSource("94:45:60:aa:bb:cc")
         assertEquals(listOf(false, true), switched.map { it.isActiveSource })
         assertEquals(listOf(false, false), devices.withActiveSource(null).map { it.isActiveSource })
     }

@@ -302,7 +302,7 @@ internal object DevicePick {
 /**
  * Which bonded devices count as a headset (picker, "show the connected one", link-up follow).
  * Headphones and wearable headsets always do. Hands-free is shared by earbuds and car kits:
- * the user's car (Uconnect, class 0x340408) and plenty of cheap earbuds both report it. Car kits
+ * a car kit (class 0x340408) and plenty of cheap earbuds both report it. Car kits
  * also run the phonebook (PBAP client) and message (MAP notification) services to show contacts
  * and texts on the dashboard; headsets never do, so those UUIDs mark a car.
  */
@@ -326,7 +326,7 @@ internal object AudioClass {
 
     /**
      * Looser, for devices already connected over HFP: anything filed under audio/video except a
-     * car. A watch that takes calls itself (the user's Galaxy Watch8 is an HFP hands-free unit,
+     * car. A watch that takes calls itself (some smartwatches are HFP hands-free units,
      * major class Wearable) or another phone is not a headset, and showed up as one on the
      * Controls screen. An unknown class is kept, as before.
      */

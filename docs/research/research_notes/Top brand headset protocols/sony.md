@@ -1,14 +1,14 @@
 # Sony ANC headphones and earbuds (2020 onward): Bluetooth control protocol ("Tandem" / MDR)
 
-Research notes for Earshot roadmap item E3 ("Sony (Experimental)"), written 2026-10-21. Static analysis only:
+Research notes for the Earshot "Sony (Experimental)" driver, written 2026-10-21. Interoperability analysis of the public app only:
 the APK was never installed or run, and no Bluetooth device was contacted. Facts are restated in my own words.
 This extends `docs/research/headset-landscape-2026-10.md`, which already has the two UUIDs, the 3E…3C framing and
 the MIT reference; those basics are only repeated here where the app adds detail.
 
-**Status: complete for E3 planning (2026-10-21). Not verified on hardware.**
+**Status: complete for driver planning (2026-10-21). Not verified on hardware.**
 
 Short names used below (all links are reference-style, defined at the end of the file):
-- **APK** = Sony | Sound Connect 13.3.0 (`com.sony.songpal.mdr`) base.apk, decompiled with jadx. Proprietary:
+- **APK** = Sony | Sound Connect 13.3.0 (`com.sony.songpal.mdr`), interoperability analysis of the public app. Proprietary:
   facts only. Class names are the app's own where readable (`com.sony.songpal.tandemfamily.*`,
   `com.sony.songpal.mdr.kmp.*`), otherwise the R8 names (`lm0.c`, `qm0.b`, …), which are stable only for 13.3.0.
 - **mos** = mos9527/SonyHeadphonesClient `libmdr` (MIT): `ProtocolV1T1.hpp`, `ProtocolV2T1.hpp`, `ProtocolV2T2.hpp`,
@@ -547,7 +547,7 @@ device built from mos's replay fixtures.
 
 ---
 
-[apk]: file:///C:/Users/Hellz/AppData/Local/Temp/claude/C--Users-Hellz-Desktop-earshot/8ff49ff3-c9c6-4f41-b13e-33c2f63035a9/scratchpad/apks/com.sony.songpal.mdr/extracted/base.apk
+[apk]: https://play.google.com/store/apps/details?id=com.sony.songpal.mdr
 [mos]: https://github.com/mos9527/SonyHeadphonesClient
 [mos-tree]: https://api.github.com/repos/mos9527/SonyHeadphonesClient/git/trees/HEAD?recursive=1
 [mos-v2t1]: https://raw.githubusercontent.com/mos9527/SonyHeadphonesClient/HEAD/libmdr/include/mdr/ProtocolV2T1.hpp

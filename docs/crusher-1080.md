@@ -47,7 +47,7 @@ layer but not wired into the UI yet; Earshot's own Pro EQ works with any headpho
 | Message layouts, enums, service and method numbers | protobuf definitions shipped in the app, cross-checked with its service registry |
 | PPP framing and both CRCs | reproduced byte for byte from frames recovered from the app (CRC-8/ROHC `2D` and CRC-16/MCRF4XX `5480` for `dev_info` tag 0) |
 | `dev_info` is the first call, with body `08 00`; nothing is sent on connect | the app's own connect sequence |
-| BOS-RPC frames go raw on the data service socket; the third-party socket is Airoha RACE only | the app's transport wiring (two separate RFCOMM sockets), decompiled; the data and third-party UUIDs come from the Crusher's device configuration |
+| BOS-RPC frames go raw on the data service socket; the third-party socket is Airoha RACE only | the app's transport wiring (two separate RFCOMM sockets); the data and third-party UUIDs come from the Crusher's device configuration |
 | Secure-session crypto (P-256 ECDHE, ECDSA-SHA512, HKDF-SHA256, AES-GCM / CCM / ChaCha20) | the protocol description in the app plus an independent implementation tested end to end against the virtual Crusher |
 
 ## Still to be confirmed on real hardware

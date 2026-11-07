@@ -8,7 +8,7 @@ class DotTileTest {
 
     @Test
     fun `the tile is the spacing rounded to whole pixels`() {
-        // 14 dp at the Fold7's 2.625x: 36.75 px becomes 37, under 1 % wider.
+        // 14 dp at a 2.625x density: 36.75 px becomes 37, under 1 % wider.
         assertEquals(37, DotTile.sidePx(36.75f))
         assertEquals(36, DotTile.sidePx(36.4f))
         assertEquals(42, DotTile.sidePx(42f))

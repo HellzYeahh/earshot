@@ -27,8 +27,8 @@ class QcUltra2NewFeaturesTest {
 
     private val protocol = QcUltra2Protocol(clock = { 1234L })
     private val fake = FakeRequester()
-    private val galaxy = "2C:DA:46:00:00:02"
-    private val mobius = "10:B1:DF:00:00:03"
+    private val phone = "AA:BB:CC:00:00:02"
+    private val laptop = "DD:EE:FF:00:00:03"
 
     @Before
     fun silenceLog() {
@@ -76,14 +76,14 @@ class QcUltra2NewFeaturesTest {
         status(QcUltra2.LE_AUDIO_SUPPORTED, "01")
         status(QcUltra2.DISABLE_CAPTOUCH, "01")
         status(QcUltra2.LE_AUDIO_CONTROL, "01")
-        status(QcUltra2.PAIRED_DEVICES, "0310b1df0000032cda46000002")
-        status(QcUltra2.APP_ADDRESS, "2cda46000002")
+        status(QcUltra2.PAIRED_DEVICES, "03ddeeff000003aabbcc000002")
+        status(QcUltra2.APP_ADDRESS, "aabbcc000002")
         on(QcUltra2.DEVICE_INFO, BmapOperator.GET) { req ->
-            val hex = if (req.payload.toHex() == "2cda46000002") "2cda460000020302034d792047616c61787920466f6c64"
-            else "10b1df0000030001014f4c445f4c4150544f50"
+            val hex = if (req.payload.toHex() == "aabbcc000002") "aabbcc0000020302034d792050686f6e65204d6f64656c"
+            else "ddeeff0000030001014f4c445f4c4150544f50"
             listOf(FakeRequester.statusFrame(QcUltra2.DEVICE_INFO, hex))
         }
-        status(QcUltra2.AUDIO_SOURCE, "000f0110b1df000003")
+        status(QcUltra2.AUDIO_SOURCE, "000f01ddeeff000003")
         status(QcUltra2.AVAILABLE_TO_CONNECT, "01")
         status(QcUltra2.AUDIO_CONTROL, "1f")
         status(QcUltra2.AUDIO_STATUS, "01ffff")
@@ -112,14 +112,14 @@ class QcUltra2NewFeaturesTest {
         assertEquals(210, s.latencyMs)
         assertEquals(0..520, s.latencyRangeMs)
 
-        // [4.9] AppAddress identifies the Galaxy; [5.1] says the other device streams.
-        assertEquals(galaxy, s.thisPhoneAddress)
+        // [4.9] AppAddress identifies this phone; [5.1] says the other device streams.
+        assertEquals(phone, s.thisPhoneAddress)
         val byMac = s.pairedDevices.associateBy { it.address }
-        assertTrue(byMac.getValue(galaxy).isThisPhone)
-        assertFalse(byMac.getValue(mobius).isThisPhone)
-        assertTrue(byMac.getValue(mobius).isActiveSource)
-        assertEquals(true, byMac.getValue(galaxy).isConnected)
-        assertEquals("My Galaxy Fold", byMac.getValue(galaxy).name)
+        assertTrue(byMac.getValue(phone).isThisPhone)
+        assertFalse(byMac.getValue(laptop).isThisPhone)
+        assertTrue(byMac.getValue(laptop).isActiveSource)
+        assertEquals(true, byMac.getValue(phone).isConnected)
+        assertEquals("My Phone Model", byMac.getValue(phone).name)
     }
 
     @Test
@@ -128,7 +128,7 @@ class QcUltra2NewFeaturesTest {
         fake.error(QcUltra2.APP_ADDRESS, BmapError.FUNC_NOT_SUPPORTED)
         val s = protocol.refresh(fake, HeadphoneState())
         assertNull(s.thisPhoneAddress)
-        assertEquals(listOf(galaxy), s.pairedDevices.filter { it.isThisPhone }.map { it.address })
+        assertEquals(listOf(phone), s.pairedDevices.filter { it.isThisPhone }.map { it.address })
     }
 
     // ── writes ───────────────────────────────────────────────────────────────────────────
@@ -207,8 +207,8 @@ class QcUltra2NewFeaturesTest {
     @Test
     fun `pushes for the new functions update their fields`() {
         val current = HeadphoneState(
-            thisPhoneAddress = galaxy,
-            pairedDevices = listOf(PairedDevice(galaxy, "Fold", isConnected = true), PairedDevice(mobius, "Mobius", isConnected = true)),
+            thisPhoneAddress = phone,
+            pairedDevices = listOf(PairedDevice(phone, "Phone", isConnected = true), PairedDevice(laptop, "Laptop", isConnected = true)),
         )
         fun push(a: dev.earshot.protocol.FunctionAddress, hex: String) = protocol.onUnsolicited(FakeRequester.statusFrame(a, hex), current)!!
 
@@ -223,12 +223,12 @@ class QcUltra2NewFeaturesTest {
         val press = push(QcUltra2.STATUS_BUTTON, "800913").lastButtonPress!!
         assertEquals(ButtonAction.SPATIAL_AUDIO, press.action)
         assertEquals(1234L, press.atMillis)
-        // [4.4] header 01: only the first listed (the Mobius) is still connected
-        val list = push(QcUltra2.PAIRED_DEVICES, "0110b1df0000032cda46000002").pairedDevices
-        assertEquals(listOf(mobius, galaxy), list.map { it.address })
+        // [4.4] header 01: only the first listed (the laptop) is still connected
+        val list = push(QcUltra2.PAIRED_DEVICES, "01ddeeff000003aabbcc000002").pairedDevices
+        assertEquals(listOf(laptop, phone), list.map { it.address })
         assertEquals(listOf(true, false), list.map { it.isConnected })
-        assertTrue(list.single { it.address == galaxy }.isThisPhone)
-        assertEquals("Fold", list.single { it.address == galaxy }.name)
+        assertTrue(list.single { it.address == phone }.isThisPhone)
+        assertEquals("Phone", list.single { it.address == phone }.name)
         // RESULT frames count only for [31.3] and [4.19]
         assertEquals(3, protocol.onUnsolicited(BmapPacket(31, 3, BmapOperator.RESULT, byteArrayOf(3)), current)?.currentModeIndex)
         assertEquals(true, protocol.onUnsolicited(BmapPacket(4, 19, BmapOperator.RESULT, byteArrayOf(1)), current)?.lePreference?.supported)

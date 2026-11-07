@@ -3,10 +3,7 @@
 Research date 2026-10-18 (for Earshot 0.4.0).
 
 **Sources and confidence tags**
-- **[APK]**: Bose app `com.bose.bosemusic` 13.3.4 (`reference/bose-app/base.apk`), decompiled with JADX (local scratch copies, not in the repo),
-  plus `dexdump` of `classes4.dex` for the
-  one method JADX could not decompile. The `com.bose.bmap.*` names are real. App classes are obfuscated, so they are given
-  as `defpackage.Xyz` with the real name taken from the Kotlin metadata.
+- **[APK]**: interoperability analysis of the public Bose app 13.3.4.
 - **[APK-str]**: the app's `res/values/strings.xml` (product tour, help and setup copy, keyed by codename).
 - **[bosectl-v]**: bosectl upstream 0.5.0 (`reference/bosectl-upstream`), verified on hardware by bosectl or a contributor.
 - **[bosectl-u]**: bosectl catalogue entry or report that has not been verified.
@@ -30,13 +27,13 @@ Research date 2026-10-18 (for Earshot 0.4.0).
    Earshot should do the same. A product table is needed only for **form factor, names, artwork and first-guess
    channel**.
 2. **The product table the app does have is `DeviceTypeCapabilities`** (`defpackage.Pq2`), keyed by the
-   `DeviceTypeMap` (`defpackage.Rq2`) codename index. It lists:
-   - banded headphones: goodyear, duran, prince, lonestarr, wolverine, mariah, plus the unreleased emerald, topaz, opal and hawkeye;
-   - multi-component (earbuds): revel, lando, smalls, gwen, scotty, serena, edith, brussels, aubrey, spice, leo, quartz, sapphire;
-   - open earbuds: serena, aubrey, spice, quartz;
-   - fit kit (ear tips and bands): smalls, scotty, edith, leo, sapphire;
-   - "On-Head" detection label (all others are called "In-Ear"): lonestarr, wolverine, emerald, topaz, opal, hawkeye;
-   - handover capable: smalls, scotty, serena, edith, aubrey, spice, leo, quartz, sapphire.
+   `DeviceTypeMap` (`defpackage.Rq2`) codename index. For released models it lists:
+   - banded headphones: goodyear, duran, prince, lonestarr, wolverine, mariah;
+   - multi-component (earbuds): revel, lando, smalls, gwen, scotty, serena, edith, brussels, aubrey, spice;
+   - open earbuds: serena, aubrey, spice;
+   - fit kit (ear tips and bands): smalls, scotty, edith;
+   - "On-Head" detection label (rather than "In-Ear"): lonestarr, wolverine;
+   - handover capable: smalls, scotty, serena, edith, aubrey, spice.
 
    The set names come from the Kotlin metadata. Each set's meaning is inferred from where it is used, for example in
    `InPlaceDetectionSettingsViewModel` and `BatteryStateManager`.
@@ -68,7 +65,7 @@ Values common to every BMAP model unless noted:
 | IDs | pid **0x4082** (16514), BLE id 112, `[0.15]`/originalName "Bose QC Ultra 2 HP" | APK, scan |
 | Names / gen | Marketing name "QuietComfort Ultra Headphones (2nd Gen)". App help name "QC Ultra 2 HP". Colour variants 1 Black … 9 Cherry Chocolate. | APK, pub |
 | Form factor | Over-ear, banded, "On-Head Detection". Released 2025. Touch volume strip, USB-C audio, "lay flat to disconnect". | APK, APK-str, pub |
-| Protocol | BMAP 1.2.0 on RFCOMM ch 2 (reflection) on the Galaxy. `[9.2]` subscription needed for pushes. | scan |
+| Protocol | BMAP 1.2.0 on RFCOMM ch 2 (reflection) on a Galaxy phone. `[9.2]` subscription needed for pushes. | scan |
 | Modes | `[31.2]` `04 07`: 4 presets (Quiet p1, Aware p2, Immersion p34, Cinema p36) and 7 custom slots (4–10). `[31.8]` favourites, at least 2. `[31.4]`, `[31.5]` and `[31.7]` are absent on fw 10.12. | scan, bosectl-v |
 | Noise control | Live `[31.10]` `[cnc, autoCnc, spatial, wind, anc]`, cnc 0–10 on the world-volume scale. `[1.5]` has 11 steps and is read-only. Presets refuse SET_GET (Runtime 8). | scan, bosectl-v |
 | Spatial | `[31.10]` byte 2: 0 off, 1 room (Still), 2 head (Motion). `[5.17]` calibration; `[5.15]` absent. | scan |
@@ -95,7 +92,7 @@ Values common to every BMAP model unless noted:
 |---|---|---|
 | IDs | pid **0x4083** (16515), BLE id 113, originalName **"Bose QC 2 HP"** | APK |
 | Names / gen | Marketing name "QuietComfort Headphones (2nd Gen)". App help title "QuietComfort Headphones 2"; setup copy "Bose QC Headphones 2". 10 colours (Black, White Smoke, Blue Dusk, Dewdrop Mint, Eucalyptus Green, Hazelnut Taupe, Rosewood Mauve, Sky Pink, Vanilla Cream, Vivid Cobalt). | APK, APK-str, pub |
-| Form factor | Over-ear, banded. Generic placeholder artwork in 13.3.4 (`DeviceTypeMap.d` = {mariah, leo}). Launched August 2026 for $359. Controls: Bluetooth/Power **slide switch**, **Action button on the left earcup** (Shortcut, cycles favourites), volume +/- and MFB on the right. No touch strip [inf]. USB-C audio. | APK, APK-str, pub |
+| Form factor | Over-ear, banded. Generic placeholder artwork in 13.3.4 (`DeviceTypeMap.d` includes mariah). Launched August 2026 for $359. Controls: Bluetooth/Power **slide switch**, **Action button on the left earcup** (Shortcut, cycles favourites), volume +/- and MFB on the right. No touch strip [inf]. USB-C audio. | APK, APK-str, pub |
 | Protocol | RFCOMM ch 2, firmware 8.x, MAC prefix 68:F2:1F, 48/40-byte ModeConfig (catalogue comment only; no device file). | bosectl-u |
 | Modes | Quiet, "Aware with ActiveSense", Immersion and Cinema, plus custom modes. | APK-str |
 | Noise control | "Range of noise cancelling levels", Noise Control can be turned **off**, and "ActiveSense and Wind Block only work with Noise Control on". Probably `[31.10]` like wolverine [inf]. | APK-str |
@@ -202,13 +199,10 @@ Values common to every BMAP model unless noted:
 | Modes | Stereo, Immersion and **Cinema** ("plays immersive audio in the Still setting" for open earbuds). | APK-str, pub |
 | Noise | None. Auto Volume [pub], possibly `[1.32]` AutoVolumeLevel [guess]. | pub |
 
-### A13. Not supportable or not yet released (recognise them, don't drive them)
+### A13. Not supportable (recognise them, don't drive them)
 | pid | Codename | App name | Notes | Src |
 |---|---|---|---|---|
 | **0x0023** (value 35), BLE id 223 | **brussels** | "Bose QuietComfort Earbuds" (2024) | Redirected to the "QCE" app. **Bragi** advert format: manufacturer data type 0x41, BLE id = 200 + id, service UUID `F4C93A79-D04F-4565-B05E-79F7EAD9DF8E`. Not BMAP in the Bose app. | APK, pub |
-| 0x4034 (case 0x4035) | leo | "Bose Leo Earbuds" | In-ear, fit kit, 2025 bucket, placeholder art. **Its pid collides with BudliteDev 0x4034**: `getByValue` returns BudliteDev. | APK |
-| 0x404E / 0x404F | sapphire / quartz | "Bose Sapphire Earbuds" / "Bose Quartz Open Earbuds" | Earbuds (fit kit) / open earbuds. | APK |
-| 0x4043, 0x4042, 0x404D, 0x4032 | emerald, topaz, opal, hawkeye | "Bose Emerald / Topaz / Opal Headphones", "Bose Hawkeye" | Banded headphones in the "On-Head" set. | APK |
 | 0x4097, 0x403A, 0x402D | spice, gwen, revel | Sport Open Earbuds (2025 / 2021), Sport Earbuds | BMAP, but no ANC: out of the QC scope. | APK |
 
 ---
@@ -286,7 +280,7 @@ Values common to every BMAP model unless noted:
 
   So the STATUS length maps to the write length as **44 → 37, 45 → 39, 47 → 39, 48 → 40**.
 
-### C2a. `[31.2]` Capabilities (checked against the decompile for 0.4.0)
+### C2a. `[31.2]` Capabilities (checked for 0.4.0)
 `AudioModesCapabilitiesResponse.createFromPacket` reads byte 0 boseModes, byte 1 userModes and byte 5 as flags: bit 0
 cnc, bit 1 autoCnc, bit 2 spatial (head/room), bit 3 wind toggle, **bit 4 user favourites, bit 5 ANC toggle** (the
 constructor order puts ancToggle before favourites, but the bits are 5 and 4). Byte 6, the minimum number of
@@ -351,9 +345,9 @@ All of these are resolved in Earshot 0.4.0 (see §F); the text below describes t
    on `[31.2]` byte 1.
 8. **`ULTRA_OPEN_EARBUDS.presetNames` is empty**: it should be Stereo, Immersion (+ Cinema on gen 2). `hasLiveAudioSettings
    = true` is unbacked: bosectl's serena config has no `[31.10]`.
-9. **`[1.5]` direction "unverified" (CLAUDE.md)**: the APK names the field `worldVolumeStep` and the scan agrees, so step 0 =
+9. **`[1.5]` direction "unverified"**: the APK names the field `worldVolumeStep` and the scan agrees, so step 0 =
    most cancelling (§C3).
-10. **Wind byte**: BoseModel/CLAUDE.md use 46, which matches the APK and bosectl's prince parser. bosectl's
+10. **Wind byte**: BoseModel uses 46, which matches the APK and bosectl's prince parser. bosectl's
     `qc_ultra2.STATUS_OFFSETS` still says 45. That is bosectl's error, not Earshot's.
 11. **Battery id 4**: Earshot's `COMBINED_BUDS` matches bosectl. The app has no enum value for it and shows only L/R/Case.
     The app's own headline is record 0.

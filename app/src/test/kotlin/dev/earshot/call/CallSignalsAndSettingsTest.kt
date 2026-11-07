@@ -29,10 +29,10 @@ class CallSignalsAndSettingsTest {
     }
 
     @Test fun `address match tolerates case and unknowns`() {
-        assertTrue(CallSignals.sameAddress("e4:58:bc:00:00:11", "E4:58:BC:00:00:11"))
-        assertTrue(CallSignals.sameAddress(null, "E4:58:BC:00:00:11"))
-        assertTrue(CallSignals.sameAddress("", "E4:58:BC:00:00:11"))
-        assertFalse(CallSignals.sameAddress("11:22:33:44:55:66", "E4:58:BC:00:00:11"))
+        assertTrue(CallSignals.sameAddress("aa:bb:cc:00:00:11", "AA:BB:CC:00:00:11"))
+        assertTrue(CallSignals.sameAddress(null, "AA:BB:CC:00:00:11"))
+        assertTrue(CallSignals.sameAddress("", "AA:BB:CC:00:00:11"))
+        assertFalse(CallSignals.sameAddress("11:22:33:44:55:66", "AA:BB:CC:00:00:11"))
     }
 
     @Test fun `absolute volume read - global setting wins, property is the fallback`() {

@@ -38,13 +38,13 @@ class Firmware1012CaptureTest {
         val CHARGING_STATE_REPLY = BmapPacket(2, 3, BmapOperator.ERROR, byteArrayOf(4))
 
         /** `[4.4]`: header 01, the streaming phone first, then an absent paired device. */
-        const val PAIRED_LIST = "012cda4600000210b1df000003"
+        const val PAIRED_LIST = "01aabbcc000002ddeeff000003"
         /** `[4.5]` for the connected phone: flags 03, then `02 03`, then the name. */
-        const val DEVICE_INFO_PHONE = "2cda460000020302034d792047616c61787920466f6c64"
+        const val DEVICE_INFO_PHONE = "aabbcc0000020302034d792050686f6e65204d6f64656c"
         /** `[4.5]` for a paired-but-absent device: flags 00, then `01 01`, then the name. */
-        const val DEVICE_INFO_ABSENT = "10b1df0000030001014f4c445f4c4150544f50"
+        const val DEVICE_INFO_ABSENT = "ddeeff0000030001014f4c445f4c4150544f50"
         /** `[5.1]`: supported mask 000f, Bluetooth source, the phone's MAC. */
-        const val AUDIO_SOURCE = "000f012cda46000002"
+        const val AUDIO_SOURCE = "000f01aabbcc000002"
         /** `[31.8]`: 11 slots, favourites Quiet, Aware, Immersion, slot 4 and slot 5. */
         const val FAVORITES = "0b0037"
     }
@@ -52,11 +52,11 @@ class Firmware1012CaptureTest {
     @Test
     fun `paired list and device info decode both real record shapes`() {
         val list = PairedDeviceList.parse(Fw1012.PAIRED_LIST.hexToBytes())!!
-        assertEquals(listOf("2C:DA:46:00:00:02", "10:B1:DF:00:00:03"), list.macs)
+        assertEquals(listOf("AA:BB:CC:00:00:02", "DD:EE:FF:00:00:03"), list.macs)
 
         val phone = DeviceInfoQuery.parse(Fw1012.DEVICE_INFO_PHONE.hexToBytes())!!
-        assertEquals("2C:DA:46:00:00:02", phone.mac)
-        assertEquals("My Galaxy Fold", phone.name)
+        assertEquals("AA:BB:CC:00:00:02", phone.mac)
+        assertEquals("My Phone Model", phone.name)
         assertTrue(phone.looksConnected)
 
         val absent = DeviceInfoQuery.parse(Fw1012.DEVICE_INFO_ABSENT.hexToBytes())!!
@@ -64,7 +64,7 @@ class Firmware1012CaptureTest {
         assertFalse(absent.looksConnected)
 
         val source = AudioSourceQuery.parse(Fw1012.AUDIO_SOURCE.hexToBytes())!!
-        assertEquals("2C:DA:46:00:00:02", source.mac)
+        assertEquals("AA:BB:CC:00:00:02", source.mac)
     }
 
     @Test
@@ -190,11 +190,11 @@ class Firmware1012CaptureTest {
         const val CHARGER = "00"
         const val OPERATION_MODE = "01"
         const val MIC_MUTE = "01"
-        const val LIST_DEVICES = "0310b1df0000032cda46000002"
-        const val APP_ADDRESS = "2cda46000002"
+        const val LIST_DEVICES = "03ddeeff000003aabbcc000002"
+        const val APP_ADDRESS = "aabbcc000002"
         const val FEATURES = "01"
         const val AVAILABLE_TO_CONNECT = "01"
-        const val SOURCE = "000f0110b1df000003"
+        const val SOURCE = "000f01ddeeff000003"
         const val CONTROL = "1f"
         const val AUDIO_STATUS = "01ffff"
         const val VOLUME = "1f16"
@@ -259,7 +259,7 @@ class Firmware1012CaptureTest {
         assertEquals("01", AudioControl.startPayload(TransportControl.PLAY).toHex())
         val src = AudioSourceQuery.parse(Scan.SOURCE.hexToBytes())!!
         assertEquals(setOf(0, 1, 2, 3), src.supportedTypeCodes)
-        assertEquals("10:B1:DF:00:00:03", src.mac)
+        assertEquals("DD:EE:FF:00:00:03", src.mac)
     }
 
     @Test
@@ -292,11 +292,11 @@ class Firmware1012CaptureTest {
     @Test
     fun `device management 4_4 connected mask, 4_9 app address, 4_18`() {
         val list = PairedDeviceList.parse(Scan.LIST_DEVICES.hexToBytes())!!
-        assertEquals(setOf("10:B1:DF:00:00:03", "2C:DA:46:00:00:02"), list.connectedMacs)
+        assertEquals(setOf("DD:EE:FF:00:00:03", "AA:BB:CC:00:00:02"), list.connectedMacs)
         val one = PairedDeviceList.parse(Fw1012.PAIRED_LIST.hexToBytes())!! // header 01
-        assertTrue(one.isConnected("2c:da:46:00:00:02"))
-        assertFalse(one.isConnected("10:B1:DF:00:00:03"))
-        assertEquals("2C:DA:46:00:00:02", AppAddress.parse(Scan.APP_ADDRESS.hexToBytes()))
+        assertTrue(one.isConnected("aa:bb:cc:00:00:02"))
+        assertFalse(one.isConnected("DD:EE:FF:00:00:03"))
+        assertEquals("AA:BB:CC:00:00:02", AppAddress.parse(Scan.APP_ADDRESS.hexToBytes()))
         assertEquals(AvailableToConnectCode.AVAILABLE, AvailableToConnect.parse(Scan.AVAILABLE_TO_CONNECT.hexToBytes()))
         // [4.5] flags 03 on the phone running Earshot: connected + isLocalDevice
         val phone = DeviceInfoQuery.parse(Fw1012.DEVICE_INFO_PHONE.hexToBytes())!!

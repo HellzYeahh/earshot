@@ -26,7 +26,7 @@ plugins {
 /*
  * The one-time bridge for the pre-1.0 GitHub installs (docs/release-signing.md, "Moving existing
  * users"). Only with -Pearshot.legacyBridge=true: the foss flavour keeps the old app ID dev.earshot
- * and its release build is signed with this PC's debug key, the key every release up to 0.9.0 was
+ * and its release build is signed with the old release debug key, the key every release up to 0.9.0 was
  * signed with. That gives one last GitHub build (0.9.1) that updates those installs in place and
  * brings them Back up and restore. It is still the foss flavour, so Distribution says GitHub and
  * there's no store code. Without the property nothing changes; never set it for any other build.
@@ -70,7 +70,7 @@ android {
     /*
      * Two distributions from one codebase (docs/roadmap.md, 1.0 plan). Code for one of them only
      * lives in app/src/play/ or app/src/foss/, so the GitHub APK never carries store-only code.
-     * App IDs (user decision 2026-10-30): the Play Console app was created as dev.earshot.foss,
+     * App IDs: the Play Console app was created as dev.earshot.foss,
      * which Play registered permanently, so the play flavour is dev.earshot.foss and the GitHub
      * build is dev.earshot.github. Plain dev.earshot stays the pre-1.0 builds' (and the 0.9.1
      * bridge's) ID, which both builds spot (distribution/LegacyApp). Debug builds keep the debug key.

@@ -98,7 +98,7 @@ class SoundcoreModelTest {
         assertEquals("3947", SoundcoreModel.LIBERTY_4_NC.serialPrefix)
         assertEquals("1301", SoundcoreModel.SLEEP_A30.serialPrefix)
         assertEquals("1202", SoundcoreModel.R60I_NC.serialPrefix)
-        assertEquals(SoundcoreModel.LIBERTY_5, SoundcoreModel.fromSerial("3957F49D8AC20334"))
+        assertEquals(SoundcoreModel.LIBERTY_5, SoundcoreModel.fromSerial("3957A1B2C3D4E5F6"))
         assertEquals(SoundcoreModel.SPACE_2, SoundcoreModel.fromSerial("1402AABBCCDDEEFF"))
         assertNull(SoundcoreModel.fromSerial("9999AABBCCDDEEFF"))
         assertNull(SoundcoreModel.fromSerial(null))

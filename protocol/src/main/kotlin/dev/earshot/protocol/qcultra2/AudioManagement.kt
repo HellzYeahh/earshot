@@ -21,7 +21,7 @@ data class AudioSource(val supportedMask: Int, val typeCode: Int, val mac: Strin
 
 /**
  * `[5.1]` AudioManagement.Source, GET only: `[supported(2, big-endian bitset), activeType, data...]`
- * with 6 MAC bytes when the active type is Bluetooth (fw 10.12 `000f 01 10b1df000003`: sources
+ * with 6 MAC bytes when the active type is Bluetooth (fw 10.12 `000f 01 ddeeff000003`: sources
  * {None, BT, Aux, USB}, active Bluetooth). There is no SET/START: the source changes implicitly
  * (plug in aux, or route via `[4.12]`).
  */

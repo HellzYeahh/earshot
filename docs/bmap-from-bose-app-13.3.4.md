@@ -1,17 +1,12 @@
 # BMAP as seen by the Bose app 13.3.4 (derived knowledge)
 
-Source: `reference/bose-app/base.apk`, package `com.bose.bosemusic` 13.3.4 (versionCode 35696,
-SHA-256 `2b473d52…5a29f`), analysed statically with REA (`inspect_android_package` evidence
-`ev_35e7c549…91eb`, `inspect_android_class` evidence `ev_8809057f…94f6` for `BmapFunctionBlock`)
-and the JADX core bundled with REA (decompiled into a scratch directory, never into this repo).
-The `com.bose.bmap.*` library is **not obfuscated** in 13.3.4, so every class name below is real;
-app/UI code is obfuscated (`defpackage.XYZ` names are given only so findings can be re-checked).
-No Bose code is copied here: only names, numbers, byte layouts and behaviour.
+Source: interoperability analysis of the publicly released Bose app 13.3.4. No Bose code is copied
+here: only names, numbers, byte layouts and behaviour.
 
 Cross-checked against `docs/reference/bosectl/NOTES.md` and the live sweep
 `docs/reference/captures-galaxy/deep-scan-fw10.12-2026-10-17.txt` (fw 10.12.12, section 9).
 
-Legend: **[obs]** read directly from app code; **[scan]** seen on the user's headphones;
+Legend: **[obs]** read directly from app code; **[scan]** seen on a QC Ultra 2 test unit;
 **[inf]** inference; **[guess]** unverified hypothesis.
 
 ---
@@ -380,7 +375,7 @@ Nothing in the app exposes mic gain, beamforming, call-uplink EQ or "voice picku
 
 ---
 
-## 7. Latency, codec, LE Audio (coordinator addendum)
+## 7. Latency, codec, LE Audio
 
 **Latency / game mode.** No "game/low-latency mode" exists in the enums or strings. The only
 latency control is `[5.7]` AudioManagement Latency (§3.3). The app parses it
@@ -409,8 +404,7 @@ Scan: `0000 0208 00d2` (0..520, current 210); bosectl captures show the current 
   LE CoC (no SPP); otherwise switches to SPP. Also OTA keeps LE when preferred. There is a fixed
   1 s delay after BLE connect; no special retry loop beyond the general reconnect logic [obs].
 * wolverine fw 10.12 [scan]: `[0.23]=01`, `[1.37]=01` (LE Audio ON), `[1.38]` absent,
-  `[1.41]` absent, `[4.19]` present (OP_NOT_SUPPORTED for GET, i.e. START-only). The CLAUDE.md
-  note that the Galaxy only negotiates AAC/SBC is consistent with LE Audio on but not in use.
+  `[1.41]` absent, `[4.19]` present (OP_NOT_SUPPORTED for GET, i.e. START-only).
 
 ---
 
@@ -510,28 +504,3 @@ SET_GET); INVALID_DATA = exists, GET needs a payload; error 24 = unknown to the 
 Error 24 hypothesis [guess]: a post-13.3.4 code for "requires secure/authenticated session or
 debug unlock" — it hits FblockInfo of the debug-ish blocks (8, 22–26) and never ordinary
 settings.
-
----
-
-## 10. Top feature candidates for Earshot (user value × feasibility, no auth)
-
-| # | Feature | BMAP | Present on fw 10.12 [scan] |
-|---|---|---|---|
-| 1 | **Live state push**: enable notifications at connect so button presses, mode/ANC changes, battery, volume and source changes arrive without polling | `[9.2]` SET_GET `01 80 04 22 B7` | **yes** (`[9.2]` answers; currently `00000000`) |
-| 2 | **Self Voice** level (Off/Low/Med/High) for calls | `[1.11]` SET_GET `[1, mode]` (mode 1 High, 2 Med, 3 Low) | **yes** |
-| 3 | **LE Audio on/off** (warn: headset reboots; VA/Spotify shortcuts off under LE) + show LE support/preferred | `[1.37]` SET_GET; `[0.23]` GET; `[4.19]` START | **yes** (`[1.37]=01`) |
-| 4 | **Shortcut button** editor with the device-reported options (Vpa, Disabled, Spotify Tap, Immersive Audio) using the big-endian mask | `[1.9]` SET_GET `[0x80, 9, mode]` | **yes** |
-| 5 | **Touch controls on/off** (capacitive volume strip) | `[1.34]` SET_GET `[0/1]` | **yes** (`01` now) |
-| 6 | **Latency readout / experimental low-latency setpoint** | `[5.7]` GET; SET_GET `[s16 BE]` (untested; app never writes it) | **yes** (GET); write unverified |
-| 7 | **Now-playing / transport / volume** panel (play, pause, next, prev; absolute volume 0–31) | `[5.4]`, `[5.5]` GET + SET_GET `[level]`, `[5.3]` START, `[5.6]` START | **yes** |
-| 8 | **Per-slot mode reset** and favourites editor | `[31.9]` START `[idx]`; `[31.8]` SET_GET | **yes** (31.9 OPNS = exists) |
-| 9 | **Connected-devices view** with phone/Bose flags, LE/Classic profile bits and "available to connect" | `[4.4]`, `[4.5]`/`[4.6]` GET `[MAC]`, `[4.9]`, `[4.18]` | **yes** |
-| 10 | **Mic-mute / charger / operation-mode indicators**; Print debug-log console in the Lab (Bind/Verbosity strings, then watch output) | `[2.21]`, `[2.5]`, `[2.16]` GET; `[22.3]`/`[22.5]` SET_GET | **yes** (Print partially err 24) |
-
-Not available on this firmware (do not build): conversation mode `[1.13]`, auto-aware `[1.29]`,
-on-head detection `[1.16]`, standby timer `[1.4]`, default mode `[31.4]`, head gesture `[1.39]`,
-chirp/find-my `[7.2]`, fit test `[7.15]`, spatial mode `[5.15]`, broadcast quality `[1.38]`.
-
-Open verification items: ModeConfig wind byte (45 vs 46); meaning of `[2.21]=01`. (`[1.34]=01` = touch on, settled 2026-10-18.)
-on real hardware; whether `[5.7]` SET_GET is accepted and audible; error 24 semantics; `[4.12]`
-routing on 10.12 (GET now FUNC_NOT_SUPPORTED).

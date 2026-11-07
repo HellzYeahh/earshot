@@ -94,7 +94,7 @@ object SoundcoreStateMapping {
         listeningModes = true,
         // The two modes stand in for the noise cancelling switch: Home shows the controls instead.
         modesOnHome = false,
-        // Run on the user's own pair since 0.6: the layout and every control here are confirmed,
+        // Run on a real pair since 0.6: the layout and every control here are confirmed,
         // so the Tested tier, and no "Experimental" note on Home.
         verified = true,
         tested = true,

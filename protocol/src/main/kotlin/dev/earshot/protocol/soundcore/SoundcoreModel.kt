@@ -176,7 +176,7 @@ enum class SoundcoreModel(
             return null
         }
 
-        /** The model whose digits start [serial] (`3957F49D8AC20334` → Liberty 5), or null. */
+        /** The model whose digits start [serial] (`3957A1B2C3D4E5F6` → Liberty 5), or null. */
         fun fromSerial(serial: String?): SoundcoreModel? {
             val prefix = serial?.take(4) ?: return null
             return entries.firstOrNull { it.serialPrefix == prefix }

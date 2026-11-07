@@ -1,9 +1,8 @@
 # aptX Adaptive on a Samsung phone: can Earshot turn it on?
 
-Researched 2026-10-26 on the user's Galaxy Z Fold7 (SM-F966U1, One UI 9, Android 17) with the
-Bose QC Ultra Headphones 2nd Gen (firmware 10.12.12). The evidence is read-only: `dumpsys
-bluetooth_manager`, `getprop`, and the Bluetooth libraries pulled from the phone and read for
-strings. Nothing was written to the phone or the headphones.
+Researched 2026-10-26 on a Samsung Galaxy phone (One UI 9, Android 17) with the
+Bose QC Ultra Headphones 2nd Gen (firmware 10.12.12). The evidence is read-only, such as `dumpsys
+bluetooth_manager` and `getprop`. Nothing was written to the phone or the headphones.
 
 **Short answer: no.** It can't be done with Shizuku, through the companion-device link, or with
 root. The phone's Bluetooth software has no aptX Adaptive encoder, and a codec request can only
@@ -17,7 +16,7 @@ pick a codec the stack already offers.
 | Codec extensibility (AOSP `a2dp_ext`) | It would let the audio HAL offer extra codecs. | It needs `a2dp_offload_v2`. The controller reports `a2dp_offload_v2_support = 0` (version 0x0103), and the offload mask (31) is SBC/AAC/aptX/aptX HD/LDAC. |
 | Qualcomm vendor partition | `/vendor/etc/audio/sku_sun/resourcemanager.xml` lists `CODEC_TYPE_APTX_AD` (`lib_bt_aptx.so`). Properties: `persist.vendor.qcom.bluetooth.aptxadaptiver2_1_support=false`, `lossless_aptx_adaptive_le.enabled=false`. | The hardware side is present but unused. The shell user (Shizuku, uid 2000) can't set or even read these properties, and the stack above wouldn't use them anyway. |
 | `setCodecConfigPreference` (Earshot's codec panel, Shizuku or the companion link) | It picks among the codecs both sides already list as selectable. | With the Bose those are AAC and SBC only. |
-| Root | — | The US Fold7's bootloader can't be unlocked (One UI 8 removed OEM unlock; Knox e-fuse). |
+| Root | — | US Samsung bootloaders can't be unlocked (One UI 8 removed OEM unlock; Knox e-fuse). |
 | Community encoders (ExtA2DP, AKS-Logic) | — | ExtA2DP skips Samsung and stops at Android 14. The AKS-Logic encoders are rebuilt from Qualcomm binaries and carry patent caveats, so Earshot can't ship them. |
 
 On the headphone side, the Bose currently streams **AAC 44.1 kHz/16-bit at about 192 kbps**.
@@ -40,7 +39,7 @@ transmitter as the way around this.
    (`[1.37]`, Tools → Connection → LE Audio card). Switching it restarts the headphones, and Spotify
    Tap and the assistant shortcut stop working. The phone's per-device policy for the Bose currently
    says `le_audio: FORBIDDEN`. That is probably the "LE audio" switch on the headphones' page in
-   Android's Bluetooth settings, which only the user can change. The Bose LC3 sink allows 75–190
+   Android's Bluetooth settings, which you can change there. The Bose LC3 sink allows 75–190
    bytes per 10 ms frame (up to about 152 kbps per channel). How it compares with AAC by ear is
    unmeasured.
 3. **A USB-C Snapdragon Sound dongle** (e.g. Creative BT-W6 or FiiO Air Link) streams aptX
@@ -65,8 +64,8 @@ transmitter as the way around this.
 ## Still unverified
 
 - **What the third A2DP sink is.** Confirming it needs an HCI snoop log, which changes the phone's
-  settings, so it is the user's call.
-- **Whether LC3 actually streams** from the Fold7 to the Bose once LE Audio is allowed, and which
+  settings.
+- **Whether LC3 actually streams** from the phone to the Bose once LE Audio is allowed, and which
   configuration Samsung picks.
 - **aptX Adaptive over LE Audio:** `getprop bluetooth.core.le_audio.codec_extension_aidl.enabled`
   and the Bose's LE vendor PAC (company 0x000A) are both unchecked.

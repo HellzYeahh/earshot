@@ -1,13 +1,13 @@
 """The release gate's checks on built APKs, the Google Play bundle and the source tree.
 
-docs/roadmap.md, 1.0 plan item 2; docs/research/play-readiness.md F1-F3. Runs locally and in CI (.github/workflows/ci.yml). Exit code 1 if any check fails.
+Runs locally and in CI (.github/workflows/ci.yml). Exit code 1 if any check fails.
 
     # CI: the unsigned release builds of both flavours, and the bundle that goes to Google Play
     python tools/release/check_release.py --apk app/build/outputs/apk/foss/release/app-foss-release-unsigned.apk \
         --apk app/build/outputs/apk/play/release/app-play-release-unsigned.apk \
         --aab app/build/outputs/bundle/playRelease/app-play-release.aab \
         [--tag v1.0.0] [--lint app/build/reports/lint-results-fossDebug.xml]
-    # The developer's PC: the signed asset that is published (docs/release-signing.md, step 4)
+    # A local machine: the signed asset that is published (docs/release-signing.md, step 4)
     python tools/release/check_release.py --apk app/build/earshot-1.0.1.apk --tag v1.0.1 [--installs-over earshot-1.0.0.apk]
     # ... and the bundle that is uploaded to Google Play
     python tools/release/check_release.py --aab app/build/outputs/bundle/playRelease/app-play-release.aab --tag v1.0.1
@@ -24,8 +24,7 @@ Checks, per APK:
     (Earshot shows no ads, and its answer to Play's Advertising ID form is No), in any build;
   - no billing permission in the GitHub build. No Shizuku in the Google Play build: no moe.shizuku.*
     permission (moe.shizuku.manager.permission.API_V23) and no rikka.shizuku / moe.shizuku provider,
-    because Shizuku ships in the GitHub build only (the user's decision of 2026-10-29,
-    play-readiness.md B8);
+    because Shizuku ships in the GitHub build only;
   - every 64-bit native library (arm64-v8a, x86_64) has LOAD segments aligned to 16 KB, so it loads
     on devices with 16 KB pages (Google Play requires that from apps that target Android 15 or later);
   - the size stays under the budget;
@@ -34,11 +33,11 @@ Checks, per APK:
     `apksigner verify` (so apksigner must be found), must not be signed with a debug certificate,
     and must pass `zipalign -c -P 16 -v 4` (4-byte zip alignment, uncompressed native libraries on
     16 KB boundaries; zipalign from build-tools 35 or later). CI only has -unsigned builds, so these
-    checks run on the developer's PC against the asset that is published;
+    checks run on a local machine against the asset that is published;
   - with --installs-over OLD.apk (needs --tag): the same app ID and signing key as OLD.apk and a
     higher versionCode, so Android installs it as an update of OLD.apk.
 Each APK's and bundle's full permission list is printed, so a permission that a library merges in
-shows up in the log (play-readiness.md F2).
+shows up in the log.
 
 Per --aab, the Android App Bundle that is uploaded to Google Play: the same manifest checks on its
 base module. It must be the play build, it must never be debuggable (a bundle exists only to be
@@ -77,7 +76,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 # The Play Console app was created as dev.earshot.foss (registered permanently), so Play is
-# dev.earshot.foss and GitHub dev.earshot.github (user decision 2026-10-30, app/build.gradle.kts).
+# dev.earshot.foss and GitHub dev.earshot.github (app/build.gradle.kts).
 APP_IDS = {"play": "dev.earshot.foss", "foss": "dev.earshot.github"}
 FLAVOUR_BY_APP_ID = {app_id: flavour for flavour, app_id in APP_IDS.items()}
 # The one-time bridge (--bridge): the foss flavour under the pre-1.0 app ID, debug-signed like every
@@ -97,9 +96,9 @@ FORBIDDEN_FOSS = {"com.android.vending.BILLING", "com.android.vending.CHECK_LICE
 # The GitHub build is refused too, so both flavours keep one package-visibility story.
 QUERY_ALL_PACKAGES = "android.permission.QUERY_ALL_PACKAGES"
 # Refused in every build: Earshot shows no ads and answers No on Play's Advertising ID form, which a
-# library that merges this permission in would make false (play-readiness.md C and F2).
+# library that merges this permission in would make false.
 AD_ID = "com.google.android.gms.permission.AD_ID"
-# Shizuku ships in the GitHub build only (play-readiness.md B8): neither its permission
+# Shizuku ships in the GitHub build only: neither its permission
 # (moe.shizuku.manager.permission.API_V23) nor its provider (rikka.shizuku.ShizukuProvider) may reach
 # the Google Play build.
 SHIZUKU_PERMISSION = "moe.shizuku.manager.permission.API_V23"
