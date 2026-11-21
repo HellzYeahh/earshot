@@ -18,6 +18,7 @@ import dev.earshot.core.MicCheckRepository
 import dev.earshot.core.MicCheckState
 import dev.earshot.core.PrivilegeState
 import dev.earshot.core.TuningState
+import dev.earshot.dsp.Ear
 import dev.earshot.dsp.EqPreset
 import dev.earshot.dsp.GraphicEq
 import dev.earshot.dsp.ParametricBand
@@ -48,19 +49,48 @@ class FakeAudioTuningRepository : AudioTuningRepository {
     override suspend fun applyPreset(presetId: String?) {
         val preset = _presets.value.firstOrNull { it.id == presetId }
         _state.update {
+            val bands = preset?.bands ?: it.settings.bands
             it.copy(
                 activePreset = preset,
                 settings = it.settings.copy(
                     activePresetId = preset?.id,
-                    bands = preset?.bands ?: it.settings.bands,
+                    bands = bands,
                     preampDb = preset?.preampDb ?: it.settings.preampDb,
+                    perEarEnabled = preset?.perEarEnabled ?: false,
+                    leftBands = preset?.leftBands ?: bands,
+                    rightBands = preset?.rightBands ?: bands,
                 ),
             )
         }
     }
 
-    override suspend fun setBands(bands: List<ParametricBand>) =
-        _state.update { it.copy(activePreset = null, settings = it.settings.copy(activePresetId = null, bands = bands)) }
+    override suspend fun setBands(bands: List<ParametricBand>) = _state.update {
+        it.copy(
+            activePreset = null,
+            settings = it.settings.copy(activePresetId = null, bands = bands, leftBands = bands, rightBands = bands),
+        )
+    }
+
+    override suspend fun setPerEarEnabled(enabled: Boolean) = _state.update {
+        val s = it.settings
+        it.copy(
+            settings = if (enabled) s.copy(perEarEnabled = true, leftBands = s.leftBands ?: s.bands, rightBands = s.rightBands ?: s.bands)
+            else s.copy(perEarEnabled = false),
+        )
+    }
+
+    override suspend fun setEarBands(ear: Ear, bands: List<ParametricBand>) = _state.update {
+        val s = it.settings
+        it.copy(
+            activePreset = null,
+            settings = s.copy(
+                activePresetId = null,
+                perEarEnabled = true,
+                leftBands = if (ear == Ear.LEFT) bands else s.leftBands ?: s.bands,
+                rightBands = if (ear == Ear.RIGHT) bands else s.rightBands ?: s.bands,
+            ),
+        )
+    }
 
     override suspend fun setPreamp(db: Double) = _state.update { it.copy(settings = it.settings.copy(preampDb = db)) }
     override suspend fun setBoost(db: Double) = _state.update { it.copy(settings = it.settings.copy(boostDb = db)) }

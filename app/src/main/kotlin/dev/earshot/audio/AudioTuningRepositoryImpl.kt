@@ -25,6 +25,7 @@ import dev.earshot.core.TuningState
 import dev.earshot.dsp.AppProfileRecord
 import dev.earshot.dsp.BuiltInPresets
 import dev.earshot.dsp.DynamicsProcessingPlan
+import dev.earshot.dsp.Ear
 import dev.earshot.dsp.EqPreset
 import dev.earshot.dsp.Headroom
 import dev.earshot.dsp.ParametricBand
@@ -238,13 +239,49 @@ class AudioTuningRepositoryImpl(
         }
         mutate { s ->
             // null means "flat / off" (the automation editor's "Flat (off)"), not "keep the current bands".
-            if (preset == null) s.copy(activePresetId = null, bands = BuiltInPresets.flat.bands, preampDb = 0.0)
-            else s.copy(activePresetId = preset.id, bands = preset.bands, preampDb = preset.preampDb)
+            val presetBands = preset?.bands ?: BuiltInPresets.flat.bands
+            s.copy(
+                activePresetId = preset?.id,
+                bands = presetBands,
+                preampDb = preset?.preampDb ?: 0.0,
+                // A preset saved with per-ear curves brings them back, so reconnecting a headset
+                // does not throw away the fitting. Older presets and the built-ins are one curve
+                // for the whole headphone, so both ears get it.
+                perEarEnabled = preset?.perEarEnabled ?: false,
+                leftBands = preset?.leftBands ?: presetBands,
+                rightBands = preset?.rightBands ?: presetBands,
+            )
         }
     }
 
     override suspend fun setBands(bands: List<ParametricBand>) =
-        mutate { s -> s.copy(activePresetId = null, bands = bands.map(::sanitise)) }
+        mutate { s ->
+            val clean = bands.map(::sanitise)
+            // A shared curve means both ears: keep the per-ear copies in step, so turning per-ear
+            // on later starts from what the user is hearing now.
+            s.copy(activePresetId = null, bands = clean, leftBands = clean, rightBands = clean)
+        }
+
+    override suspend fun setPerEarEnabled(enabled: Boolean) = mutate { s ->
+        if (enabled) {
+            // First switch-on seeds both ears with the curve both ears play right now.
+            s.copy(perEarEnabled = true, leftBands = s.leftBands ?: s.bands, rightBands = s.rightBands ?: s.bands)
+        } else {
+            // Keep the ear curves while linked so toggling back does not lose the edits.
+            s.copy(perEarEnabled = false)
+        }
+    }
+
+    override suspend fun setEarBands(ear: Ear, bands: List<ParametricBand>) = mutate { s ->
+        val clean = bands.map(::sanitise)
+        s.copy(
+            // The sound is no longer exactly the preset, and editing an ear implies per-ear mode.
+            activePresetId = null,
+            perEarEnabled = true,
+            leftBands = if (ear == Ear.LEFT) clean else s.leftBands ?: s.bands,
+            rightBands = if (ear == Ear.RIGHT) clean else s.rightBands ?: s.bands,
+        )
+    }
 
     override suspend fun setPreamp(db: Double) =
         mutate { s -> s.copy(preampDb = db.coerceIn(MIN_PREAMP_DB, 0.0)) }
@@ -261,14 +298,30 @@ class AudioTuningRepositoryImpl(
             throw HeadphoneCommandException("Built-in presets can't be overwritten — save it under a new name")
         }
         if (preset.id.isBlank() || preset.name.isBlank()) throw HeadphoneCommandException("A preset needs a name")
-        val clean = preset.copy(bands = preset.bands.map(::sanitise), preampDb = preset.preampDb.coerceIn(MIN_PREAMP_DB, 0.0), isBuiltIn = false)
+        val clean = preset.copy(
+            bands = preset.bands.map(::sanitise),
+            preampDb = preset.preampDb.coerceIn(MIN_PREAMP_DB, 0.0),
+            isBuiltIn = false,
+            leftBands = preset.leftBands?.map(::sanitise),
+            rightBands = preset.rightBands?.map(::sanitise),
+        )
         edit {
             userPresets.update { list -> list.filterNot { it.id == clean.id } + clean }
             publishPresets()
             // Saving over the preset we are currently editing re-links the live bands to it.
             val s = _state.value.settings
             if (s.activePresetId == clean.id) {
-                _state.update { it.copy(settings = s.copy(bands = clean.bands, preampDb = clean.preampDb)) }
+                _state.update {
+                    it.copy(
+                        settings = s.copy(
+                            bands = clean.bands,
+                            preampDb = clean.preampDb,
+                            perEarEnabled = clean.perEarEnabled,
+                            leftBands = clean.leftBands ?: clean.bands,
+                            rightBands = clean.rightBands ?: clean.bands,
+                        ),
+                    )
+                }
             }
         }
     }
@@ -344,14 +397,24 @@ class AudioTuningRepositoryImpl(
 
     /** What a session belonging to [packageName] should play through. */
     private fun plannerFor(settings: TuningSettings, packageName: String?): Planner {
+        // An app profile is a whole-headphone sound, so it puts the preset's curve on both ears;
+        // per-ear bands are a fitting correction for the headset, not an app-specific choice.
         val profilePreset = profileFor(packageName)?.let { presetById(it.presetId) }
-        val bands = profilePreset?.bands ?: settings.bands
+        val leftBands = profilePreset?.bands ?: settings.bandsFor(Ear.LEFT)
+        val rightBands = profilePreset?.bands ?: settings.bandsFor(Ear.RIGHT)
         val limiter = settings.limiterEnabled
+        val userPreamp = profilePreset?.preampDb ?: settings.preampDb
+        // Both ears share one input gain, so the ear that needs the deeper cut sets the preamp.
         // With the limiter off nothing catches peaks, so the preamp may not sit above what cancels
         // the bands' combined boost; the loudness boost is capped at +3 dB by clampBoost for the same reason.
-        val preamp = Headroom.effectivePreampDb(profilePreset?.preampDb ?: settings.preampDb, bands, limiter, sampleRate.toDouble())
+        val preamp = minOf(
+            Headroom.effectivePreampDb(userPreamp, leftBands, limiter, sampleRate.toDouble()),
+            Headroom.effectivePreampDb(userPreamp, rightBands, limiter, sampleRate.toDouble()),
+        )
         val boost = Headroom.clampBoost(settings.boostDb, limiter)
-        return Planner { n -> DynamicsProcessingPlan.plan(bands, preamp, boost, limiter, n, sampleRate) }
+        return Planner { n ->
+            DynamicsProcessingPlan.plan(leftBands, preamp, boost, limiter, n, sampleRate, rightBands)
+        }
     }
 
     /**
@@ -447,6 +510,8 @@ class AudioTuningRepositoryImpl(
             boostDb = Headroom.clampBoost(raw.boostDb, raw.limiterEnabled),
             activePresetId = raw.activePresetId?.takeIf { presetById(it) != null },
             bands = raw.bands.map(::sanitise),
+            leftBands = raw.leftBands?.map(::sanitise),
+            rightBands = raw.rightBands?.map(::sanitise),
         )
         _state.update { it.copy(settings = settings, activePreset = presetById(settings.activePresetId)) }
         reconcile()

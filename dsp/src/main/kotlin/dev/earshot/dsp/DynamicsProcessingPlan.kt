@@ -55,18 +55,28 @@ object DynamicsProcessingPlan {
     )
 
     data class Plan(
+        /** Left channel's bands; also both channels' when [rightBands] is the same list. */
         val bands: List<Band>,
         /** Preamp + boost, applied before the EQ bands. */
         val inputGainDb: Double,
         val limiter: LimiterParams,
         val sampleRate: Int,
+        /** Right channel's bands. Defaults to [bands], i.e. both ears get the same curve. */
+        val rightBands: List<Band> = bands,
     ) {
         val bandCount: Int get() = bands.size
+
+        /** Bands for output channel [channel] (0 = left, 1 = right). */
+        fun bandsForChannel(channel: Int): List<Band> = if (channel == 1) rightBands else bands
     }
 
     /**
      * Build a [Plan]. [boostDb] is used as given; callers clamp it with [Headroom.clampBoost]
      * first (the repository does), this layer stays pure.
+     *
+     * [rightBands] null means one curve for both ears. Pass the right ear's bands to tune the
+     * channels independently; the preamp and boost stay shared because the effect has one input
+     * gain stage for both channels.
      */
     fun plan(
         bands: List<ParametricBand>,
@@ -75,8 +85,21 @@ object DynamicsProcessingPlan {
         limiterEnabled: Boolean,
         bandCount: Int = DEFAULT_BAND_COUNT,
         sampleRate: Int = DEFAULT_SAMPLE_RATE,
+        rightBands: List<ParametricBand>? = null,
     ): Plan {
         require(bandCount >= 1) { "bandCount must be >= 1" }
+        val left = planBands(bands, bandCount, sampleRate)
+        return Plan(
+            bands = left,
+            inputGainDb = preampDb + boostDb,
+            limiter = LimiterParams(enabled = limiterEnabled),
+            sampleRate = sampleRate,
+            rightBands = rightBands?.let { planBands(it, bandCount, sampleRate) } ?: left,
+        )
+    }
+
+    /** Sample one curve at every band centre; the exact combined biquad response, preamp excluded. */
+    private fun planBands(bands: List<ParametricBand>, bandCount: Int, sampleRate: Int): List<Band> {
         val response = EqResponse(bands, preampDb = 0.0, sampleRate = sampleRate.toDouble())
         val edges = bandEdges(bandCount)
         val planned = ArrayList<Band>(bandCount)
@@ -86,12 +109,7 @@ object DynamicsProcessingPlan {
             val centre = sqrt(lower * upper)
             planned += Band(cutoffHz = upper, gainDb = response.bandsOnlyDb(centre))
         }
-        return Plan(
-            bands = planned,
-            inputGainDb = preampDb + boostDb,
-            limiter = LimiterParams(enabled = limiterEnabled),
-            sampleRate = sampleRate,
-        )
+        return planned
     }
 
     /**

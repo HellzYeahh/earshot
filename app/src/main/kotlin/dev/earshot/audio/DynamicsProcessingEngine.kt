@@ -275,9 +275,6 @@ class DynamicsProcessingEngine internal constructor(
 
 /** The real effects: one `DynamicsProcessing` per session. */
 private object AndroidEffects : SessionEffectFactory {
-    /** Stereo pair. The framework re-configures to the real channel count on first process. */
-    private const val STEREO_CHANNELS = 2
-
     override fun create(sessionId: Int, bandCount: Int): SessionEffect {
         val config = DynamicsProcessing.Config.Builder(
             DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
@@ -291,13 +288,24 @@ private object AndroidEffects : SessionEffectFactory {
     }
 }
 
+/** Stereo pair. The framework re-configures to the real channel count on first process. */
+private const val STEREO_CHANNELS = 2
+
 private class AndroidEffect(private val effect: DynamicsProcessing) : SessionEffect {
     override fun apply(plan: Plan, enabled: Boolean) {
-        plan.bands.forEachIndexed { i, band ->
-            effect.setPostEqBandAllChannelsTo(
-                i,
-                DynamicsProcessing.EqBand(/* enabled = */ true, band.cutoffHz.toFloat(), band.gainDb.toFloat()),
-            )
+        // Equal channels go through the "all channels" call, which also works on a mono output.
+        // Per-ear plans set each channel separately; a mono output has no channel 1, so it falls
+        // back to the left curve on the only channel rather than failing the whole effect.
+        if (plan.rightBands == plan.bands) {
+            plan.bands.forEachIndexed { i, band -> effect.setPostEqBandAllChannelsTo(i, band.toEqBand()) }
+        } else {
+            plan.bands.forEachIndexed { i, band -> effect.setPostEqBandByChannelIndex(CHANNEL_LEFT, i, band.toEqBand()) }
+            try {
+                plan.rightBands.forEachIndexed { i, band -> effect.setPostEqBandByChannelIndex(CHANNEL_RIGHT, i, band.toEqBand()) }
+            } catch (e: IllegalArgumentException) {
+                // Mono output: there is no second channel to tune, so use the left curve on the one there is.
+                plan.bands.forEachIndexed { i, band -> effect.setPostEqBandAllChannelsTo(i, band.toEqBand()) }
+            }
         }
         effect.setInputGainAllChannelsTo(plan.inputGainDb.toFloat())
         val l = plan.limiter
@@ -316,6 +324,9 @@ private class AndroidEffect(private val effect: DynamicsProcessing) : SessionEff
         effect.enabled = enabled
     }
 
+    private fun DynamicsProcessingPlan.Band.toEqBand() =
+        DynamicsProcessing.EqBand(/* enabled = */ true, cutoffHz.toFloat(), gainDb.toFloat())
+
     override fun release() {
         try {
             effect.enabled = false
@@ -323,5 +334,10 @@ private class AndroidEffect(private val effect: DynamicsProcessing) : SessionEff
             // already dead; release anyway
         }
         effect.release()
+    }
+
+    private companion object {
+        const val CHANNEL_LEFT = 0
+        const val CHANNEL_RIGHT = 1
     }
 }
