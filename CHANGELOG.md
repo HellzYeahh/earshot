@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Per-ear Pro EQ:** tune the left and right ears separately. The Pro EQ's Both / Left / Right
+  selector switches between one shared curve and each ear's own. Preamp, boost and the limiter
+  stay shared, and the safety numbers follow the louder ear. Presets still apply to both ears.
+
 ## 0.9.1 — 2026-11-07
 
 Aurora, Back up and restore, honest support labels and a full code audit. This is the last `dev.earshot`

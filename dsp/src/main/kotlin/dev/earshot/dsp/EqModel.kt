@@ -9,6 +9,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class FilterType { PEAK, LOW_SHELF, HIGH_SHELF }
 
+/** An output channel: the bands for one ear when left and right are tuned separately. */
+@Serializable
+enum class Ear { LEFT, RIGHT }
+
 @Serializable
 data class ParametricBand(
     val frequencyHz: Double,
@@ -34,7 +38,20 @@ data class EqPreset(
     val preampDb: Double = 0.0,
     val isBuiltIn: Boolean = false,
     val description: String? = null,
-)
+    /** True when [leftBands] / [rightBands] were saved; older presets are one curve for both ears. */
+    val perEarEnabled: Boolean = false,
+    /** Left-ear curve saved with the preset, or null when the preset has one shared curve. */
+    val leftBands: List<ParametricBand>? = null,
+    /** Right-ear curve saved with the preset, or null when the preset has one shared curve. */
+    val rightBands: List<ParametricBand>? = null,
+) {
+    /** Bands this preset gives [ear]; falls back to [bands], which is what older presets mean. */
+    fun bandsFor(ear: Ear): List<ParametricBand> = when {
+        !perEarEnabled -> bands
+        ear == Ear.LEFT -> leftBands ?: bands
+        else -> rightBands ?: bands
+    }
+}
 
 /** The 10 ISO centre frequencies used by the graphic EQ view. */
 object GraphicEq {
@@ -60,7 +77,26 @@ data class TuningSettings(
     /** Extra loudness in dB, 0..[MAX_BOOST_DB]. */
     val boostDb: Double = 0.0,
     val limiterEnabled: Boolean = true,
+    /** When true each ear plays its own bands ([leftBands] / [rightBands]) instead of [bands]. */
+    val perEarEnabled: Boolean = false,
+    /**
+     * Left-ear bands. Null until per-ear editing starts, and treated as [bands] then; presets
+     * applied later seed both ears so switching per-ear on starts from the curve in use.
+     */
+    val leftBands: List<ParametricBand>? = null,
+    /** Right-ear bands; null means [bands], as for [leftBands]. */
+    val rightBands: List<ParametricBand>? = null,
 ) {
+    /**
+     * The bands driving [ear]'s output channel. Null (or per-ear off) gives the shared [bands],
+     * which is also what every older saved setting means.
+     */
+    fun bandsFor(ear: Ear?): List<ParametricBand> = when {
+        !perEarEnabled || ear == null -> bands
+        ear == Ear.LEFT -> leftBands ?: bands
+        else -> rightBands ?: bands
+    }
+
     companion object {
         const val MAX_BOOST_DB = 12.0
         /** Above this the UI shows the hearing-safety warning. */

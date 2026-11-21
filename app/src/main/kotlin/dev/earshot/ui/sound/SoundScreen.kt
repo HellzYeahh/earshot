@@ -62,6 +62,7 @@ import dev.earshot.core.HeadphoneState
 import dev.earshot.core.TuningState
 import dev.earshot.core.fake.FakeAudioTuningRepository
 import dev.earshot.core.fake.FakeHeadphoneRepository
+import dev.earshot.dsp.Ear
 import dev.earshot.dsp.EqPreset
 import dev.earshot.dsp.Headroom
 import dev.earshot.dsp.ParametricBand
@@ -82,6 +83,7 @@ import dev.earshot.ui.common.SwitchRow
 import dev.earshot.ui.common.ValueSlider
 import dev.earshot.ui.common.earshotViewModel
 import dev.earshot.ui.common.rememberSettingsLoaded
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 @Composable
@@ -92,6 +94,9 @@ fun SoundScreen(contentPadding: PaddingValues) {
     val tuningState by vm.tuningState.collectAsStateWithLifecycle()
     val bands by vm.bands.collectAsStateWithLifecycle()
     val curve by vm.curve.collectAsStateWithLifecycle()
+    val editingEar by vm.editingEar.collectAsStateWithLifecycle()
+    val recommendedPreampDb by vm.recommendedPreampDb.collectAsStateWithLifecycle()
+    val worstBandPeakDb by vm.worstBandPeakDb.collectAsStateWithLifecycle()
     val presets by vm.presets.collectAsStateWithLifecycle()
     val profiles by vm.appProfiles.collectAsStateWithLifecycle()
 
@@ -101,6 +106,9 @@ fun SoundScreen(contentPadding: PaddingValues) {
         tuningState = tuningState,
         bands = bands,
         curve = curve,
+        editingEar = editingEar,
+        recommendedPreampDb = recommendedPreampDb,
+        worstBandPeakDb = worstBandPeakDb,
         presets = presets,
         profiles = profiles,
         contentPadding = contentPadding,
@@ -108,6 +116,7 @@ fun SoundScreen(contentPadding: PaddingValues) {
             onHeadphoneEq = vm::setHeadphoneEq,
             onProEqEnabled = vm::setProEqEnabled,
             onUseGlobalSession = vm::setUseGlobalSession,
+            onEar = vm::selectEar,
             onAutoPreamp = vm::autoPreamp,
             onImportAutoEq = vm::importAutoEq,
             onApplyPreset = vm::applyPreset,
@@ -128,6 +137,8 @@ data class SoundCallbacks(
     val onHeadphoneEq: (HeadphoneEq) -> Unit = {},
     val onProEqEnabled: (Boolean) -> Unit = {},
     val onUseGlobalSession: (Boolean) -> Unit = {},
+    /** null = one curve for both ears; an ear = per-ear editing, with that ear shown. */
+    val onEar: (Ear?) -> Unit = {},
     val onAutoPreamp: () -> Unit = {},
     val onImportAutoEq: (text: String, name: String) -> Unit = { _, _ -> },
     val onApplyPreset: (String?) -> Unit = {},
@@ -143,6 +154,27 @@ data class SoundCallbacks(
 
 private enum class EditorMode { GRAPHIC, PARAMETRIC }
 
+/** The Pro EQ's ear selector: one curve for both, or one ear at a time. */
+private enum class EarTarget { BOTH, LEFT, RIGHT }
+
+private fun EarTarget.toEar(): Ear? = when (this) {
+    EarTarget.BOTH -> null
+    EarTarget.LEFT -> Ear.LEFT
+    EarTarget.RIGHT -> Ear.RIGHT
+}
+
+private fun Ear?.toTarget(): EarTarget = when (this) {
+    null -> EarTarget.BOTH
+    Ear.LEFT -> EarTarget.LEFT
+    Ear.RIGHT -> EarTarget.RIGHT
+}
+
+private fun earLabel(target: EarTarget): Int = when (target) {
+    EarTarget.BOTH -> R.string.sound_ear_both
+    EarTarget.LEFT -> R.string.sound_ear_left
+    EarTarget.RIGHT -> R.string.sound_ear_right
+}
+
 @Composable
 fun SoundContent(
     headphoneState: HeadphoneState,
@@ -155,6 +187,12 @@ fun SoundContent(
     profiles: List<AppSoundProfile>,
     contentPadding: PaddingValues,
     callbacks: SoundCallbacks,
+    /** Ear shown by the editor; null when both ears share one curve. */
+    editingEar: Ear? = null,
+    /** Preamp that protects the louder ear; [curve]'s own value when both ears are alike. */
+    recommendedPreampDb: Double = curve.recommendedPreampDb,
+    /** Peak of the louder ear, for the boost card's overshoot note. */
+    worstBandPeakDb: Double = curve.bandPeakDb,
 ) {
     val settingsLoaded = rememberSettingsLoaded(headphoneState)
     LazyColumn(
@@ -171,8 +209,18 @@ fun SoundContent(
         if (headphoneState.capabilities.ownSettings && (!settingsLoaded || headphoneState.eq != null)) item {
             HeadphoneEqSection(headphoneState, headphoneEq, callbacks.onHeadphoneEq)
         }
-        item { ProEqSection(tuningState, bands, curve, presets, callbacks) }
-        item { BoostSection(tuningState.settings, curve, callbacks.onBoost, callbacks.onLimiter) }
+        item {
+            ProEqSection(
+                state = tuningState,
+                bands = bands,
+                curve = curve,
+                presets = presets,
+                editingEar = editingEar,
+                recommendedPreampDb = recommendedPreampDb,
+                callbacks = callbacks,
+            )
+        }
+        item { BoostSection(tuningState.settings, curve, worstBandPeakDb, callbacks.onBoost, callbacks.onLimiter) }
         item { AppProfilesSection(profiles, presets, callbacks.onSetProfile, callbacks.onRemoveProfile) }
     }
 }
@@ -220,7 +268,15 @@ private fun HeadphoneBandSlider(label: String, value: Int, range: IntRange, enab
 // ---- B. Pro EQ ------------------------------------------------------------------------------
 
 @Composable
-private fun ProEqSection(state: TuningState, bands: List<ParametricBand>, curve: EqCurveData, presets: List<EqPreset>, callbacks: SoundCallbacks) {
+private fun ProEqSection(
+    state: TuningState,
+    bands: List<ParametricBand>,
+    curve: EqCurveData,
+    presets: List<EqPreset>,
+    editingEar: Ear?,
+    recommendedPreampDb: Double,
+    callbacks: SoundCallbacks,
+) {
     val settings = state.settings
     val enabled = settings.enabled && state.isAvailable
     var mode by rememberSaveable { mutableStateOf(EditorMode.GRAPHIC) }
@@ -264,6 +320,24 @@ private fun ProEqSection(state: TuningState, bands: List<ParametricBand>, curve:
             onLongPress = { if (!it.isBuiltIn) presetToDelete = it },
         )
         Spacer(Modifier.height(8.dp))
+        // One curve for both ears, or one ear at a time. Left/right is what makes the Pro EQ useful
+        // with ears that hear differently (or one driver louder than the other).
+        SegmentedChoice(
+            options = EarTarget.entries,
+            selected = editingEar.toTarget(),
+            onSelect = { callbacks.onEar(it.toEar()) },
+            label = { stringResource(earLabel(it)) },
+            enabled = enabled,
+        )
+        if (editingEar != null) {
+            Text(
+                stringResource(R.string.sound_ear_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        Spacer(Modifier.height(8.dp))
         EqCurveCanvas(curve = curve, enabled = enabled)
         Spacer(Modifier.height(8.dp))
         SegmentedChoice(
@@ -291,7 +365,7 @@ private fun ProEqSection(state: TuningState, bands: List<ParametricBand>, curve:
             onValueChangeFinished = { callbacks.onPreamp((preamp * 2).roundToInt() / 2.0) },
         )
         // Read from the curve worked out off the main thread, not swept again here per drag frame.
-        val recommended = curve.recommendedPreampDb
+        val recommended = recommendedPreampDb
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.sound_preamp_recommended, formatDb(recommended, 1)),
@@ -421,12 +495,20 @@ private fun ImportAutoEqDialog(onDismiss: () -> Unit, onImport: (text: String, n
 // ---- C. Volume boost ------------------------------------------------------------------------
 
 @Composable
-private fun BoostSection(settings: TuningSettings, curve: EqCurveData, onBoost: (Double) -> Unit, onLimiter: (Boolean) -> Unit) {
+private fun BoostSection(
+    settings: TuningSettings,
+    curve: EqCurveData,
+    worstBandPeakDb: Double,
+    onBoost: (Double) -> Unit,
+    onLimiter: (Boolean) -> Unit,
+) {
     // Without the limiter the DSP module caps the boost lower; the slider follows that cap.
     val cap = Headroom.effectiveBoostCapDb(settings.limiterEnabled)
     var boost by remember(settings.boostDb, cap) { mutableFloatStateOf(settings.boostDb.coerceAtMost(cap).toFloat()) }
-    // The band peak is already in the curve; only the sum is left for here.
-    val overshoot = curve.overshootDb(settings.preampDb, settings.boostDb)
+    // The band peak is already in the curve; only the sum is left for here. With per-ear bands the
+    // louder ear counts, because the boost and preamp are shared by both channels.
+    val bandPeak = max(curve.bandPeakDb, worstBandPeakDb)
+    val overshoot = max(0.0, bandPeak + settings.preampDb + settings.boostDb)
     val enabled = settings.enabled
     SectionCard(title = stringResource(R.string.sound_boost)) {
         if (!enabled) {

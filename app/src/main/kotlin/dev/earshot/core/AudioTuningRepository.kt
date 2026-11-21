@@ -1,5 +1,6 @@
 package dev.earshot.core
 
+import dev.earshot.dsp.Ear
 import dev.earshot.dsp.EqPreset
 import dev.earshot.dsp.ParametricBand
 import dev.earshot.dsp.TuningSettings
@@ -33,6 +34,13 @@ interface AudioTuningRepository {
     suspend fun applyPreset(presetId: String?)
     /** Live edit; detaches from the named preset until saved. */
     suspend fun setBands(bands: List<ParametricBand>)
+    /**
+     * Give each ear its own bands (true), or put both ears back on the shared [setBands] curve
+     * (false). Ear bands are kept while linked, so toggling back restores the last per-ear edit.
+     */
+    suspend fun setPerEarEnabled(enabled: Boolean)
+    /** Live edit of one ear's bands; enables per-ear mode and detaches from the named preset. */
+    suspend fun setEarBands(ear: Ear, bands: List<ParametricBand>)
     suspend fun setPreamp(db: Double)
     suspend fun setBoost(db: Double)
     suspend fun setLimiter(enabled: Boolean)
