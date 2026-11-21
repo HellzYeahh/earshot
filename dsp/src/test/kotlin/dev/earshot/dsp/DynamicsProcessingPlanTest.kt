@@ -4,6 +4,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class DynamicsProcessingPlanTest {
@@ -87,5 +88,24 @@ class DynamicsProcessingPlanTest {
         assertEquals(50.0, l.ratio, 1e-9)
         assertEquals(-2.0, l.thresholdDb, 1e-9)
         assertEquals(0.0, l.postGainDb, 1e-9)
+    }
+
+    @Test
+    fun `per-ear bands reach their own channel`() {
+        val left = listOf(ParametricBand(100.0, 6.0))
+        val right = listOf(ParametricBand(100.0, -6.0))
+        val plan = DynamicsProcessingPlan.plan(left, 0.0, 0.0, true, rightBands = right)
+        val at100 = { bands: List<DynamicsProcessingPlan.Band> -> bands.first { it.cutoffHz >= 100.0 }.gainDb }
+
+        assertTrue(at100(plan.bandsForChannel(0)) > 4.0, "left ear should be boosted")
+        assertTrue(at100(plan.bandsForChannel(1)) < -4.0, "right ear should be cut")
+        assertEquals(plan.bands.size, plan.rightBands.size)
+    }
+
+    @Test
+    fun `without a right ear both channels share the same plan`() {
+        val plan = DynamicsProcessingPlan.plan(listOf(ParametricBand(1000.0, 3.0)), 0.0, 0.0, true)
+        assertSame(plan.bands, plan.bandsForChannel(0))
+        assertSame(plan.bands, plan.bandsForChannel(1))
     }
 }

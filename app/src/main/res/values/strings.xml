@@ -218,6 +218,10 @@
     <string name="sound_curve_description">Equaliser frequency response curve</string>
     <string name="sound_mode_graphic">Graphic</string>
     <string name="sound_mode_parametric">Parametric</string>
+    <string name="sound_ear_both">Both</string>
+    <string name="sound_ear_left">Left</string>
+    <string name="sound_ear_right">Right</string>
+    <string name="sound_ear_hint">Each ear is tuned on its own. Presets still apply to both.</string>
     <string name="sound_preamp">Preamp</string>
     <string name="sound_save_preset">Save as preset</string>
     <string name="sound_preset_name">Preset name</string>
